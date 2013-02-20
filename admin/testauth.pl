@@ -1,6 +1,6 @@
 #!/usr/bin/perl
 #
-## $Id: nodes_update_community.pl,v 1.1 2012/08/13 05:09:18 keiths Exp $
+## $Id: testemail.pl,v 1.3 2012/09/18 01:40:59 keiths Exp $
 #
 #  Copyright 1999-2011 Opmantek Limited (www.opmantek.com)
 #
@@ -30,47 +30,46 @@
 #
 # *****************************************************************************
 
-# Load the necessary libraries
+# Auto configure to the <nmis-base>/lib
 use FindBin;
 use lib "$FindBin::Bin/../lib";
 
+# 
 use strict;
-use func;
 use NMIS;
+use func;
+use Auth;
 
-# Get some command line arguements.
-my %arg = getArguements(@ARGV);
+# Variables for command line munging
+my %nvp = getArguements(@ARGV);
 
-# Load the NMIS Config
-my $C = loadConfTable(conf=>$arg{conf},debug=>$arg{debug});
+# load configuration table
+my $C = loadConfTable(conf=>$nvp{conf},debug=>$nvp{debug});
+my $CT = loadContactsTable();
 
-# Load the current Nodes Table.
-my $LNT = loadLocalNodeTable();
+my $username = "nmis";
+my $password = "monkey42";
+#my $password = "nm1888";
 
-# Go through each of the nodes
-foreach my $node (sort keys %{$LNT}) {
-	# only work on nodes which are active and collect is true.
-	if ( getbool($LNT->{$node}{active}) and getbool($LNT->{$node}{collect}) ) {
-		
-		# only update nodes that match a criteria
-		if ($LNT->{$node}{name} =~ /MATCHES SOME CRITERIA/ ) {
-			#Change something with the node
-			$LNT->{$node}{community} = "NEWCOMMUNITY";
-		}
-		
-	}
+# NMIS Authentication module
+use Auth;
+my $logoutButton;
+my $privlevel = 5;
+my $user;
+
+# variables used for the security mods
+use vars qw($headeropts); $headeropts = {type=>'text/html',expires=>'now'};
+my $AU = Auth->new(conf => $C);  # Auth::new will reap init values from NMIS configuration
+
+if($C->{auth_method_1} eq "" or $C->{auth_method_1} eq "apache") {
+	print "ERROR: This test will not validate APACHE based authentication\n";
 }
 
-# To insert a new node, something like below with each property complete
-#my $node = "router1";
-#$LNT->{$node}{community} = "NEWCOMMUNITY";
-#$LNT->{$node}{field1} = "value1";
-#$LNT->{$node}{field2} = "value2";
-#$LNT->{$node}{field3} = "value3";
-#$LNT->{$node}{field4} = "value4";
-#$LNT->{$node}{field5} = "value5";
+my $testauth = $AU->loginout(type=>"",username=>$username,password=>$password,headeropts=>$headeropts);
 
-# Save the results to a new file.
-writeHashtoFile(file => "$C->{'<nmis_conf>'}/Nodes.nmis.new", data => $LNT);
-
-
+if ( $testauth ) {
+	print "AUTH SUCCESS: user=$AU->{user}, level=$AU->{privlevel} cookie=$AU->{cookie}\n";
+}
+else {
+	print "AUTH FAILURE\n";
+}
