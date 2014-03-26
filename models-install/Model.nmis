@@ -316,7 +316,10 @@
     'Netgear' => {
       'order' => {
         '10' => {
-          'Netgear' => 'GS108T'
+          'Netgear-GS108T' => 'GS108T'
+        },
+        '20' => {
+          'Netgear-GS724T' => 'GS724Tv3'
         }
       }
     },
@@ -355,7 +358,14 @@
 						},
 				},
 		},
-		
+	  'QNAP SYSTEMS, INC' => {
+      'order' => {
+        '10' => {
+          'QNAP' => 'Linux TS'
+        }
+      }
+    },
+	
   },
   'system' => {
     'nodeModel' => 'Default',
