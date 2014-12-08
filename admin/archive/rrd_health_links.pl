@@ -33,6 +33,10 @@
 # nodes that are temporarily misidentified by update when node
 # is down or goes down/up during the update
 
+# obsolete as of nmis 8.5.0G, where Common-database.nmis 
+# controls all rrd file locations. with that you can
+# make the directory hierarchy as flat as you'd like.
+
 use FindBin;
 use lib "$FindBin::Bin/../lib";
 
