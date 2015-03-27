@@ -30,7 +30,7 @@ print "checking RRD $fn\n";
 my $rrdinfo = RRDs::info($fn);
 
 my $dsmax = $rrdinfo->{"ds[$ds].max"};
-my $dsmin = $rrdinfo->{"ds[$ds].max"};
+my $dsmin = $rrdinfo->{"ds[$ds].min"};
 
 print "$ds has set max $dsmax byte/s (= ".($dsmax*8)." bps)\n";
 print "$ds has set min $dsmin byte/s (= ".($dsmin*8)." bps)\n";
