@@ -3,9 +3,9 @@
 # and counts+reports when and how often the transferred data goes above what the 
 # interface speed indicate (= either dud interface speed max set, or bursting on the interface)
 
-our $VERSION = "1.0.0";
+our $VERSION = "1.0.1";
 use FindBin;
-use lib "$FindBin::Bin/../lib";
+use lib "$FindBin::Bin/../../lib";
 
 use strict;
 use File::Basename;
@@ -14,6 +14,8 @@ use Data::Dumper;
 use Cwd;
 
 use func;
+use NMIS::uselib;
+use lib "$NMIS::uselib::rrdtool_lib";
 use RRDs 1.000.490;
 
 die "Usage: ".basename($0). " <rrdfile> <dsname> <if max bits/sec> <days to look back>\n"
@@ -22,7 +24,7 @@ die "Usage: ".basename($0). " <rrdfile> <dsname> <if max bits/sec> <days to look
 my ($fn, $ds, $max, $examine) = @ARGV;
 
 print basename($0)." $VERSION starting up.\n\n";
-my $C = loadConfTable(conf=>undef, debug=>undef);
+my $C = loadConfTable(conf=>undef, dir => "$FindBin::RealBin/../../conf", debug=>undef);
 
 
 print "checking RRD $fn\n";
