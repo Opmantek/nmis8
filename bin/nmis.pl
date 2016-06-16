@@ -4866,7 +4866,7 @@ sub runAlerts {
 													$level = "Normal";
 											}
 											else {
-													my @levels = qw(Warning Minor Major Critical Fatal);
+													my @levels = qw(Fatal Critical Major Minor Warning);
 													foreach my $lvl (@levels) {
 															if ( $test_value >= $CA->{$sect}{$alrt}{threshold}{$lvl} ) {
 																	$test_result = 1;
