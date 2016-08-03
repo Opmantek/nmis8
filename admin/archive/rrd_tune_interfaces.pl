@@ -1,7 +1,5 @@
 #!/usr/bin/perl
 #
-## $Id: rrd_tune_interfaces.pl,v 1.4 2012/09/21 04:56:33 keiths Exp $
-#
 #  Copyright (C) Opmantek Limited (www.opmantek.com)
 #
 #  ALL CODE MODIFICATIONS MUST BE SENT TO CODE@OPMANTEK.COM
@@ -29,10 +27,13 @@
 #  http://support.opmantek.com/users/
 #
 # *****************************************************************************
-our $VERSION = "1.2.0";
+our $VERSION = "1.3.0";
+
+die("Please Note: as of NMIS 8.6.0 this script's functionality is 
+automatically included in 'nmis.pl type=update'!\n");
 
 use FindBin;
-use lib "$FindBin::Bin/../lib";
+use lib "$FindBin::Bin/../../lib";
 use lib "/usr/local/rrdtool/lib/perl"; 
 
 use strict;
@@ -47,7 +48,6 @@ my $me = basename($0);
 print "$me Version $VERSION\n\n";
 
 my $t = NMIS::Timing->new();
-
 
 # Variables for command line munging
 my %arg = getArguements(@ARGV);
