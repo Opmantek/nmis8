@@ -2723,7 +2723,7 @@ sub getEnvInfo
 		}
 		else
 		{
-			logMsg("ERROR ($S->{name}) on get environment index table: $SNMP->error");
+			logMsg("ERROR ($S->{name}) on get environment index table: ".$SNMP->error);
 			HandleNodeDown(sys=>$S, type => "snmp", details => "get environment index table: ".$SNMP->error);
 		}
 
@@ -2985,7 +2985,7 @@ sub getSystemHealthInfo
 				}
 				else
 				{
-					logMsg("ERROR ($S->{name}) on get systemHealth $section index table: $SNMP->error");
+					logMsg("ERROR ($S->{name}) on get systemHealth $section index table: ".$SNMP->error);
 					HandleNodeDown(sys=>$S, type => "snmp", details => "get systemHealth $section index table: ".$SNMP->error);
 				}
 			}
@@ -3040,6 +3040,7 @@ sub getSystemHealthData
 
 	for my $section (@healthSections)
 	{
+
 		# node doesn't have info for this section, so no indices so no fetch,
 		# may be no update yet or unsupported section for this model anyway
 		# OR only sys section but no rrd (e.g. addresstable)
@@ -3050,6 +3051,21 @@ sub getSystemHealthData
 		# that's instance index value
 		for my $index (sort keys %{$NI->{$section}})
 		{
+			# sanity-check the inputs: an indexed section must always have an index property, which must be eq hash key.
+			my $thissection = $NI->{$section}->{$index};
+
+			if (ref($thissection) ne "HASH" or !keys %$thissection
+					or !exists($thissection->{index})
+					or $index ne $thissection->{index})
+			{
+				logMsg("ERROR invalid data for section $section and index $index, cannot collect systemHealth data for this index!");
+				info("ERROR invalid data for section $section and index $index, cannot collect systemHealth data for this index!");
+
+				# clean it up as well, it's utterly broken as it is.
+				delete $NI->{$section}->{$index};
+				next;
+			}
+
 			my $rrdData = $S->getData(class=>'systemHealth', section=>$section, index=>$index, debug=>$model);
 			my $howdiditgo = $S->status;
 			my $anyerror = $howdiditgo->{error} || $howdiditgo->{snmp_error} || $howdiditgo->{wmi_error};
@@ -3057,6 +3073,7 @@ sub getSystemHealthData
 			# were there any errors?
 			if (!$anyerror)
 			{
+				my $count = 0;
 				foreach my $sect (keys %{$rrdData})
 				{
 					my $D = $rrdData->{$sect}->{$index};
@@ -3064,22 +3081,28 @@ sub getSystemHealthData
 					# update retrieved values in node info, too, not just the rrd database
 					for my $item (keys %$D)
 					{
+						++$count;
 						dbg("updating node info $section $index $item: old ".$NI->{$section}{$index}{$item}
 								." new $D->{$item}{value}");
 						$NI->{$section}{$index}{$item}=$D->{$item}{value};
 					}
 
-					# RRD Database update and remember filename
-					my $db = updateRRD(sys=>$S, data=>$D, type=>$sect, index=>$index);
+					# RRD Database update and remember filename;
+					# also feed in the section data for filename expansion
+					my $db = updateRRD(sys=>$S, data=>$D,
+														 type=>$sect, index=>$index,
+														 extras => $NI->{$section}->{$index} );
 					if (!$db)
 					{
 						logMsg("ERROR updateRRD failed: ".getRRDerror());
 					}
 				}
+				info("section=$section index=$index read and stored $count values");
 			}
 			else
 			{
-				logMsg("ERROR ($NI->{system}{name}) on getSystemHealthData, $anyerror");
+				logMsg("ERROR ($NI->{system}{name}) on getSystemHealthData, $section, $index, $anyerror");
+				info("ERROR ($NI->{system}{name}) on getSystemHealthData, $section, $index, $anyerror");
 				HandleNodeDown(sys=>$S, type =>"snmp", details => $howdiditgo->{snmp_error}) if ($howdiditgo->{snmp_error});
 				HandleNodeDown(sys=>$S, type =>"wmi", details => $howdiditgo->{wmi_error}) if ($howdiditgo->{wmi_error});
 
@@ -5294,10 +5317,22 @@ hrSWRunType hrSWRunPerfCPU hrSWRunPerfMem))
 					if (getbool($svc->{Collect_Output}))
 					{
 						# nagios has two modes of output *sigh*, |-as-newline separator and real newlines
+						# https://nagios-plugins.org/doc/guidelines.html#PLUGOUTPUT
 						if ($flavour_nagios)
 						{
-							my @expandedresponses = map { split /\|/ } (@responses);
-							@responses = @expandedresponses;
+							# ditch any whitespace around the |
+							my @expandedresponses = map { split /\s*\|\s*/ } (@responses);
+
+							@responses = ($expandedresponses[0]); # start with the first line, as is
+							# in addition to the | mode, any subsequent lines can carry any number of
+							# 'performance measurements', which are hard to parse out thanks to a fairly lousy format
+							for my $perfline (@expandedresponses[1..$#expandedresponses])
+							{
+								while ($perfline =~ /([^=]+=\S+)\s*/g)
+								{
+									push @responses, $1;
+								}
+							}
 						}
 
 						# now determine how to save the values in question
@@ -5314,9 +5349,17 @@ hrSWRunType hrSWRunPerfCPU hrSWRunPerfMem))
 								next;
 							}
 
+							# normal expectation: values reported are unit-less, ready for final use
+							# expectation not guaranteed by nagios
 							my ($k,$v) = split(/=/,$response,2);
+							my $rescaledv;
+
 							if ($flavour_nagios)
 							{
+								# some nagios plugins report multiple metrics, e.g. the check_disk one
+								# but the format for passing performance data is pretty ugly
+								# https://nagios-plugins.org/doc/guidelines.html#AEN200
+
 								$k = $1 if ($k =~ /^'(.+)'$/); # nagios wants single quotes if a key has spaces
 
 								# a plugin can report levels for warning and crit thresholds
@@ -5331,17 +5374,31 @@ hrSWRunType hrSWRunPerfCPU hrSWRunPerfMem))
 								}
 
 								# units: s,us,ms = seconds, % percentage, B,KB,MB,TB bytes, c a counter
-								if ($value_with_unit =~ /^(.+)(s|ms|us|%|B|KB|MB|GB|TB|c)$/)
+								if ($value_with_unit =~ /^([0-9\.]+)(s|ms|us|%|B|KB|MB|GB|TB|c)$/)
 								{
-									$v = $1;
-									$status{$service}->{units}->{$k} = $2;
+									my ($numericval,$unit) = ($1,$2);
+									dbg("performance data for label '$k': raw value '$value_with_unit'");
 
+									$status{$service}->{units}->{$k} = $unit; # keep track of the input unit
+									$v = $numericval;
+
+									# massage the value into a number for rrd
+									my %factors = ( 'ms' => 1e-3, 'us' => 1e-6,
+																	'KB' => 1e3, 'MB' => 1e6, 'GB' => 1e9, 'TB' => 1e12); # decimal here
+									$rescaledv = $v * $factors{$unit} if (defined $factors{$unit});
 								}
 							}
- 							dbg("collected response $k value $v");
+ 							dbg("collected response '$k' value '$v'".(defined $rescaledv? " rescaled '$rescaledv'":""));
 
 							# for rrd storage, but only numeric values can be stored!
-							$Val{$k} = {value => $v, option => "GAUGE,U:U,$serviceheartbeat" };
+							# k needs sanitizing for rrd: only a-z0-9_ allowed
+							my $rrdsafekey = $k;
+							$rrdsafekey =~ s/[^a-zA-Z0-9_]/_/g;
+							$rrdsafekey = substr($rrdsafekey,0,19);
+							$Val{$rrdsafekey} = { value => defined($rescaledv)? $rescaledv : $v,
+																		option => "GAUGE,U:U,$serviceheartbeat" };
+							# record the relationship between extra readings and the DS names they're stored under
+							$status{$service}->{ds}->{$k} = $rrdsafekey;
 
 							if ($k eq "responsetime") # response time is handled specially
 							{
@@ -8581,9 +8638,12 @@ sub doThreshold
 				dbg("section $s, type $type ". ($thissection->{threshold}? "has a": "has no")." threshold");
 				next if (!$thissection->{threshold}); # nothing to do
 
-				# attention: control expressions for indexed section must be run per instance!
+				# attention: control expressions for indexed section must be run per instance,
+				# and no more getbool possible (see below for reason)
 				my $control = $thissection->{control};
-				if ($control and !getbool($thissection->{indexed}) )
+				if ($control and (!defined($thissection->{indexed})
+													or $thissection->{indexed} eq ""
+													or $thissection->{indexed} eq "false") )
 				{
 					dbg("control found:$control for section=$s type=$type, non-indexed", 1);
 					if (!$S->parseString(string=>"($control) ? 1:0", sect => $type))
@@ -8605,11 +8665,24 @@ sub doThreshold
 				}
 				else
 				{
+					# this can be misleading, b/c not everything updates the instance index -> graphtype association reliably,
+					# so you could get an instance index that's long gone...
 					my @instances = $S->getTypeInstances(graphtype => $type, section => $type);
 					dbg("threshold instances=".(join(", ",@instances)||"none"));
 
 					for my $index (@instances)
 					{
+						# instances that don't have a valid nodeinfo section mustn't be touched
+						# however logic only works in some cases: some model source sections don't have nodeinfo sections associated.
+						if ($s eq "systemHealth"
+								and ( ref($NI->{$type}) ne "HASH" or (!keys %{$NI->{$type}})
+											or ref($NI->{$type}->{$index}) ne "HASH" or $index ne $NI->{$type}->{$index}->{index}))
+						{
+							logMsg("ERROR invalid data for section $type and index $index, cannot run threshold for this index!");
+							info("ERROR invalid data for section $type and index $index, cannot run threshold for this index!");
+							next;
+						}
+
 						# control must be checked individually, too!
 						if ($control)
 						{
@@ -8797,11 +8870,11 @@ sub runThrHld
 	{
 		$element = $ET->{$index}{tempDescr};
 	}
-	elsif ($index ne '' and $thrname eq "hrsmpcpu" )
+	elsif ($index ne '' and $thrname =~ /^hrsmpcpu/ )
 	{
 		$element = "CPU $index";
 	}
-	elsif ($index ne '' and $thrname eq "hrdisk" )
+	elsif ($index ne '' and $thrname =~ /^hrdisk/ )
 	{
 		$element = "$DISK->{$index}{hrStorageDescr}";
 	}
@@ -8818,7 +8891,8 @@ sub runThrHld
 					and $M->{systemHealth}{sys}{$type}{indexed} ne "true" )
 	{
 		my $elementVar = $M->{systemHealth}{sys}{$type}{indexed};
-		if ( defined $NI->{$type}{$index}{$elementVar} and $NI->{$type}{$index}{$elementVar} ne "" )
+		if ( ref($NI->{$type}) eq "HASH" && ref($NI->{$type}->{$index}) eq "HASH"
+				 and defined ($NI->{$type}->{$index}->{$elementVar}) and $NI->{$type}{$index}{$elementVar} ne "" )
 		{
 			$element = $NI->{$type}{$index}{$elementVar};
 		}
@@ -8913,7 +8987,7 @@ sub getThresholdLevel
 	my $level;
 	my $thrvalue;
 
-	dbg("Start theshold=$thrname, index=$index");
+	dbg("Start threshold=$thrname, index=$index item=$item");
 
 	# find subsection with threshold values in Model
 	my $T = $M->{threshold}{name}{$thrname}{select};

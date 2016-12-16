@@ -33,7 +33,7 @@
 		'short' => '$node - $length'
 	},
 	'vlabel' => {
-		'standard' => 'Level',
+		'standard' => 'dBm',
 	},
 	'option' => {
 		'standard' => [
@@ -56,10 +56,7 @@
 			'GPRINT:snr:AVERAGE:Avg. %6.2lf',
 			'GPRINT:snr:MAX:Max %6.2lf\\n',
 
-			#'DEF:lock=$database:sigquality:AVERAGE',
-			#'GPRINT:lock:AVERAGE:RF Signal Lock (0/1)\\tAvg %10.2lf\\n', 
-
-				], 
+		], 
 		'small' => [ 
 			'DEF:signal=$database:signal:AVERAGE',
 			'DEF:sigquality=$database:sigquality:AVERAGE',

@@ -27,7 +27,7 @@
 #
 # *****************************************************************************
 package Sys;
-our $VERSION = "1.2.0";
+our $VERSION = "2.0.0";
 
 use strict;
 use lib "../../lib";
@@ -328,13 +328,13 @@ sub open
 	my $snmpcfg = Clone::clone($self->{cfg}->{node});
 
 	# check if numeric ip address is available for speeding up, conversion done by type=update
-	$snmpcfg->{host} = ( $self->{info}{system}{host_addr} 
+	$snmpcfg->{host} = ( $self->{info}{system}{host_addr}
 											 || $self->{cfg}{node}{host} || $self->{cfg}{node}{name} );
 	$snmpcfg->{timeout} = $args{timeout} || 5;
 	$snmpcfg->{retries} = $args{retries} || 1;
 	$snmpcfg->{oidpkt} = $args{oidpkt} || 10;
-	$snmpcfg->{max_repetitions} = $args{max_repetitions} || undef; 
-	
+	$snmpcfg->{max_repetitions} = $args{max_repetitions} || undef;
+
 	$snmpcfg->{max_msg_size} = $self->{cfg}->{node}->{max_msg_size} || $args{max_msg_size} || 1472;
 
 	return 0 if (!$self->{snmp}->open(config => $snmpcfg,
@@ -444,7 +444,8 @@ sub loadInfo
 	my $port = $args{port};
 
 	my $table = $args{table} || $class;
-	my $wantdebug = $args{debug} || $args{model};
+	my $wantdebug = $args{debug};
+	my $dmodel = $args{model};		# if separate model printfs are wanted
 
 	# pull from the class' sys section, NOT its rrd section (if any)
 	my ($result, $status) = $self->getValues( class=>$self->{mdl}{$class}{sys},
@@ -459,6 +460,7 @@ sub loadInfo
 	if (!keys %$result)
 	{
 		$self->{error} = "loadInfo failed for $self->{name}: $result->{error}";
+    print "MODEL ERROR: ($self->{info}{system}{name}) on loadInfo, $result->{error}\n" if $dmodel;
 		return 0;
 	}
 	elsif ($result->{skipped})	# nothing to report because model said skip these items, apparently all of them...
@@ -476,11 +478,13 @@ sub loadInfo
 		my $target = $self->{info}->{$table} ||= {};
 		foreach my $sect (keys %{$result})
 		{
+			print "MODEL loadInfo $self->{name} class=$class:\n" if $dmodel;
 			if ($index ne '')
 			{
 				foreach my $indx (keys %{$result->{$sect}})
 				{
 					dbg("MODEL section=$sect") if $wantdebug;
+					print "  MODEL section=$sect\n" if $dmodel;
 
 					### 2013-07-26 keiths: need a default index for SNMP vars which don't have unique descriptions
 					if ( $target->{$indx}{index} eq "" )
@@ -497,11 +501,15 @@ sub loadInfo
 							$self->{view}{$table}{"${indx}_${ds}_title"} = rmBadChars($result->{$sect}->{$indx}->{$ds}->{title});
 						}
 
+						my $modext = "";
 						# complain about nosuchxyz
 						if ($wantdebug && $thisval =~ /^no(SuchObject|SuchInstance)$/)
 						{
 							dbg( ($1 eq "SuchObject"? "ERROR":"WARNING").": name=$ds index=$indx value=$thisval");
+							$modext = ($1 eq "SuchObject"? "ERROR":"WARNING");
 						}
+						print "  $modext:  oid=$self->{mdl}{$class}{sys}{$sect}{snmp}{$ds}{oid} name=$ds index=$indx value=$result->{$sect}{$indx}{$ds}{value}\n" if $dmodel;
+
 						dbg("store: class=$class, type=$sect, DS=$ds, index=$indx, value=$thisval",3);
 					}
 				}
@@ -518,12 +526,16 @@ sub loadInfo
 							$self->{view}{$table}{"${ds}_title"} = rmBadChars($result->{$sect}->{$ds}->{title});
 					}
 
+					my $modext = "";
 					# complain about nosuchxyz
 					if ($wantdebug && $thisval =~ /^no(SuchObject|SuchInstance)$/)
 					{
 						dbg( ($1 eq "SuchObject"? "ERROR":"WARNING").": name=$ds  value=$thisval");
+						$modext = ($1 eq "SuchObject"? "ERROR":"WARNING");
 					}
 					dbg("store: class=$class, type=$sect, DS=$ds, value=$thisval",3);
+					print "  $modext:  oid=$self->{mdl}{$class}{sys}{$sect}{snmp}{$ds}{oid} name=$ds value=$result->{$sect}{$ds}{value}\n" if $dmodel;
+
 				}
 			}
 		}
@@ -571,7 +583,8 @@ sub getData
 	my $class = $args{class};
 	my $section = $args{section};
 
-	my $wantdebug = $args{debug} || $args{model};
+	my $wantdebug = $args{debug};
+	my $dmodel = $args{model};
 	dbg("index=$index port=$port class=$class section=$section");
 
 	if (!$class) {
@@ -585,6 +598,7 @@ sub getData
 	}
 
 	$self->{info}{graphtype} ||= {};
+	# this returns all collected goodies, disregarding nosave - must be handled upstream
 	my ($result,$status) = $self->getValues(class=>$self->{mdl}{$class}{rrd},
 																					section=>$section,
 																					index=>$index,
@@ -598,6 +612,39 @@ sub getData
 	if (keys %$result)
 	{
 		dbg("MODEL getData $self->{name} class=$class:" .Dumper($result)) if ($wantdebug);
+		if ($dmodel)
+		{
+			print "MODEL getData $self->{name} class=$class:\n";
+			foreach my $sec (keys %$result) {
+				if ( $sec =~ /interface|pkts/ )
+				{
+					print "  section=$sec index=$index $self->{info}{interface}{$index}{ifDescr}\n";
+				}
+				else {
+					print "  section=$sec index=$index port=$port\n";
+				}
+				if ( $index eq "" )
+				{
+					foreach my $nam (keys %{$result->{$sec}}) {
+						my $modext = "";
+						$modext = "ERROR:" if $result->{$sec}{$nam}{value} eq "noSuchObject";
+						$modext = "WARNING:" if $result->{$sec}{$nam}{value} eq "noSuchInstance";
+						print "  $modext  oid=$self->{mdl}{$class}{rrd}{$sec}{snmp}{$nam}{oid} name=$nam value=$result->{$sec}{$nam}{value}\n";
+					}
+				}
+				else
+				{
+					foreach my $ind (keys %{$result->{$sec}}) {
+						foreach my $nam (keys %{$result->{$sec}{$ind}}) {
+							my $modext = "";
+							$modext = "ERROR:" if $result->{$sec}{$ind}{$nam}{value} eq "noSuchObject";
+							$modext = "WARNING:" if $result->{$sec}{$ind}{$nam}{value} eq "noSuchInstance";
+							print "  $modext  oid=$self->{mdl}{$class}{rrd}{$sec}{snmp}{$nam}{oid} name=$nam index=$ind value=$result->{$sec}{$ind}{$nam}{value}\n";
+						}
+					}
+				}
+			}
+		}
 	}
 	elsif ($status->{skipped})
 	{
@@ -606,6 +653,7 @@ sub getData
 	elsif ($status->{error})
 	{
 		dbg("MODEL ERROR: $status->{error}") if ($wantdebug);
+		print "MODEL ERROR: $status->{error}\n" if ($dmodel);
 	}
 	return $result;
 }
@@ -915,51 +963,44 @@ sub getValues
 			$value =~ s{<}{&lt;}gso;
 			$value =~ s{>}{&gt;}gso;
 
-			# then park it in the data structure IFF desired
-			# if the thing has option 'nosave', then it's only collected and usable by calculate and NOT passed on!
-			# nosave also implies no alerts for this thing.
-			if (exists($sectiondetails->{option}) && $sectiondetails->{option} eq "nosave")
-			{
-				dbg("item $thing->{item} is marked as nosave, not saving in $gothere", 3);
-			}
-			else
-			{
-				my $target = (defined $index? $data{ $gothere }->{$index}->{ $thing->{item} }
-											: $data{ $gothere }->{ $thing->{item} } ) ||= {};
-				$target->{value} = $value;
+			# then park the result in the data structure
+			my $target = (defined $index? $data{ $gothere }->{$index}->{ $thing->{item} }
+										: $data{ $gothere }->{ $thing->{item} } ) ||= {};
+			$target->{value} = $value;
 
-				# rrd options from the model
-				$target->{option} = $sectiondetails->{option} if (exists $sectiondetails->{option});
-				# as well as a title
-				$target->{title} = $sectiondetails->{title} if (exists $sectiondetails->{title});
+			# rrd options come from the model
+			$target->{option} = $sectiondetails->{option} if (exists $sectiondetails->{option});
+			# as well as a title
+			$target->{title} = $sectiondetails->{title} if (exists $sectiondetails->{title});
 
-				if ( exists($sectiondetails->{alert}) && $sectiondetails->{alert}->{test} )
+			# if this thing is marked nosave, ignore alerts
+			if ( (!exists($target->{option}) or $target->{option} ne "nosave")
+					 && exists($sectiondetails->{alert}) && $sectiondetails->{alert}->{test} )
+			{
+				my $test = $sectiondetails->{alert}->{test};
+				dbg("checking test $test for basic alert \"$target->{title}\"",3);
+
+				# setup known var value list so that eval_string can handle CVARx substitutions
+				my ($error, $result) = $self->eval_string(string => $test,
+																									context => $value,
+																									# for now we don't support multiple or cooked, per-section values
+																									variables => [ \%knownvars ] );
+				if ($error)
 				{
-					my $test = $sectiondetails->{alert}->{test};
-					dbg("checking test $test for basic alert \"$target->{title}\"",3);
-
-					# setup known var value list so that eval_string can handle CVARx substitutions
-					my ($error, $result) = $self->eval_string(string => $test,
-																										context => $value,
-																										# for now we don't support multiple or cooked, per-section values
-																										variables => [ \%knownvars ] );
-					if ($error)
-					{
-						$status{error} = "test=$test in Model for $thing->{item} for $gothere failed: $error";
-						logMsg("ERROR ($self->{name}) test=$test in Model for $thing->{item} for $gothere failed: $error");
-					}
-					dbg("test $test, result=$result",3);
-
-					push @{$self->{alerts}}, 	{ name => $self->{name},
-																			type => "test",
-																			event => $sectiondetails->{alert}->{event},
-																			level => $sectiondetails->{alert}->{level},
-																			ds => $thing->{item},
-																			section => $gothere, # that's the section name
-																			source => $thing->{query}? "wmi": "snmp", # not sure we actually need that in the alert context
-																			value => $value,
-																			test_result => $result, };
+					$status{error} = "test=$test in Model for $thing->{item} for $gothere failed: $error";
+					logMsg("ERROR ($self->{name}) test=$test in Model for $thing->{item} for $gothere failed: $error");
 				}
+				dbg("test $test, result=$result",3);
+
+				push @{$self->{alerts}}, 	{ name => $self->{name},
+																		type => "test",
+																		event => $sectiondetails->{alert}->{event},
+																		level => $sectiondetails->{alert}->{level},
+																		ds => $thing->{item},
+																		section => $gothere, # that's the section name
+																		source => $thing->{query}? "wmi": "snmp", # not sure we actually need that in the alert context
+																		value => $value,
+																		test_result => $result, };
 			}
 		}
 	}
@@ -1324,6 +1365,7 @@ sub getTitle
 # args: self=sys, string (required),
 # optional: sect, index, item, type. CVAR stuff works ONLY if sect is set!
 # type and index are only used in substitutions, no logic attached.
+# also optional: extras (hash of substitutable varname-values)
 #
 # note: variables in BOTH rrd and sys sections should be found in this routine,
 # regardless of whether our caller is looking at rrd or sys.
@@ -1332,13 +1374,11 @@ sub getTitle
 sub parseString
 {
 	my ($self, %args) = @_;
-	my $str = $args{string};
-	my $indx = $args{index};
-	my $itm = $args{item};
-	my $sect = $args{sect};
-	my $type = $args{type};
 
-	dbg("parseString:: string to parse $str",3);
+	my ($str,$indx,$itm,$sect,$type,$extras) =
+			@args{"string","index","item","sect","type","extras"};
+
+	dbg("parseString:: string to parse '$str'",3);
 
 	{
 		no strict;									# *shudder*
@@ -1396,9 +1436,9 @@ sub parseString
 			$sysDescr = $self->{info}{system}{sysDescr};
 			$sysObjectName = $self->{info}{system}{sysObjectName};
 			$location = $self->{info}{system}{location};
-			
+
 			# if I am wanting a storage thingy, then lets populate the variables I need.
-			if ( $indx ne '' and $str =~ /(hrStorageDescr|hrStorageSize|hrStorageUnits|hrDiskSize|hrDiskUsed|hrStorageType)/ ) {				
+			if ( $indx ne '' and $str =~ /(hrStorageDescr|hrStorageSize|hrStorageUnits|hrDiskSize|hrDiskUsed|hrStorageType)/ ) {
 				$hrStorageDescr = $self->{info}{storage}{$indx}{hrStorageDescr};
 				$hrStorageType = $self->{info}{storage}{$indx}{hrStorageType};
 				$hrStorageUnits = $self->{info}{storage}{$indx}{hrStorageUnits};
@@ -1408,7 +1448,7 @@ sub parseString
 				$hrDiskUsed = $hrStorageUsed * $hrStorageUnits;
 				$hrDiskFree = $hrDiskSize - $hrDiskUsed;
 			}
-			
+
 			# fixing auto-vivification bug!
 			if ($indx ne '' and exists $self->{info}{interface}{$indx}) {
 				### 2013-06-11 keiths, submission by Mateusz Kwiatkowski for thresholding
@@ -1435,22 +1475,56 @@ sub parseString
 		}
 
 		dbg("node=$node, nodeModel=$nodeModel, nodeType=$nodeType, nodeVendor=$nodeVendor, sysObjectName=$sysObjectName\n".
-		"\t ifDescr=$ifDescr, ifType=$ifType, ifSpeed=$ifSpeed, ifMaxOctets=$ifMaxOctets, index=$index, item=$item",3);
+				"\t ifDescr=$ifDescr, ifType=$ifType, ifSpeed=$ifSpeed, ifMaxOctets=$ifMaxOctets, index=$index, item=$item",3);
 
-		if ($str =~ /\?/) {
+		# massage the string and replace any available variables from extras,
+		# but ONLY WHERE no compatibility hardcoded variable is present.
+		#
+		# if the extras substitution were to be done first, then the identically named
+		# but OCCASIONALLY DIFFERENT hardcoded global values will clash and we get breakage all over the place.
+		if (ref($extras) eq "HASH")
+		{
+			for my $maybe (sort keys %$extras)
+			{
+				# note: the $$maybe works ONLY because this is under no strict
+				if (defined($$maybe) && $$maybe ne $extras->{$maybe})
+				{
+					dbg("ignoring '$maybe' from extras: '$extras->{$maybe}' clashes with legacy '$$maybe'", 3);
+					next;
+				}
+				my $presubst = $str;
+				# this substitutes $varname and ${varname},
+				# the latter is safer b/c the former has trouble with varnames sharing a prefix.
+				# no look-ahead assertion is possible, we don't know what the string is used for...
+				if ($str =~ s/(\$$maybe|\$\{$maybe\})/$extras->{$maybe}/g)
+				{
+					dbg("substituted '$maybe', str before '$presubst', after '$str'", 3);
+				}
+			}
+		}
+
+
+		if ($str =~ /\?/)
+		{
 			# format of $str is ($scalar =~ /regex/) ? "1" : "0"
 			my $check = $str;
 			$check =~ s{\$(\w+)}{if(defined${$1}){${$1};}else{"ERROR, no variable \$$1 ";}}egx;
 			# $check =~ s{$\$(\w+|[\$\{\}\-\>\w]+)}{if(defined${$1}){${$1};}else{"ERROR, no variable \$$1 ";}}egx;
-			if ($check =~ /ERROR/) {
+			if ($check =~ /ERROR/)
+			{
 				dbg($check);
-				$str = "ERROR ($self->{info}{system}{name}) syntax error or undefined variable at $str";
+				$str = "ERROR ($self->{info}{system}{name}) syntax error or undefined variable at $str, $check";
 				logMsg($str);
-			} else {
+			}
+			else
+			{
+				# fixme: this is a substantial security risk, because backtics are also evaluated!
 				$str =~ s{(.+)}{eval $1}eg; # execute expression
 			}
 			dbg("result of eval is $str",3);
-		} else {
+		}
+		else
+		{
 			my $s = $str; # copy
 			$str =~ s{\$(\w+)}{if(defined${$1}){${$1};}else{"ERROR, no variable \$$1 ";}}egx;
 			# $str =~ s{$\$(\w+|[\$\{\}\-\>\w]+)}{if(defined${$1}){${$1};}else{"ERROR, no variable \$$1 ";}}egx;
@@ -1463,7 +1537,6 @@ sub parseString
 		return $str;
 	}
 }
-
 
 # returns a hash of graphtype -> rrd section name for this node
 # this hash is inverted compared to the raw grapthype data in the node info,
@@ -1584,9 +1657,11 @@ sub getTypeInstances
 }
 
 # ask rrdfunc to compute the rrd file's path, which is based on graphtype -> db type,
-# index and item; and the information in the node's model and common-database.
-# this does NO LONGER use the node info cache!
+# index and item, possibly also node info; and certainly the information
+# in the node's model and common-database.
+# args: graphtype or type (required), index, item (mostly required),
 # optional argument suppress_errors makes getdbname not print error messages
+# returns: rrd file name or undef
 sub getDBName
 {
 	my ($self,%args) = @_;
@@ -1598,12 +1673,12 @@ sub getDBName
 	my ($sect, $db);
 
 	# if we have no index but item: fall back to that, and vice versa
-	if (defined $item && (!defined $index || $index eq ''))
+	if (defined $item && $item ne '' && (!defined $index || $index eq ''))
 	{
 		dbg("synthetic index from item for graphtype=$graphtype, item=$item",2);
 		$index=$item;
 	}
-	elsif (defined $index && (!defined $item || $item eq ''))
+	elsif (defined $index && $index ne '' && (!defined $item || $item eq ''))
 	{
 		dbg("synthetic item from index for graphtype=$graphtype, index=$index",2);
 		$item=$index;
@@ -1612,8 +1687,15 @@ sub getDBName
 	# first do the 'reverse lookup' from graph name to rrd section name
 	if (defined ($sect = $self->getTypeName(graphtype=>$graphtype, index=>$index)))
 	{
-		$db = rrdfunc::getFileName(sys => $self, type => $sect,
-															 index => $index, item => $item);
+		my $NI = $self->ndinfo;
+		# indexed and section exists? pass that for extra variable expansions
+		# unindexed? pass nothing
+		my $extras = ( defined($index) && $index ne ''?
+									 $NI->{$sect}->{$index} : undef );
+
+		$db = rrdfunc::getFileName( sys => $self, type => $sect,
+															  index => $index, item => $item,
+															  extras => $extras );
 	}
 
 	if (!defined $db)
@@ -1623,7 +1705,7 @@ sub getDBName
 	}
 
 	dbg("returning database name=$db for sect=$sect, index=$index, item=$item");
-	
+
 	return $db;
 }
 

@@ -400,7 +400,7 @@
     'MikroTik' => {
       'order' => {
         '10' => {
-          'MikroTikRouter' => 'RouterOS CCR1072'
+          'MikroTikRouter' => 'RouterOS (CHR|CCR)'
         },
         '99' => {
           'MikroTik' => 'RouterOS'
@@ -572,6 +572,13 @@
         '10' => {
           'Mimosa' => '.'
         }
+      }
+    },
+    'Ubiquiti Networks, Inc.' => {
+      'order' => {
+        '10' => {
+          'Ubiquiti' => 'Linux'
+        },
       }
     },
   },

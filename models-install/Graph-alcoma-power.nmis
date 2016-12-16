@@ -31,25 +31,28 @@
 %hash = (
 	'title' => {
 		'standard' => '$node - $length from $datestamp_start to $datestamp_end',
-		'short' => 'Signal Strength'
+		'short' => '$node - $length'
 	},
 	'vlabel' => {
-		'standard' => 'Strength dBm'
+		'standard' => 'Signal Strength',
+		'short' => 'Strength'
 	},
 	'option' => {
 		'standard' => [
-			'DEF:linkrate=$database:linkrate:AVERAGE',
-			'LINE1:linkrate#4daef6:Link Rate',
-			'GPRINT:linkrate:LAST:Current %6.2lf',
-			'GPRINT:linkrate:AVERAGE:Avg. %6.2lf',
-			'GPRINT:linkrate:MAX:Max %6.2lf\\n',			
+			'DEF:power=$database:power:AVERAGE',
+			'CDEF:powerAdj=power,100,/',
+			'LINE2:powerAdj#4daef6:Transmit Power',
+			'GPRINT:powerAdj:LAST:Current %1.2lf dbm',
+			'GPRINT:powerAdj:AVERAGE:Avg. %1.2lf dbm',
+			'GPRINT:powerAdj:MAX:Max %1.2lf dbm\\n',			
 		],
 		'small' => [
-			'DEF:linkrate=$database:linkrate:AVERAGE',
-			'LINE1:linkrate#4daef6:Link Rate',
-			'GPRINT:linkrate:LAST:Current %6.0lf',
-			'GPRINT:linkrate:AVERAGE:Avg. %6.0lf',
-			'GPRINT:linkrate:MAX:Max %6.0lf\\n',			
+			'DEF:power=$database:power:AVERAGE',
+			'CDEF:powerAdj=power,100,/',
+			'LINE2:powerAdj#4daef6:Transmit Power',
+			'GPRINT:powerAdj:LAST:Current %1.2lf dbm',
+			'GPRINT:powerAdj:AVERAGE:Avg. %1.2lf dbm',
+			'GPRINT:powerAdj:MAX:Max %1.2lf dbm\\n',
 		]
 	}
 );

@@ -1,5 +1,5 @@
 #
-#  Copyright 1999-2016 Opmantek Limited (www.opmantek.com)
+#  Copyright 1999-2014 Opmantek Limited (www.opmantek.com)
 #  
 #  ALL CODE MODIFICATIONS MUST BE SENT TO CODE@OPMANTEK.COM
 #  
@@ -30,24 +30,42 @@
 %hash = (
 	'title' => {
 		'standard' => '$node - $length from $datestamp_start to $datestamp_end',
-		'short' => 'Ethernet ifInErrors (CRC)'
+		'short' => 'Signal Strength'
 	},
 	'vlabel' => {
-		'standard' => '#Packets'
+		'standard' => 'Signal',
 	},
 	'option' => {
 		'standard' => [
-			'DEF:ifinerrors=$database:ifinerrors:AVERAGE',
-			'LINE2:ifinerrors#ff0000:Packets with ifInErrors',
-                        'GPRINT:ifinerrors:AVERAGE:Avg. %1.2lf',
-                        'GPRINT:ifinerrors:MAX:Max %1.2lf \\n',
+				 'DEF:rxPower=$database:rxPower:AVERAGE',
+				 'DEF:txPower=$database:txPower:AVERAGE',
+
+				 'LINE1:txPower#ff8000:TX Power dBm\\t',
+				 'GPRINT:txPower:LAST:Current %6.2lf',
+				 'GPRINT:txPower:AVERAGE:Avg. %6.2lf',
+				 'GPRINT:txPower:MIN:Min %6.2lf',
+				 'GPRINT:txPower:MAX:Max %6.2lf\\n',
+				 
+				 'LINE1:rxPower#006400:RX Power dBm\\t',
+				 'GPRINT:rxPower:LAST:Current %6.2lf',
+				 'GPRINT:rxPower:AVERAGE:Avg. %6.2lf',
+				 'GPRINT:rxPower:MIN:Min %6.2lf',
+				 'GPRINT:rxPower:MAX:Max %6.2lf\\n',
+			], 
+		'small' => [ 
+				 'DEF:rxPower=$database:rxPower:AVERAGE',
+				 'DEF:txPower=$database:txPower:AVERAGE',
+
+				 'LINE1:txPower#ff8000:TX Power dBm',
+				 'GPRINT:txPower:LAST:Current %6.2lf',
+				 'GPRINT:txPower:AVERAGE:Avg. %6.2lf',
+				 'GPRINT:txPower:MAX:Max %6.2lf\\n',
+				 
+				 'LINE1:rxPower#006400:RX Power dBm',
+				 'GPRINT:rxPower:LAST:Current %6.2lf',
+				 'GPRINT:rxPower:AVERAGE:Avg. %6.2lf',
+				 'GPRINT:rxPower:MAX:Max %6.2lf\\n',
 		],
-		'small' => [
-			'DEF:ifinerrors=$database:ifinerrors:AVERAGE',
-			'LINE2:ifinerrors#ff0000:ifInErrors',
-                        'GPRINT:ifinerrors:AVERAGE:Avg. %1.2lf',
-                        'GPRINT:ifinerrors:MAX:Max %1.2lf \\n',
-		]
+				
 	}
 );
-
