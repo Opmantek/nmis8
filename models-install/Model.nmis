@@ -379,6 +379,9 @@
         '10' => {
           'CGESM' => 'CGESM'
         },
+        '15' => {
+          'HP-Procurve' => 'ProCurve'
+        },
         '99' => {
           'Default-HC' => '.'
         }
@@ -505,6 +508,13 @@
         '20' => {
           'Fortinet-FG' => '.'
         }
+      }
+    },
+   'NetScreen Technologies, Inc.' => {
+      'order' => {
+        '10' => {
+          'Netscreen-ScreenOS' => '.'
+        },
       }
     },
     'NovelSat' => {
