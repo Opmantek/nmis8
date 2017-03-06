@@ -71,6 +71,9 @@ my %hash = (
 		"roletype_list" => "core,distribution,access,default",
 		"nettype_list" => "wan,lan,vpn,man,san,voice,default",
 		"nodetype_list" => "generic,switch,router,firewall,server",
+		
+		# new configuration option to have a configurable field to use for location, e.g. sysLocation or location.
+		'location_field_name' => 'sysLocation',
 
 		# for coloring the group status panel . 'default' applies to unlisted role types
 		'severity_by_roletype' => { core => [ 'Critical', 'Major' ], distribution => [ 'Major', 'Minor' ],

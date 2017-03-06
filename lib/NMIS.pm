@@ -2558,12 +2558,17 @@ sub createHrButtons
 	push @out, "</ul></li></ul></td>";
 
 	if ($NI->{system}{server} eq $C->{server_name}) {
+		my $location_field_name = "sysLocation";
+		if ( defined $C->{location_field_name} and $C->{location_field_name} ne "" ) {
+			$location_field_name = $C->{location_field_name};
+		}
+		
 		push @out, CGI::td({class=>'header litehead'},
 				CGI::a({class=>'wht',href=>"tables.pl?conf=$confname&act=config_table_show&table=Contacts&key=".uri_escape($NI->{system}{sysContact})."&node=$urlsafenode&refresh=$refresh&widget=$widget&server=$server"},"contact"))
 					if $NI->{system}{sysContact} ne '';
 		push @out, CGI::td({class=>'header litehead'},
-				CGI::a({class=>'wht',href=>"tables.pl?conf=$confname&act=config_table_show&table=Locations&key=".uri_escape($NI->{system}{sysLocation})."&node=$urlsafenode&refresh=$refresh&widget=$widget&server=$server"},"location"))
-					if $NI->{system}{sysLocation} ne '';
+				CGI::a({class=>'wht',href=>"tables.pl?conf=$confname&act=config_table_show&table=Locations&key=".uri_escape($NI->{system}{$location_field_name})."&node=$urlsafenode&refresh=$refresh&widget=$widget&server=$server"},"location"))
+					if $NI->{system}{$location_field_name} ne '';
 	}
 
 	push @out, "</tr></table>";
