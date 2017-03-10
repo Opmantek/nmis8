@@ -388,6 +388,10 @@
           },
         }
       },
+      'ppxCardMEM' => {
+        'graphtype' => 'ppxCardMEM',
+        'indexed' => 'true',
+      },
       'ppxAtm' => {
         'graphtype' => 'ppxAtmCells,ppxAtmUtil',
         'indexed' => 'true',
