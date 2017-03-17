@@ -67,7 +67,7 @@
 			'GPRINT:NormalRamUtilNZ:AVERAGE:Avg %4.2lf%%',
 			'GPRINT:NormalRamUtilNZ:MAX:Max %4.2lf%%\\n',
 
-			'LINE1:SharedRamUtil#FF82B4:Shared RAM\\t',
+			'LINE1:SharedRamUtil#FF82B4:Shared RAM\\t'	,
 			'GPRINT:SharedRamUtilNZ:LAST:Current %4.2lf%%',
 			'GPRINT:SharedRamUtilNZ:AVERAGE:Avg %4.2lf%%',
 			'GPRINT:SharedRamUtilNZ:MAX:Max %4.2lf%%\\n',

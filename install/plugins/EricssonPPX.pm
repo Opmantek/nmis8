@@ -52,13 +52,19 @@ sub collect_plugin
 		#Nortel-MsCarrier-MscPassport-BaseShelfMIB::mscShelfCardMemoryCapacityValue.present.0.sharedRam = Gauge32: 2048
 		#Nortel-MsCarrier-MscPassport-BaseShelfMIB::mscShelfCardMemoryUsageValue.present.0.fastRam = Gauge32: 0
 		#Nortel-MsCarrier-MscPassport-BaseShelfMIB::mscShelfCardMemoryUsageValue.present.0.normalRam = Gauge32: 37316
-		#Nortel-MsCarrier-MscPassport-BaseShelfMIB::mscShelfCardMemoryUsageValue.present.0.sharedRam = Gauge32: 2048    
-		
+		#Nortel-MsCarrier-MscPassport-BaseShelfMIB::mscShelfCardMemoryUsageValue.present.0.sharedRam = Gauge32: 2048  
+				
 		#"mscShelfCardMemoryCapacityValue"			"1.3.6.1.4.1.562.36.2.1.13.2.244.1.2"
 		#"mscShelfCardMemoryUsageValue"			"1.3.6.1.4.1.562.36.2.1.13.2.245.1.2"
+		#"mscShelfCardMemoryUsageAvgValue"			"1.3.6.1.4.1.562.36.2.1.13.2.276.1.2"
+		#"mscShelfCardMemoryUsageAvgMinValue"			"1.3.6.1.4.1.562.36.2.1.13.2.277.1.2"
+		#"mscShelfCardMemoryUsageAvgMaxValue"			"1.3.6.1.4.1.562.36.2.1.13.2.278.1.2"
 	
 		my $memCapacityOid = ".1.3.6.1.4.1.562.36.2.1.13.2.244.1.2";
 		my $memUsageOid = ".1.3.6.1.4.1.562.36.2.1.13.2.245.1.2";
+		my $memUsageAvgOid = ".1.3.6.1.4.1.562.36.2.1.13.2.276.1.2";
+		my $memUsageMinOid = ".1.3.6.1.4.1.562.36.2.1.13.2.277.1.2";
+		my $memUsageMaxOid = ".1.3.6.1.4.1.562.36.2.1.13.2.278.1.2";
 	
 		my $fastRam = "0";
 		my $normalRam = "1";
@@ -76,6 +82,16 @@ sub collect_plugin
 					"$memUsageOid.$card.$fastRam",
 					"$memUsageOid.$card.$normalRam",
 					"$memUsageOid.$card.$sharedRam",
+					
+					"$memUsageAvgOid.$card.$fastRam",
+					"$memUsageAvgOid.$card.$normalRam",
+					"$memUsageAvgOid.$card.$sharedRam",
+					"$memUsageMinOid.$card.$fastRam",
+					"$memUsageMinOid.$card.$normalRam",
+					"$memUsageMinOid.$card.$sharedRam",
+					"$memUsageMaxOid.$card.$fastRam",
+					"$memUsageMaxOid.$card.$normalRam",
+					"$memUsageMaxOid.$card.$sharedRam",
 				],
 			);
 	                       
@@ -89,13 +105,33 @@ sub collect_plugin
 					'memUsageFastRam' => { "option" => "GAUGE,0:U", "value" => $snmpdata->{"$memUsageOid.$card.$fastRam"} },
 					'memUsageNormalRam' => { "option" => "GAUGE,0:U", "value" => $snmpdata->{"$memUsageOid.$card.$normalRam"} },					
 					'memUsageSharedRam' => { "option" => "GAUGE,0:U", "value" => $snmpdata->{"$memUsageOid.$card.$sharedRam"} },
+
+					'memAvgFastRam' => { "option" => "GAUGE,0:U", "value" => $snmpdata->{"$memUsageAvgOid.$card.$fastRam"} },
+					'memAvgNormalRam' => { "option" => "GAUGE,0:U", "value" => $snmpdata->{"$memUsageAvgOid.$card.$normalRam"} },					
+					'memAvgSharedRam' => { "option" => "GAUGE,0:U", "value" => $snmpdata->{"$memUsageAvgOid.$card.$sharedRam"} },
+
+					'memMinFastRam' => { "option" => "GAUGE,0:U", "value" => $snmpdata->{"$memUsageMinOid.$card.$fastRam"} },
+					'memMinNormalRam' => { "option" => "GAUGE,0:U", "value" => $snmpdata->{"$memUsageMinOid.$card.$normalRam"} },					
+					'memMinSharedRam' => { "option" => "GAUGE,0:U", "value" => $snmpdata->{"$memUsageMinOid.$card.$sharedRam"} },
+
+					'memMaxFastRam' => { "option" => "GAUGE,0:U", "value" => $snmpdata->{"$memUsageMaxOid.$card.$fastRam"} },
+					'memMaxNormalRam' => { "option" => "GAUGE,0:U", "value" => $snmpdata->{"$memUsageMaxOid.$card.$normalRam"} },					
+					'memMaxSharedRam' => { "option" => "GAUGE,0:U", "value" => $snmpdata->{"$memUsageMaxOid.$card.$sharedRam"} },
 				};
 				
 				# save the results to the node file.
 				$NI->{ppxCardMEM}{$card}{'memCapFastRam'} = $snmpdata->{"$memCapacityOid.$card.$fastRam"};
 				$NI->{ppxCardMEM}{$card}{'memCapNormalRam'} = $snmpdata->{"$memCapacityOid.$card.$normalRam"};
 				$NI->{ppxCardMEM}{$card}{'memCapSharedRam'} = $snmpdata->{"$memCapacityOid.$card.$sharedRam"};
-	
+
+				if ( $snmpdata->{"$memCapacityOid.$card.$fastRam"} == 0
+					and $snmpdata->{"$memCapacityOid.$card.$normalRam"} == 0
+					and $snmpdata->{"$memCapacityOid.$card.$sharedRam"} == 0
+				) {
+					info ("Card has no memory information, removing from display");
+					delete $NI->{ppxCardMEM}{$card};
+				}
+				
 				my $filename = updateRRD(data=>$data, sys=>$S, type=>"ppxCardMEM", index => $card);
 				if (!$filename)
 				{

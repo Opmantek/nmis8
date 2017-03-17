@@ -65,6 +65,9 @@
       'ppxAtmUtil' => 'PPX ATM Utilisation',
       'ppxCardCPU' => 'Card CPU',
       'ppxCardMEM' => 'Card Memory Utilisation',
+      'ppxCardMEMFast' => 'Card Fast Memory Utilisation',
+      'ppxCardMEMNormal' => 'Card Normal Memory Utilisation',
+      'ppxCardMEMShared' => 'Card Shared Memory Utilisation',
     }
   },
     
@@ -389,7 +392,7 @@
         }
       },
       'ppxCardMEM' => {
-        'graphtype' => 'ppxCardMEM',
+        'graphtype' => 'ppxCardMEM,ppxCardMEMFast,ppxCardMEMNormal,ppxCardMEMShared',
         'indexed' => 'true',
       },
       'ppxAtm' => {
