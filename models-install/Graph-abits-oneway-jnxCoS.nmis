@@ -1,0 +1,60 @@
+#
+## $Id: Graph-abits.nmis,v 8.3 2011/11/28 05:36:52 keiths Exp $
+#
+#  Copyright 1999-2011 Opmantek Limited (www.opmantek.com)
+#  
+#  ALL CODE MODIFICATIONS MUST BE SENT TO CODE@OPMANTEK.COM
+#  
+#  This file is part of Network Management Information System (“NMIS”).
+#  
+#  NMIS is free software: you can redistribute it and/or modify
+#  it under the terms of the GNU General Public License as published by
+#  the Free Software Foundation, either version 3 of the License, or
+#  (at your option) any later version.
+#  
+#  NMIS is distributed in the hope that it will be useful,
+#  but WITHOUT ANY WARRANTY; without even the implied warranty of
+#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+#  GNU General Public License for more details.
+#  
+#  You should have received a copy of the GNU General Public License
+#  along with NMIS (most likely in a file named LICENSE).  
+#  If not, see <http://www.gnu.org/licenses/>
+#  
+#  For further information on NMIS or for a license other than GPL please see
+#  www.opmantek.com or email contact@opmantek.com 
+#  
+#  User group details:
+#  http://support.opmantek.com/users/
+#  
+# *****************************************************************************
+
+%hash = (
+	'title' => {
+		'standard' => '$node from $datestamp_start to $datestamp_end',
+		'short' => '$node'
+	},
+	'vlabel' => {
+		'standard' => 'Avg bps',
+	},
+	'option' => {
+		'standard' => [
+			'DEF:throughput=$database:Octets:AVERAGE',
+			'CDEF:throughputBits=throughput,8,*',
+			'$GLINE:throughputBits#00BFFF:throughput\\t',
+			'GPRINT:throughputBits:LAST:Current %6.0lf %Sbits/sec\\t',
+			'GPRINT:throughputBits:AVERAGE:Average %6.0lf %Sbits/sec\\t',
+			'GPRINT:throughputBits:MAX:Maximum %6.0lf %Sbits/sec\\n',
+
+		],
+		'small' => [
+			'DEF:throughput=$database:Octets:AVERAGE',
+			'CDEF:throughputBits=throughput,8,*',
+			'$GLINE:throughputBits#00BFFF:throughput',
+			'GPRINT:throughputBits:LAST:Current %6.0lf %Sbits/sec',
+			'GPRINT:throughputBits:AVERAGE:Avg. %6.0lf %Sbits/sec',
+			'GPRINT:throughputBits:MAX:Max %6.0lf %Sbits/sec\\n',
+
+		]
+	}
+);

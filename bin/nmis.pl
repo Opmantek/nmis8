@@ -5403,7 +5403,8 @@ hrSWRunType hrSWRunPerfCPU hrSWRunPerfMem))
 								}
 
 								# units: s,us,ms = seconds, % percentage, B,KB,MB,TB bytes, c a counter
-								if ($value_with_unit =~ /^([0-9\.]+)(s|ms|us|%|B|KB|MB|GB|TB|c)$/)
+								# negative values are possible, e.g. ntp offset...
+								if ($value_with_unit =~ /^([0-9\.-]+)(s|ms|us|%|B|KB|MB|GB|TB|c)$/)
 								{
 									my ($numericval,$unit) = ($1,$2);
 									dbg("performance data for label '$k': raw value '$value_with_unit'");
