@@ -181,7 +181,7 @@
       'APCPDUVoltage' => 'Input Voltage',
       'ospfNbr' => 'OSPF Neighbor Status',
       'ospfNbrStats' => 'OSPF Neighbor Stats',
-      'hrProcessorLoad' => 'Processor Load',
+      'hrprocload' => 'Processor Load',
       'fortinet-cpu' => 'CPU Usage',
       'fortinet-disk' => 'Disk Usage',
       'fortinet-mem' => 'Memory Usage',
