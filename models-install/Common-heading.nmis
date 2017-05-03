@@ -186,7 +186,7 @@
       'fortinet-disk' => 'Disk Usage',
       'fortinet-mem' => 'Memory Usage',
       'fortinet-sessions' => 'Session Count',
-      'NetFlowStats' => 'NetFlow Export Stats',
+      'netflowstats' => 'NetFlow Export Stats',
 			'WindowsDiskBytes' => "Windows Logical Disk Stats",
       'WindowsPaging' => 'Windows Pagefile Stats',
       'WindowsDisk' => 'Windows Logical Disk Stats',
