@@ -177,7 +177,7 @@
       'APCVoltage' => "UPS Voltage",
 			'APCPDULoad' => 'Phase 1 Load',
       'APCPDUTemperature' => 'Temperature Sensor (If Present)',
-      'pduOutletLoad' => 'Outlet Load',
+      'pduOutletStatus' => 'Outlet Load',
       'APCPDUVoltage' => 'Input Voltage',
       'ospfNbr' => 'OSPF Neighbor Status',
       'ospfNbrStats' => 'OSPF Neighbor Stats',
