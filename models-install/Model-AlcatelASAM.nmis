@@ -486,18 +486,17 @@
 #BRIDGE-MIB::dot1dBasePortIfIndex.113263616 = INTEGER: 111166464
 #Q-BRIDGE-MIB::dot1qPvid.113263616 = Gauge32: 320
 
-
-#nuf "eqptHolderId"														"1.3.6.1.4.1.637.61.1.23.2.1.1"
-#nuf "eqptHolderClass"													"1.3.6.1.4.1.637.61.1.23.2.1.2"
-#"eqptHolderPlannedType"										"1.3.6.1.4.1.637.61.1.23.2.1.3"
+#nuf "eqptHolderId"												"1.3.6.1.4.1.637.61.1.23.2.1.1"
+#nuf "eqptHolderClass"										"1.3.6.1.4.1.637.61.1.23.2.1.2"
+#"eqptHolderPlannedType"									"1.3.6.1.4.1.637.61.1.23.2.1.3"
 #"eqptHolderActualType"										"1.3.6.1.4.1.637.61.1.23.2.1.4"
-#"eqptHolderAdminStatus"										"1.3.6.1.4.1.637.61.1.23.2.1.5"
+#"eqptHolderAdminStatus"									"1.3.6.1.4.1.637.61.1.23.2.1.5"
 #"eqptHolderOperStatus"										"1.3.6.1.4.1.637.61.1.23.2.1.6"
-#"eqptHolderOperError"											"1.3.6.1.4.1.637.61.1.23.2.1.7"
-#"eqptHolderAvailStatus"										"1.3.6.1.4.1.637.61.1.23.2.1.8"
-#"eqptHolderDescription"										"1.3.6.1.4.1.637.61.1.23.2.1.9"
-#"eqptHolderContainerId"										"1.3.6.1.4.1.637.61.1.23.2.1.10"
-#"eqptHolderContainerOffset"								"1.3.6.1.4.1.637.61.1.23.2.1.11"
+#"eqptHolderOperError"										"1.3.6.1.4.1.637.61.1.23.2.1.7"
+#"eqptHolderAvailStatus"									"1.3.6.1.4.1.637.61.1.23.2.1.8"
+#"eqptHolderDescription"									"1.3.6.1.4.1.637.61.1.23.2.1.9"
+#"eqptHolderContainerId"									"1.3.6.1.4.1.637.61.1.23.2.1.10"
+#"eqptHolderContainerOffset"							"1.3.6.1.4.1.637.61.1.23.2.1.11"
 #"eqptHolderMode"													"1.3.6.1.4.1.637.61.1.23.2.1.12"
 
       'eqptHolderList' => {        
