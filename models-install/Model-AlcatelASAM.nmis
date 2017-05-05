@@ -424,12 +424,74 @@
           },
           'asamIfExtCustomerId' => {
             'title' => 'CustomerId',
+            'title_export' => 'User',
           },
           'xdslLineServiceProfileNbr' => {
             'title' => 'ServiceProfileNbr',
+            'title_export' => 'Numero_Profile',
           },
           'xdslLineSpectrumProfileNbr' => {
             'title' => 'SpectrumProfileNbr',
+          },
+          'xdslLinkUpActualNoiseMarginDownstream' => {
+            'title' => 'xdslLinkUpActualNoiseMarginDownstream',
+            'title_export' => 'Ruido_Bajada',
+          },
+          'xdslLinkUpActualNoiseMarginUpstream' => {
+            'title' => 'xdslLinkUpActualNoiseMarginUpstream',
+            'title_export' => 'Ruido_Subida',
+          },
+          'xdslLinkUpAttenuationDownstream' => {
+            'title' => 'xdslLinkUpAttenuationDownstream',
+            'title_export' => 'Senal_Atenuacion_Bajada',
+          },
+          'xdslLinkUpAttenuationUpstream' => {
+            'title' => 'xdslLinkUpAttenuationUpstream',
+            'title_export' => 'Senal_Atenuacion_Subida',
+          },
+          'xdslFarEndLineLoopAttenuationDownstream' => {
+            'title' => 'xdslFarEndLineLoopAttenuationDownstream',
+            'title_export' => 'Loop_Atenuacion_Bajada',
+          },
+          'xdslLineLoopAttenuationUpstream' => {
+            'title' => 'xdslLineLoopAttenuationUpstream',
+            'title_export' => 'Loop_Atenuacion_Subida',
+          },
+          'xdslLinkUpAttainableBitrateDownstream' => {
+            'title' => 'xdslLinkUpAttainableBitrateDownstream',
+            'title_export' => 'Maxima_Velocidad_Bajada',
+          },
+          'xdslLinkUpAttainableBitrateUpstream' => {
+            'title' => 'xdslLinkUpAttainableBitrateUpstream',
+            'title_export' => 'Maxima_Velocidad_Subida',
+          },
+          'xdslLinkUpActualBitrateDownstream' => {
+            'title' => 'xdslLinkUpActualBitrateDownstream',
+            'title_export' => 'Velocidad_Actual_DN',
+          },
+          'xdslLinkUpActualBitrateUpstream' => {
+            'title' => 'xdslLinkUpActualBitrateUpstream',
+            'title_export' => 'Velocidad_Actual_UP',
+          },
+          'xdslLineOutputPowerDownstream' => {
+            'title' => 'xdslLineOutputPowerDownstream',
+            'title_export' => 'Potencia_Dslam',
+          },
+          'xdslFarEndLineOutputPowerUpstream' => {
+            'title' => 'xdslFarEndLineOutputPowerUpstream',
+            'title_export' => 'Potencia_Moden',
+          },
+          'xdslLinkUpMaxBitrateDownstream' => {
+            'title' => 'xdslLinkUpMaxBitrateDownstream',
+            'title_export' => 'Velocidad_Puerto_DN',
+          },
+          'xdslLinkUpMaxBitrateUpstream' => {
+            'title' => 'xdslLinkUpMaxBitrateUpstream',
+            'title_export' => 'Velocidad_Puerto_UP',
+          },
+          'xdslXturInvSystemSerialNumber' => {
+            'title' => 'xdslXturInvSystemSerialNumber',
+            'title_export' => 'Serial_Modem',
           },
         },
       },

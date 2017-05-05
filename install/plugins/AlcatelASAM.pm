@@ -82,6 +82,8 @@ sub update_plugin
 		logMsg("ERROR: Unknown ASAM Version $node asamSoftwareVersion=$asamSoftwareVersion");
 	}
 
+	my $changesweremade = 0;
+
 	my ($session, $error) = Net::SNMP->session(
                            #-hostname      => $NC->{node}{host},
                            #-port          => $NC->{node}{port},
@@ -96,6 +98,7 @@ sub update_plugin
                         
 	if ( $error ) {
 		dbg("ERROR with SNMP on $node: ". $error);
+		return ($changesweremade,undef);
 	}
 
 	# Get the SNMP Session going.
@@ -104,8 +107,6 @@ sub update_plugin
 	#		if (!$snmp->open(config => $NC->{node}, host_addr => $NI->{system}->{host_addr}));
 	#return (2, "Could not retrieve SNMP vars from node $node: ".$snmp->error)
 	#		if (!$snmp->testsession);
-
-	my $changesweremade = 0;
 
 	if ( $session ) {
 	
