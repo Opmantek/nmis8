@@ -244,7 +244,7 @@ perl-DBI perl-Net-SMTPS perl-Net-SMTP-SSL perl-CGI net-snmp-perl perl-Proc-Proce
 perl-Crypt-PasswdMD5 perl-Crypt-Rijndael perl-Net-SNPP perl-Net-SNMP perl-GD rrdtool
 rrdtool-perl perl-Test-Deep dialog
 perl-Excel-Writer-XLSX
- perl-Digest-HMAC perl-Crypt-DES perl-Clone
+ perl-Digest-HMAC perl-Crypt-DES perl-Clone perl-ExtUtils-CBuilder
 ));
 
 	# perl-Time-modules no longer a/v in rh/centos7

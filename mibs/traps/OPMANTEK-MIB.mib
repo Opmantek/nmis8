@@ -33,6 +33,10 @@ opmantek MODULE-IDENTITY
 
  -- Revision log, in reverse chronological order
 
+	REVISION      "201705080000Z"
+	DESCRIPTION
+		"Added three new object to the trap omkNodeGroup, omkNodeRole, omkNodeCountry and omkNodeProperty."
+
 	REVISION      "201702100000Z"
 	DESCRIPTION
 		"Added missing values to omkEvent, omkProbableCause and omkAlarmId."
@@ -59,7 +63,7 @@ omkObjects OBJECT-IDENTITY
 	::= { opmantek 2 }
 
 omkEvent NOTIFICATION-TYPE
-	OBJECTS     { omkId, omkTime, omkDate, omkNode, omkHost, omkEvent, omkElement, omkState, omkStateful, omkDetails, omkType, omkPriority, omkLevel, omkProbableCause, omkAlarmId }
+	OBJECTS     { omkId, omkTime, omkDate, omkNode, omkHost, omkEventName, omkElement, omkState, omkStateful, omkDetails, omkType, omkPriority, omkLevel, omkProbableCause, omkAlarmId, omkNodeGroup, omkNodeRole, omkNodeCountry, omkNodeProperty }
 	STATUS      current
 	DESCRIPTION 
 		"The Opmantek Event coming from opEvents with rich data about state and priority."
@@ -79,7 +83,7 @@ omkEventGroup OBJECT-GROUP
 		omkDate,
 		omkNode,
 		omkHost,
-		omkEvent,
+		omkEventName,
 		omkElement,
 		omkState,
 		omkStateful,
@@ -88,7 +92,11 @@ omkEventGroup OBJECT-GROUP
 		omkPriority,
 		omkLevel,
 		omkProbableCause,
-		omkAlarmId
+		omkAlarmId,
+		omkNodeGroup,
+		omkNodeRole,
+		omkNodeCountry,
+		omkNodeProperty
 	} 
 	STATUS current
 	DESCRIPTION
@@ -135,7 +143,7 @@ omkHost OBJECT-TYPE
 		"The IP address or hostname"
 	::= { omkEventGroup 5 }
 
-omkEvent OBJECT-TYPE
+omkEventName OBJECT-TYPE
 	SYNTAX      DisplayString
 	MAX-ACCESS  read-only
 	STATUS      current
@@ -208,12 +216,44 @@ omkProbableCause OBJECT-TYPE
 	::= { omkEventGroup 14 }
 
 omkAlarmId OBJECT-TYPE
-	SYNTAX      DisplayString
+	SYNTAX      INTEGER
 	MAX-ACCESS  read-only
 	STATUS      current
 	DESCRIPTION 
 		"The AlarmID carried from other possible sources"
 	::= { omkEventGroup 15 }    
+
+omkNodeGroup OBJECT-TYPE
+	SYNTAX      DisplayString
+	MAX-ACCESS  read-only
+	STATUS      current
+	DESCRIPTION 
+		"The name of the group for the node related to this event"
+	::= { omkEventGroup 16 }
+
+omkNodeRole OBJECT-TYPE
+	SYNTAX      DisplayString
+	MAX-ACCESS  read-only
+	STATUS      current
+	DESCRIPTION 
+		"The name of the role for the node related to this event"
+	::= { omkEventGroup 17 }
+
+omkNodeCountry OBJECT-TYPE
+	SYNTAX      DisplayString
+	MAX-ACCESS  read-only
+	STATUS      current
+	DESCRIPTION 
+		"The name of the country for the node related to this event"
+	::= { omkEventGroup 18 }
+
+omkNodeProperty OBJECT-TYPE
+	SYNTAX      DisplayString
+	MAX-ACCESS  read-only
+	STATUS      current
+	DESCRIPTION 
+		"The name of the property for the node related to this event"
+	::= { omkEventGroup 19 }
 
 nmisEventGroup OBJECT-GROUP
 	OBJECTS {

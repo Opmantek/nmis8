@@ -36,6 +36,8 @@ use strict;
 use NMIS;												# lnt
 use func;												# for the conf table extras
 use snmp 1.1.0;									# for snmp-related access
+use Net::SNMP qw(oid_lex_sort);
+use Data::Dumper;
 
 sub update_plugin
 {
@@ -80,82 +82,191 @@ sub update_plugin
 		logMsg("ERROR: Unknown ASAM Version $node asamSoftwareVersion=$asamSoftwareVersion");
 	}
 
-	# Get the SNMP Session going.
-	my $snmp = snmp->new(name => $node);
-	return (2,"Could not open SNMP session to node $node: ".$snmp->error)
-			if (!$snmp->open(config => $NC->{node}, host_addr => $NI->{system}->{host_addr}));
-	return (2, "Could not retrieve SNMP vars from node $node: ".$snmp->error)
-			if (!$snmp->testsession);
 	my $changesweremade = 0;
-	
-	info("Working on $node atmVcl");
 
-	my $offset = 12288;
-	if ( $version eq "4.2" )  {
-		$offset = 6291456;
+	my ($session, $error) = Net::SNMP->session(
+                           #-hostname      => $NC->{node}{host},
+                           #-port          => $NC->{node}{port},
+                           #-version       => $NC->{node}{version},
+                           #-community     => $NC->{node}{community},   # v1/v2c
+
+                           -hostname      => $LNT->{$node}{host},
+                           -port          => $LNT->{$node}{port},
+                           -version       => $LNT->{$node}{version},
+                           -community     => $LNT->{$node}{community},   # v1/v2c
+                        );	
+                        
+	if ( $error ) {
+		dbg("ERROR with SNMP on $node: ". $error);
+		return ($changesweremade,undef);
 	}
+
+	# Get the SNMP Session going.
+	#my $snmp = snmp->new(name => $node);
+	#return (2,"Could not open SNMP session to node $node: ".$snmp->error)
+	#		if (!$snmp->open(config => $NC->{node}, host_addr => $NI->{system}->{host_addr}));
+	#return (2, "Could not retrieve SNMP vars from node $node: ".$snmp->error)
+	#		if (!$snmp->testsession);
+
+	if ( $session ) {
 	
-	for my $key (keys %{$NI->{atmVcl}})
-	{
-		my $entry = $NI->{atmVcl}->{$key};
-                    
-		if ( my @parts = split(/\./,$entry->{index}) ) 
-		{
-			my $ifIndex = shift(@parts);
-			my $atmVclVpi = shift(@parts);
-			my $atmVclVci = shift(@parts);
-
-			my $offsetIndex = $ifIndex - $offset;
+		info("Working on $node atmVcl");
 	
-			my $asamIfExtCustomerId = "1.3.6.1.4.1.637.61.1.6.5.1.1.$offsetIndex";
-			my $xdslLineServiceProfileNbr = "1.3.6.1.4.1.637.61.1.39.3.7.1.1.$offsetIndex";
-			my $xdslLineSpectrumProfileNbr = "1.3.6.1.4.1.637.61.1.39.3.7.1.2.$offsetIndex";
-	
-			my @oids = [
-				"$asamIfExtCustomerId",
-				"$xdslLineServiceProfileNbr",
-				"$xdslLineSpectrumProfileNbr",
-			];
-		
-			my $snmpdata = $snmp->get(@oids);
-						
-			$entry->{ifIndex} = $ifIndex;
-			$entry->{atmVclVpi} = $atmVclVpi;
-			$entry->{atmVclVci} = $atmVclVci;
-			$entry->{asamIfExtCustomerId} = "N/A";
-			$entry->{xdslLineServiceProfileNbr} = "N/A";
-			$entry->{xdslLineSpectrumProfileNbr} = "N/A";
-
-			if ( $snmpdata->{$asamIfExtCustomerId} ne "" and $snmpdata->{$asamIfExtCustomerId} !~ /SNMP ERROR/ ) {
-				$entry->{asamIfExtCustomerId} = $snmpdata->{$asamIfExtCustomerId};
-			}
-
-			if ( $snmpdata->{$xdslLineServiceProfileNbr} ne "" and $snmpdata->{$xdslLineServiceProfileNbr} !~ /SNMP ERROR/ ) {
-				$entry->{xdslLineServiceProfileNbr} = $snmpdata->{$xdslLineServiceProfileNbr};
-			}
-
-			if ( $snmpdata->{$xdslLineSpectrumProfileNbr} ne "" and $snmpdata->{$xdslLineSpectrumProfileNbr} !~ /SNMP ERROR/ ) {
-				$entry->{xdslLineSpectrumProfileNbr} = $snmpdata->{$xdslLineSpectrumProfileNbr};
-			}
-
-			dbg("ASAM SNMP Results: ifIndex=$ifIndex atmVclVpi=$atmVclVpi atmVclVci=$atmVclVci asamIfExtCustomerId=$entry->{asamIfExtCustomerId}");
-
-			if ( defined $IF->{$ifIndex}{ifDescr} ) {
-				$entry->{ifDescr} = $IF->{$ifIndex}{ifDescr};
-				$entry->{ifDescr_url} = "/cgi-nmis8/network.pl?conf=$C->{conf}&act=network_interface_view&intf=$ifIndex&node=$node";
-				$entry->{ifDescr_id} = "node_view_$node";
-			}
-			else {
-				$entry->{ifDescr} = getIfDescr(prefix => "ATM", version => $version, ifIndex => $ifIndex);
-			}
-
-			$changesweremade = 1;
+		my $offset = 12288;
+		if ( $version eq "4.2" )  {
+			$offset = 6291456;
 		}
+	
+		#"xdslLinkUp"																	"1.3.6.1.4.1.637.61.1.39.12"
+		#"xdslLinkUpTable"														"1.3.6.1.4.1.637.61.1.39.12.1"
+		#"xdslLinkUpEntry"														"1.3.6.1.4.1.637.61.1.39.12.1.1"
+		#"xdslLinkUpTimestampDown"										"1.3.6.1.4.1.637.61.1.39.12.1.1.1"
+		#"xdslLinkUpTimestampUp"											"1.3.6.1.4.1.637.61.1.39.12.1.1.2"
+		#"xdslLinkUpThresholdBitrateUpstream"					"1.3.6.1.4.1.637.61.1.39.12.1.1.13"
+		#"xdslLinkUpThresholdBitrateDownstream"				"1.3.6.1.4.1.637.61.1.39.12.1.1.14"
+		#"xdslLinkUpMaxDelayUpstream"									"1.3.6.1.4.1.637.61.1.39.12.1.1.15"
+		#"xdslLinkUpMaxDelayDownstream"								"1.3.6.1.4.1.637.61.1.39.12.1.1.16"
+		#"xdslLinkUpTargetNoiseMarginUpstream"				"1.3.6.1.4.1.637.61.1.39.12.1.1.17"
+		#"xdslLinkUpTargetNoiseMarginDownstream"			"1.3.6.1.4.1.637.61.1.39.12.1.1.18"
+		#"xdslLinkUpTimestamp"												"1.3.6.1.4.1.637.61.1.39.12.2"
+		#"xdslLinkUpLineBitmapTable"									"1.3.6.1.4.1.637.61.1.39.12.3"
+		#"xdslLinkUpLineBitmapEntry"									"1.3.6.1.4.1.637.61.1.39.12.3.1"
+		#"xdslLinkUpLineBitmap"												"1.3.6.1.4.1.637.61.1.39.12.3.1.1"    
+	
+		#"asamIfExtCustomerId"												"1.3.6.1.4.1.637.61.1.6.5.1.1"
+		#"xdslLineServiceProfileNbr"									"1.3.6.1.4.1.637.61.1.39.3.7.1.1"
+		
+		#"xdslLineOutputPowerDownstream"							"1.3.6.1.4.1.637.61.1.39.3.8.1.1.3"
+		#"xdslLineLoopAttenuationUpstream"						"1.3.6.1.4.1.637.61.1.39.3.8.1.1.5"
+		#"xdslFarEndLineOutputPowerUpstream"					"1.3.6.1.4.1.637.61.1.39.4.1.1.1.3"
+		#"xdslFarEndLineLoopAttenuationDownstream"		"1.3.6.1.4.1.637.61.1.39.4.1.1.1.5"
+	
+		#"xdslXturInvSystemSerialNumber"							"1.3.6.1.4.1.637.61.1.39.8.1.1.2"
+	
+		#"xdslLinkUpActualBitrateUpstream"						"1.3.6.1.4.1.637.61.1.39.12.1.1.3"
+		#"xdslLinkUpActualBitrateDownstream"					"1.3.6.1.4.1.637.61.1.39.12.1.1.4"
+		#"xdslLinkUpActualNoiseMarginUpstream"				"1.3.6.1.4.1.637.61.1.39.12.1.1.5"
+		#"xdslLinkUpActualNoiseMarginDownstream"			"1.3.6.1.4.1.637.61.1.39.12.1.1.6"
+		#"xdslLinkUpAttenuationUpstream"							"1.3.6.1.4.1.637.61.1.39.12.1.1.7"
+		#"xdslLinkUpAttenuationDownstream"						"1.3.6.1.4.1.637.61.1.39.12.1.1.8"
+		#"xdslLinkUpAttainableBitrateUpstream"				"1.3.6.1.4.1.637.61.1.39.12.1.1.9"
+		#"xdslLinkUpAttainableBitrateDownstream"			"1.3.6.1.4.1.637.61.1.39.12.1.1.10"
+		#"xdslLinkUpMaxBitrateUpstream"								"1.3.6.1.4.1.637.61.1.39.12.1.1.11"
+		#"xdslLinkUpMaxBitrateDownstream"							"1.3.6.1.4.1.637.61.1.39.12.1.1.12"
+		
+		my @varList = qw(
+			asamIfExtCustomerId
+			xdslLineServiceProfileNbr
+			xdslLineSpectrumProfileNbr
+			xdslLineOutputPowerDownstream
+			xdslLineLoopAttenuationUpstream
+			xdslFarEndLineOutputPowerUpstream
+			xdslFarEndLineLoopAttenuationDownstream
+			xdslXturInvSystemSerialNumber
+			xdslLinkUpActualBitrateUpstream
+			xdslLinkUpActualBitrateDownstream
+			xdslLinkUpActualNoiseMarginUpstream
+			xdslLinkUpActualNoiseMarginDownstream
+			xdslLinkUpAttenuationUpstream
+			xdslLinkUpAttenuationDownstream
+			xdslLinkUpAttainableBitrateUpstream
+			xdslLinkUpAttainableBitrateDownstream
+			xdslLinkUpMaxBitrateUpstream
+			xdslLinkUpMaxBitrateDownstream
+		);
+	
+		
+		for my $key (oid_lex_sort(keys %{$NI->{atmVcl}}))
+		{
+			my $entry = $NI->{atmVcl}->{$key};
+	                    
+			if ( my @parts = split(/\./,$entry->{index}) ) 
+			{
+				my $ifIndex = shift(@parts);
+				my $atmVclVpi = shift(@parts);
+				my $atmVclVci = shift(@parts);
+	
+				$entry->{ifIndex} = $ifIndex;
+				$entry->{atmVclVpi} = $atmVclVpi;
+				$entry->{atmVclVci} = $atmVclVci;
+	
+				# the crazy magic of ASAM
+				my $offsetIndex = $ifIndex - $offset;
+	
+				# the set of oids with dynamic index I want.
+				my %oidSet = (
+	 				asamIfExtCustomerId => 											"1.3.6.1.4.1.637.61.1.6.5.1.1.$offsetIndex",
+					xdslLineServiceProfileNbr => 								"1.3.6.1.4.1.637.61.1.39.3.7.1.1.$offsetIndex",
+					xdslLineSpectrumProfileNbr => 							"1.3.6.1.4.1.637.61.1.39.3.7.1.2.$offsetIndex",
+					xdslLineOutputPowerDownstream =>						"1.3.6.1.4.1.637.61.1.39.3.8.1.1.3.$offsetIndex",
+					xdslLineLoopAttenuationUpstream =>					"1.3.6.1.4.1.637.61.1.39.3.8.1.1.5.$offsetIndex",
+					xdslFarEndLineOutputPowerUpstream =>				"1.3.6.1.4.1.637.61.1.39.4.1.1.1.3.$offsetIndex",
+					xdslFarEndLineLoopAttenuationDownstream =>	"1.3.6.1.4.1.637.61.1.39.4.1.1.1.5.$offsetIndex",
+					xdslXturInvSystemSerialNumber =>						"1.3.6.1.4.1.637.61.1.39.8.1.1.2.$offsetIndex",
+					xdslLinkUpActualBitrateUpstream =>					"1.3.6.1.4.1.637.61.1.39.12.1.1.3.$offsetIndex",
+					xdslLinkUpActualBitrateDownstream =>				"1.3.6.1.4.1.637.61.1.39.12.1.1.4.$offsetIndex",
+					xdslLinkUpActualNoiseMarginUpstream =>			"1.3.6.1.4.1.637.61.1.39.12.1.1.5.$offsetIndex",
+					xdslLinkUpActualNoiseMarginDownstream =>		"1.3.6.1.4.1.637.61.1.39.12.1.1.6.$offsetIndex",
+					xdslLinkUpAttenuationUpstream =>						"1.3.6.1.4.1.637.61.1.39.12.1.1.7.$offsetIndex",
+					xdslLinkUpAttenuationDownstream =>					"1.3.6.1.4.1.637.61.1.39.12.1.1.8.$offsetIndex",
+					xdslLinkUpAttainableBitrateUpstream =>			"1.3.6.1.4.1.637.61.1.39.12.1.1.9.$offsetIndex",
+					xdslLinkUpAttainableBitrateDownstream =>		"1.3.6.1.4.1.637.61.1.39.12.1.1.10.$offsetIndex",
+					xdslLinkUpMaxBitrateUpstream =>							"1.3.6.1.4.1.637.61.1.39.12.1.1.11.$offsetIndex",
+					xdslLinkUpMaxBitrateDownstream =>						"1.3.6.1.4.1.637.61.1.39.12.1.1.12.$offsetIndex",
+				);
+	
+				# build an array combining the varList and oidSet into a single array
+				my @oids = map {$oidSet{$_}} @varList;
+				#print Dumper \@oids;
+	
+				# get the snmp data from the thing
+				my $snmpdata = $session->get_request(
+					-varbindlist => \@oids
+				);
+								
+				if ( $session->error() ) {
+					dbg("ERROR with SNMP on $node: ". $session->error());
+				}
+				
+				if ( $snmpdata ) {
+				
+					#dbg("Could not retrieve SNMP vars from node $node: ".$snmp->error) if ($snmp->error);
+											
+					# now get each of the required vars snmp data into the entry for saving.
+					foreach my $var (@varList) {
+						my $dataKey = $oidSet{$var};
+						if ( $snmpdata->{$dataKey} ne "" and $snmpdata->{$dataKey} !~ /SNMP ERROR/ ) {
+							$entry->{$var} = $snmpdata->{$dataKey};
+						}
+						else {
+							dbg("ERROR with SNMP on $node var=$var: ".$snmpdata->{$dataKey}) if ($snmpdata->{$dataKey} =~ /SNMP ERROR/);
+							$entry->{$var} = "N/A";
+						}
+					}
+		
+					dbg("ASAM SNMP Results: ifIndex=$ifIndex atmVclVpi=$atmVclVpi atmVclVci=$atmVclVci asamIfExtCustomerId=$entry->{asamIfExtCustomerId}");
+		
+					if ( defined $IF->{$ifIndex}{ifDescr} ) {
+						$entry->{ifDescr} = $IF->{$ifIndex}{ifDescr};
+						$entry->{ifDescr_url} = "/cgi-nmis8/network.pl?conf=$C->{conf}&act=network_interface_view&intf=$ifIndex&node=$node";
+						$entry->{ifDescr_id} = "node_view_$node";
+					}
+					else {
+						$entry->{ifDescr} = getIfDescr(prefix => "ATM", version => $version, ifIndex => $ifIndex);
+					}
+		
+					$changesweremade = 1;
+				}
+			}
+		}
+	}
+	else {
+		dbg("ERROR some session problem with SNMP on $node");
 	}
 
 	info("Working on $node ifStack");
 
-	for my $key (keys %{$NI->{ifStack}})
+	for my $key (oid_lex_sort(keys %{$NI->{ifStack}}))
 	{
 		my $entry = $NI->{ifStack}->{$key};
           

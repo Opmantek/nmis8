@@ -343,7 +343,8 @@
     'nodeType' => 'router',
     'rrd' => {
       'mikrotik' => {
-        'control' => '$sysDescr !~ /RB951G/',
+      	# this control needs to be verified to determine which devices DO NOT support systemvoltage, RB951G|RB433AH definitely do not.
+        'control' => '$sysDescr !~ /RB951G|RB433AH|RB\d+/',
         'graphtype' => 'env-temp,systemvoltage',
         'snmp' => {
           'systemvoltage' => {
