@@ -584,7 +584,7 @@ sub doeditTable
 		}
 	}
 
-	# some sanity checks BEFORE writing the data out
+	# nodes requires special handling, extra sanity checks, and dealing with rename
 	if ($table eq 'Nodes')
 	{
 		# check host address
@@ -615,10 +615,44 @@ sub doeditTable
 		# keep the new_name from being written to the config file
 		$new_name = $thisentry->{new_name};
 		delete $thisentry->{new_name};
+
+		# renaming?
+		if ($new_name && $new_name ne $thisentry->{name})
+		{
+			# this rewrites nodes.nmis twice, by necessity; backs out nodes.nmis if unsuccessful
+			my ($error,$message) = NMIS::rename_node(old => $thisentry->{name}, new => $new_name,
+																							 originator => "tables.pl.editNodeTable");
+			if ($error)
+			{
+				print header($headeropts),
+				Tr(td({class=>'error'},
+							escapeHTML("ERROR, renaming node \'$thisentry->{name}\' to \'$new_name\' failed: $message")));
+				return 0;
+			}
+			$key = $new_name;
+		}
+		# nope, just a general modification so write out the data...
+		else
+		{
+			writeTable(dir=>'conf',name=>$table, data=>$T);
+		}
+		cleanEvent($key, "tables.pl.editNodeTable");
+
+		# ...before possibly running an update on that node
+		if (getbool($Q->{update}))
+		{
+			doNodeUpdate(node=>$key);
+			return 0;
+		}
+
+		# don't let the generic code (re|over)write the nodes table again...
+		return 1;
 	}
 
+	# the non-nodes.nmis case
 	my $db = "db_".lc($table)."_sql";
-	if ( getbool($C->{$db}) ) {
+	if ( getbool($C->{$db}) )
+	{
 		my $stat;
 		$V->{index} = $key; # add this column
 		if ($Q->{act} =~ /doadd/) {
@@ -626,42 +660,17 @@ sub doeditTable
 		} else {
 			$stat = DBfunc::->update(table=>$table,data=>$V,index=>$key);
 		}
-		if (!$stat) {
+		if (!$stat)
+		{
 			print header({-type=>"text/html",-expires=>'now'});
 			print Tr(td({class=>'error'} , escapeHTML(DBfunc::->error())));
 			return 0;
 		}
-	} else {
+	}
+	else
+	{
 		writeTable(dir=>'conf',name=>$table, data=>$T);
 	}
-
-
-	# further special handling for nodes: rename and general update
-	if ($table eq 'Nodes')
-	{
-		# handle the renaming case
-		if ($new_name && $new_name ne $thisentry->{name})
-		{
-			my ($error,$message) = NMIS::rename_node(old => $thisentry->{name}, new => $new_name,
-																							 originator => "tables.pl.editNodeTable");
-			if ($error)
-			{
-				print header($headeropts),
-				Tr(td({class=>'error'}, escapeHTML("ERROR, renaming node \'$thisentry->{name}\' to \'$new_name\' failed: $message")));
-				return 0;
-			}
-			$key = $new_name;
-		}
-
-		cleanEvent($key, "tables.pl.editNodeTable");
-
-		if (getbool($Q->{update}))
-		{
-			doNodeUpdate(node=>$key);
-			return 0;
-		}
-	}
-
 	return 1;
 }
 
