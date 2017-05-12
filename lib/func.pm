@@ -1797,9 +1797,6 @@ sub loadConfTable {
 	# on start of program parameters are defined
 	return $C_cache if defined $C_cache and scalar @_ == 0;
 
-	# add extension if missing
-	$conf = $conf =~ /\./ ? $conf : "${conf}";
-
 	if (($configfile=getConfFileName(conf=>$conf, dir=>$dir))) {
 
 		# check if config file is updated, if not, use file cache
