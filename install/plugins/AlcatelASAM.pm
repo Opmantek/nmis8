@@ -30,7 +30,7 @@
 # a small update plugin for converting the cdp index into interface name.
 
 package AlcatelASAM;
-our $VERSION = "1.1.0";
+our $VERSION = "1.2.0";
 
 use strict;
 use NMIS;												# lnt
@@ -48,6 +48,8 @@ sub update_plugin
 	my $NC = $S->ndcfg;
 	my $NI = $S->ndinfo;
 	my $IF = $S->ifinfo;
+	my $ifTable = $NI->{ifTable};
+	
 
 	# anything to do?
 	return (0,undef) if ( $NI->{system}{nodeModel} !~ "AlcatelASAM" 
@@ -110,6 +112,7 @@ sub update_plugin
 
 	if ( $session ) {
 	
+		# Using the data we collect from the atmVcl we will fill in the details of the DSLAM Port.
 		info("Working on $node atmVcl");
 	
 		my $offset = 12288;
@@ -154,6 +157,12 @@ sub update_plugin
 		#"xdslLinkUpMaxBitrateUpstream"								"1.3.6.1.4.1.637.61.1.39.12.1.1.11"
 		#"xdslLinkUpMaxBitrateDownstream"							"1.3.6.1.4.1.637.61.1.39.12.1.1.12"
 		
+		my @atmVclVars = qw(
+			asamIfExtCustomerId
+			xdslLineServiceProfileNbr
+			xdslLineSpectrumProfileNbr
+		);
+		
 		my @varList = qw(
 			asamIfExtCustomerId
 			xdslLineServiceProfileNbr
@@ -179,6 +188,7 @@ sub update_plugin
 		for my $key (oid_lex_sort(keys %{$NI->{atmVcl}}))
 		{
 			my $entry = $NI->{atmVcl}->{$key};
+			my $dslamPort = $NI->{DSLAM_Ports}->{$key};
 	                    
 			if ( my @parts = split(/\./,$entry->{index}) ) 
 			{
@@ -186,18 +196,14 @@ sub update_plugin
 				my $atmVclVpi = shift(@parts);
 				my $atmVclVci = shift(@parts);
 	
-				$entry->{ifIndex} = $ifIndex;
-				$entry->{atmVclVpi} = $atmVclVpi;
-				$entry->{atmVclVci} = $atmVclVci;
-	
 				# the crazy magic of ASAM
 				my $offsetIndex = $ifIndex - $offset;
-	
+		
 				# the set of oids with dynamic index I want.
 				my %oidSet = (
 	 				asamIfExtCustomerId => 											"1.3.6.1.4.1.637.61.1.6.5.1.1.$offsetIndex",
 					xdslLineServiceProfileNbr => 								"1.3.6.1.4.1.637.61.1.39.3.7.1.1.$offsetIndex",
-					xdslLineSpectrumProfileNbr => 							"1.3.6.1.4.1.637.61.1.39.3.7.1.2.$offsetIndex",
+					xdslLineSpectrumProfileNbr => 							"1.3.6.1.4.1.637.61.1.39.3.7.1.2.$offsetIndex",					
 					xdslLineOutputPowerDownstream =>						"1.3.6.1.4.1.637.61.1.39.3.8.1.1.3.$offsetIndex",
 					xdslLineLoopAttenuationUpstream =>					"1.3.6.1.4.1.637.61.1.39.3.8.1.1.5.$offsetIndex",
 					xdslFarEndLineOutputPowerUpstream =>				"1.3.6.1.4.1.637.61.1.39.4.1.1.1.3.$offsetIndex",
@@ -227,13 +233,23 @@ sub update_plugin
 				if ( $session->error() ) {
 					dbg("ERROR with SNMP on $node: ". $session->error());
 				}
+
+				# save the data for the atmVcl					
+				$entry->{ifIndex} = $ifIndex;
+				$entry->{atmVclVpi} = $atmVclVpi;
+				$entry->{atmVclVci} = $atmVclVci;
+				$entry->{asamIfExtCustomerId} = "N/A";
+				$entry->{xdslLineServiceProfileNbr} = "N/A";
+				$entry->{xdslLineSpectrumProfileNbr} = "N/A";
+
+				# save the data for the dslamPort					
+				$dslamPort->{ifIndex} = $ifIndex;
+				$dslamPort->{atmVclVpi} = $atmVclVpi;
+				$dslamPort->{atmVclVci} = $atmVclVci;
 				
 				if ( $snmpdata ) {
-				
-					#dbg("Could not retrieve SNMP vars from node $node: ".$snmp->error) if ($snmp->error);
-											
-					# now get each of the required vars snmp data into the entry for saving.
-					foreach my $var (@varList) {
+
+					foreach my $var (@atmVclVars) {
 						my $dataKey = $oidSet{$var};
 						if ( $snmpdata->{$dataKey} ne "" and $snmpdata->{$dataKey} !~ /SNMP ERROR/ ) {
 							$entry->{$var} = $snmpdata->{$dataKey};
@@ -243,6 +259,18 @@ sub update_plugin
 							$entry->{$var} = "N/A";
 						}
 					}
+															
+					# now get each of the required vars snmp data into the entry for saving.
+					foreach my $var (@varList) {
+						my $dataKey = $oidSet{$var};
+						if ( $snmpdata->{$dataKey} ne "" and $snmpdata->{$dataKey} !~ /SNMP ERROR/ ) {
+							$dslamPort->{$var} = $snmpdata->{$dataKey};
+						}
+						else {
+							dbg("ERROR with SNMP on $node var=$var: ".$snmpdata->{$dataKey}) if ($snmpdata->{$dataKey} =~ /SNMP ERROR/);
+							$dslamPort->{$var} = "N/A";
+						}
+					}
 		
 					dbg("ASAM SNMP Results: ifIndex=$ifIndex atmVclVpi=$atmVclVpi atmVclVci=$atmVclVci asamIfExtCustomerId=$entry->{asamIfExtCustomerId}");
 		
@@ -250,11 +278,29 @@ sub update_plugin
 						$entry->{ifDescr} = $IF->{$ifIndex}{ifDescr};
 						$entry->{ifDescr_url} = "/cgi-nmis8/network.pl?conf=$C->{conf}&act=network_interface_view&intf=$ifIndex&node=$node";
 						$entry->{ifDescr_id} = "node_view_$node";
+
+						$dslamPort->{ifDescr} = $IF->{$ifIndex}{ifDescr};
 					}
 					else {
 						$entry->{ifDescr} = getIfDescr(prefix => "ATM", version => $version, ifIndex => $ifIndex);
+						$dslamPort->{ifDescr} = getIfDescr(prefix => "ATM", version => $version, ifIndex => $ifIndex);
 					}
-		
+
+					# grab the interface data for the dslam port.
+					if ( defined $ifTable->{$ifIndex} ) {
+						
+						if ( $ifTable->{$ifIndex}{ifLastChange} ) { 
+							$dslamPort->{ifLastChange} = convUpTime(int($ifTable->{$ifIndex}{ifLastChange}/100));
+						}
+						else {
+							$dslamPort->{ifLastChange} = '0:00:00',
+						}
+						$dslamPort->{ifOperStatus} = $ifTable->{$ifIndex}{ifOperStatus} ? $ifTable->{$ifIndex}{ifOperStatus} : "N/A";
+						$dslamPort->{ifAdminStatus} = $ifTable->{$ifIndex}{ifAdminStatus} ? $ifTable->{$ifIndex}{ifAdminStatus} : "N/A";
+						
+						
+					}
+
 					$changesweremade = 1;
 				}
 			}

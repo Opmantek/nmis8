@@ -213,7 +213,7 @@
     },
   },
   'systemHealth' => {
-    'sections' => 'ifTable,dot1qVlan,dot1qPvid,atmVcl,eqptHolderList,eqptHolder,eqptHolderStatus,eqptBoard,eqptPortMapping,cpuUtil,memUsageUtil',
+    'sections' => 'DSLAM_Ports,ifTable,xdslLineServiceProfile,dot1qVlan,dot1qPvid,atmVcl,eqptHolderList,eqptHolder,eqptHolderStatus,eqptBoard,eqptPortMapping,cpuUtil,memUsageUtil',
     'sys' => {
       'cpuUtil' => {
         'indexed' => 'cpuUtil',
@@ -246,7 +246,7 @@
       },
       'ifTable' => {
         'indexed' => 'ifIndex',
-        'headers' => 'ifIndex,ifDescr,ifType,ifAdminStatus,ifOperStatus,ifName',
+        'headers' => 'ifIndex,ifDescr,ifType,ifAdminStatus,ifOperStatus,ifName,ifLastChange',
         'snmp' => {
           'ifIndex' => {
             'oid' => 'ifIndex',
@@ -299,6 +299,10 @@
           'ifName' => {
             'oid' => 'ifName',
             'title' => 'Name (ifName)'
+          },
+          'ifLastChange' => {
+            'oid' => 'ifLastChange',
+            'title' => 'Last Change'
           }
         }
       },
@@ -430,9 +434,100 @@
             'title' => 'ServiceProfileNbr',
             'title_export' => 'Numero_Profile',
           },
+
           'xdslLineSpectrumProfileNbr' => {
             'title' => 'SpectrumProfileNbr',
           },
+
+        },
+      },
+
+      'xdslLineServiceProfile' => {        
+        'index_oid' => '1.3.6.1.4.1.637.61.1.39.3.3.1.1.2',        
+        'indexed' => 'xdslLineServiceProfileName',        
+        'headers' => 'index,xdslLineServiceProfileName,xdslLineServiceProfileScope,xdslLineServiceProfileVersionNbr,xdslLineServiceProfileUsedStatus',
+        'snmp' => {
+          'index' => {
+            'sysObjectName' => 'xdslLineServiceProfileIndex',
+            'title' => 'Service Profile Index'
+          },
+          'xdslLineServiceProfileName' => {
+            'oid' => '1.3.6.1.4.1.637.61.1.39.3.3.1.1.2',
+            'sysObjectName' => 'xdslLineServiceProfileName',
+            'title' => 'Service Profile Name'
+          },
+          'xdslLineServiceProfileScope' => {
+            'oid' => '1.3.6.1.4.1.637.61.1.39.3.3.1.1.3',
+            'sysObjectName' => 'xdslLineServiceProfileScope',
+            'title' => 'Service Profile Scope'
+          },
+          'xdslLineServiceProfileVersionNbr' => {
+            'oid' => '1.3.6.1.4.1.637.61.1.39.3.3.1.1.4',
+            'sysObjectName' => 'xdslLineServiceProfileVersionNbr',
+            'title' => 'Profile Version Number'
+          },
+          'xdslLineServiceProfileUsedStatus' => {
+            'oid' => '1.3.6.1.4.1.637.61.1.39.3.3.1.1.5',
+            'sysObjectName' => 'xdslLineServiceProfileUsedStatus',
+            'title' => 'Used Status'
+          },
+        },
+      },
+
+      'DSLAM_Ports' => {        
+        'indexed' => 'atmVclAdminStatus',
+        'index_oid' => '1.3.6.1.2.1.37.1.7.1.3',
+        'index_regex' => '\.(\d+\.\d+\.\d+)$',
+        'headers' => 'ifDescr,ifIndex,ifLastChange,ifOperStatus,ifAdminStatus,asamIfExtCustomerId,xdslLineServiceProfileNbr,xdslLineSpectrumProfileNbr,xdslXturInvSystemSerialNumber',
+        'snmp' => {
+          'atmVclIfIndex' => {
+            'oid' => '1.3.6.1.4.1.637.61.1.4.1.72.1.1',
+            'title' => 'atmVclIfIndex',
+          },
+          'atmVclVpi' => {
+            'snmpObjectName' => 'atmVclVpi',        
+            'title' => 'atmVclVpi',
+            'title_export' => 'ATM VPI',
+          },
+          'atmVclVci' => {
+            'snmpObjectName' => 'atmVclVci',        
+            'title' => 'atmVclVci',
+            'title_export' => 'ATM VCI',
+          },          
+          'ifDescr' => {
+            'title' => 'ifDescr',
+            'title_export' => 'Port',
+          },
+          'ifIndex' => {
+            'title' => 'ifIndex',
+            'title_export' => 'Index of port',
+          },
+          'ifLastChange' => {
+            'title' => 'ifLastChange',
+            'title_export' => 'Ultima_Bajada',
+          },
+          'ifOperStatus' => {
+            'title' => 'ifOperStatus',
+            'title_export' => 'Condicion_Operativa',
+          },
+          'ifAdminStatus' => {
+            'title' => 'ifAdminStatus',
+            'title_export' => 'Condicion_Administrativa',
+          },
+
+          'asamIfExtCustomerId' => {
+            'title' => 'CustomerId',
+            'title_export' => 'User',
+          },
+          'xdslLineServiceProfileNbr' => {
+            'title' => 'ServiceProfileNbr',
+            'title_export' => 'Numero_Profile',
+          },
+          'xdslLineSpectrumProfileNbr' => {
+            'title' => 'SpectrumProfileNbr',
+            'title_export' => 'Numero_Profile',
+          },
+
           'xdslLinkUpActualNoiseMarginDownstream' => {
             'title' => 'xdslLinkUpActualNoiseMarginDownstream',
             'title_export' => 'Ruido_Bajada',
@@ -490,11 +585,12 @@
             'title_export' => 'Velocidad_Puerto_UP',
           },
           'xdslXturInvSystemSerialNumber' => {
-            'title' => 'xdslXturInvSystemSerialNumber',
+            'title' => 'SystemSerialNumber',
             'title_export' => 'Serial_Modem',
           },
         },
       },
+
 
       'dot1qVlan' => {        
         'indexed' => 'dot1qVlanIndex',
