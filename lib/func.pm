@@ -27,7 +27,7 @@
 #
 # *****************************************************************************
 package func;
-our $VERSION = "1.5.3";
+our $VERSION = "1.5.4";
 
 use strict;
 use Fcntl qw(:DEFAULT :flock :mode);
@@ -1797,9 +1797,6 @@ sub loadConfTable {
 	# on start of program parameters are defined
 	return $C_cache if defined $C_cache and scalar @_ == 0;
 
-	# add extension if missing
-	$conf = $conf =~ /\./ ? $conf : "${conf}";
-
 	if (($configfile=getConfFileName(conf=>$conf, dir=>$dir))) {
 
 		# check if config file is updated, if not, use file cache
@@ -2822,6 +2819,10 @@ sub getFilePollLock {
 	my $conf = $args{conf};
 	my $node = $args{node};
 	my $C = loadConfTable();
+
+	# conf should be short config name, without suffix,
+	# but the cgi scripts  end up having 'Config.nmis' and the like.
+	$conf =~ s/\.nmis$//i;
 
 	my $lockFile = $C->{'<nmis_var>'}."/".lc($node)."-$conf-$type.lock";
 

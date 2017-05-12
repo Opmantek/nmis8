@@ -1604,6 +1604,9 @@ sub getNodeInfo
 		$V->{system}{netType_value} = $NI->{system}{netType};
 		$V->{system}{netType_title} = 'Net';
 
+		# override the sysLocation title to indicate that it is coming from SNMP sysLocation
+		$V->{system}{sysLocation_title} = 'SNMP Location';
+
 		# get the current ip address if the host property was a name
 		if ((my $addr = resolveDNStoAddr($NI->{system}{host})))
 		{

@@ -47,6 +47,7 @@ use DBfunc;
 use URI::Escape;
 use JSON::XS 2.01;
 use File::Basename;
+use File::Copy;
 use CGI qw();												# very ugly but createhrbuttons needs it :(
 
 #! Imports the LOCK_ *constants (eg. LOCK_UN, LOCK_EX)
@@ -2558,12 +2559,17 @@ sub createHrButtons
 	push @out, "</ul></li></ul></td>";
 
 	if ($NI->{system}{server} eq $C->{server_name}) {
+		my $location_field_name = "sysLocation";
+		if ( defined $C->{location_field_name} and $C->{location_field_name} ne "" ) {
+			$location_field_name = $C->{location_field_name};
+		}
+
 		push @out, CGI::td({class=>'header litehead'},
 				CGI::a({class=>'wht',href=>"tables.pl?conf=$confname&act=config_table_show&table=Contacts&key=".uri_escape($NI->{system}{sysContact})."&node=$urlsafenode&refresh=$refresh&widget=$widget&server=$server"},"contact"))
 					if $NI->{system}{sysContact} ne '';
 		push @out, CGI::td({class=>'header litehead'},
-				CGI::a({class=>'wht',href=>"tables.pl?conf=$confname&act=config_table_show&table=Locations&key=".uri_escape($NI->{system}{sysLocation})."&node=$urlsafenode&refresh=$refresh&widget=$widget&server=$server"},"location"))
-					if $NI->{system}{sysLocation} ne '';
+				CGI::a({class=>'wht',href=>"tables.pl?conf=$confname&act=config_table_show&table=Locations&key=".uri_escape($NI->{system}{$location_field_name})."&node=$urlsafenode&refresh=$refresh&widget=$widget&server=$server"},"location"))
+					if $NI->{system}{$location_field_name} ne '';
 	}
 
 	push @out, "</tr></table>";
@@ -4216,9 +4222,28 @@ sub rename_node
 	return(1, "New node $new already exists, NOT overwriting!")
 			if ($newnoderec);
 
+	# rename must not interfere with collect or update,
+	# so let's check those lockfiles - then acquire an update lock
+	# fixme: existsPollLock + createPollLock is insufficiently atomic to be perfectly reliable)
+	for my $nogoodlock (qw(collect update))
+	{
+		return (1, "Cannot rename node while an $nogoodlock operation is running!")
+				if (existsPollLock(type => $nogoodlock, conf => $C->{conf}, node => $old));
+	}
+	my $lockHandle = createPollLock(type => "update",
+																	conf => $C->{conf},
+																	node => $old);
+	return (1, "Failed to create lock for rename operation") if (!$lockHandle);
+
 	$newnoderec = { %$oldnoderec  };
 	$newnoderec->{name} = $new;
 	$nodeinfo->{$new} = $newnoderec;
+
+	# save the nodes file away, so that we can restore it if needed
+	my $nodesfile = $C->{'<nmis_conf>'}."/Nodes.nmis";
+	my $backupfile = $C->{'<nmis_conf>'}."/Nodes.nmis.pre-rename";
+	unlink($backupfile); 					# make room, make room; should not be present
+	File::Copy::mv($nodesfile, $backupfile); # that should preserve the permissions
 
 	# now write out the new nodes file, so that the new node becomes
 	# workable (with sys etc)
@@ -4230,7 +4255,12 @@ sub rename_node
 	# then hardlink the var files - do not delete anything yet!
 	my @todelete;
 	my $vardir = $C->{'<nmis_var>'};
-	opendir(D, $vardir) or return(1, "cannot read dir $vardir: $!");
+	if (!opendir(D, $vardir))
+	{
+		File::Copy::mv($backupfile,$nodesfile);
+		releasePollLock(handle => $lockHandle, type => "update", conf => $C->{conf}, node => $old);
+		return(1, "cannot read dir $vardir: $!");
+	}
 	for my $fn (readdir(D))
 	{
 		if ($fn =~ /^$old-(node|view)\.(\S+)$/i)
@@ -4238,9 +4268,15 @@ sub rename_node
 			my ($component,$ext) = ($1,$2);
 			my $newfn = lc("$new-$component.$ext");
 			push @todelete, "$vardir/$fn";
+
 			print STDERR "Renaming/linking var/$fn to $newfn\n" if ($wantdiag);
-			link("$vardir/$fn", "$vardir/$newfn") or
-					return(1,"cannot hardlink $fn to $newfn: $!");
+			unlink("$vardir/$newfn") if (-e "$vardir/$newfn"); # would conflict, we want to overwrite
+			if (!link("$vardir/$fn", "$vardir/$newfn"))
+			{
+				File::Copy::mv($backupfile,$nodesfile);
+				releasePollLock(handle => $lockHandle, type => "update", conf => $C->{conf}, node => $old);
+				return(1,"cannot hardlink $fn to $newfn: $!");
+			}
 		}
 	}
 	closedir(D);
@@ -4309,6 +4345,9 @@ sub rename_node
 	cleanEvent($old,$args{originator});
 
 	print STDERR "Successfully renamed node $old to $new\n" if ($wantdiag);
+	releasePollLock(handle => $lockHandle, type => "update", conf => $C->{conf}, node => $old);
+	unlink($backupfile);
+
 	return (0,undef);
 }
 
