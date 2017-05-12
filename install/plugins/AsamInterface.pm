@@ -338,22 +338,21 @@ sub getRackShelfMatrix {
 	elsif ( $version eq "4.2" ) {	
 		my $slot = 0;
 		my @indexes;
-		foreach my $eqpt (sort {$a <=> $b} keys %{$eqptHolder} ) {
-			dbg("$eqpt, eqptHolderPlannedType=$eqptHolder->{$eqpt}{eqptHolderPlannedType}");
-			if ( $eqptHolder->{$eqpt}{eqptHolderPlannedType} =~ /$rackMatch/ ) {
-				++$slot;
-			}
-		}
 		#foreach my $eqpt (sort {$a <=> $b} keys %{$eqptHolder} ) {
-		#	dbg("$eqpt = eqptPortMapping=$eqptHolder->{$eqpt}{eqptPortMappingLSMSlot}");
-		#	if ( $eqptHolder->{$eqpt}{eqptPortMappingLSMSlot} != 65535 ) {
+		#	dbg("$eqpt, eqptHolderPlannedType=$eqptHolder->{$eqpt}{eqptHolderPlannedType}");
+		#	if ( $eqptHolder->{$eqpt}{eqptHolderPlannedType} =~ /$rackMatch/ ) {
 		#		++$slot;
-		#		push(@indexes,$eqptHolder->{$eqpt}{eqptPortMappingLSMSlot});
 		#	}
 		#}
+		foreach my $eqpt (sort {$a <=> $b} keys %{$eqptHolder} ) {
+			dbg("$eqpt = eqptPortMapping=$eqptHolder->{$eqpt}{eqptPortMappingLSMSlot}");
+			if ( $eqptHolder->{$eqpt}{eqptPortMappingLSMSlot} != 65535 ) {
+				++$slot;
+				push(@indexes,$eqptHolder->{$eqpt}{eqptPortMappingLSMSlot});
+			}
+		}
 		$config{slot}{slots} = $slot;
-		# not used
-		#$config{slot}{indexes} = \@indexes;
+		$config{slot}{indexes} = \@indexes;
 	}
 	
 	# print Dumper(\%config) if $debug;
@@ -523,18 +522,22 @@ sub build_42_interface_indexes {
 	my $level = 3;
 	
 	#Look at the eqptHolderPlannedType data to see what is planned for this device.
+	#if ( exists $NI->{eqptHolder} ) {
+	#	$systemConfig = getRackShelfMatrix("4.2",$NI->{eqptHolder});
+	}#
 	if ( exists $NI->{eqptHolder} ) {
-		$systemConfig = getRackShelfMatrix("4.2",$NI->{eqptHolder});
+		$systemConfig = getRackShelfMatrix("4.2",$NI->{eqptPortMapping});
 	}
 	
 	my $slot_count = $systemConfig->{slot}{slots};
 	# correct the slot_count
 	#my $slot_limit = ( $slot_count * 2 ) + 2;
-	#my $slot_limit = $slot_count + 1;
-	my $slot_limit = $slot_count;
+	my $slot_limit = $slot_count + 1;
+	#my $slot_limit = $slot_count;
 	
-	dbg("DEBUG slot_count=$slot_count slot_limit=$slot_limit");
-	
+	#dbg("DEBUG slot_count=$slot_count slot_limit=$slot_limit");
+	dbg("DEBUG slot_count=$slot_count slot_limit=$slot_limit indexes=@{$systemConfig->{slot}{indexes}}");
+
 	#Slot count x 2 + 3? Or + 2
 	
 	my @slots = (2..$slot_limit);
