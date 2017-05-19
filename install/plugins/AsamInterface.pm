@@ -8,6 +8,8 @@ use strict;
 use NMIS;												# lnt
 use func;												# for loading extra tables
 use snmp 1.1.0;									# for snmp-related access
+use Net::SNMP qw(oid_lex_sort);
+use Data::Dumper;
 
 sub update_plugin
 {
@@ -30,13 +32,32 @@ sub update_plugin
 	logMsg("ERROR $errmsg") if $errmsg;
 	$override ||= {};
 
+	my $changesweremade = 0;
+
+	my ($session, $error) = Net::SNMP->session(
+                           #-hostname      => $NC->{node}{host},
+                           #-port          => $NC->{node}{port},
+                           #-version       => $NC->{node}{version},
+                           #-community     => $NC->{node}{community},   # v1/v2c
+
+                           -hostname      => $LNT->{$node}{host},
+                           -port          => $LNT->{$node}{port},
+                           -version       => $LNT->{$node}{version},
+                           -community     => $LNT->{$node}{community},   # v1/v2c
+                        );	
+
+	if ( $error ) {
+		dbg("ERROR with SNMP on $node: ". $error);
+		return ($changesweremade,undef);
+	}
+
 	# Get the SNMP Session going.
-	my $snmp = snmp->new(name => $node);
-	return (2,"Could not open SNMP session to node $node: ".$snmp->error)
-			if (!$snmp->open(config => $NC->{node}, host_addr => $NI->{system}->{host_addr}));
-	
-	return (2, "Could not retrieve SNMP vars from node $node: ".$snmp->error)
-			if (!$snmp->testsession);
+	#my $snmp = snmp->new(name => $node);
+	#return (2,"Could not open SNMP session to node $node: ".$snmp->error)
+	#		if (!$snmp->open(config => $NC->{node}, host_addr => $NI->{system}->{host_addr}));
+	#
+	#return (2, "Could not retrieve SNMP vars from node $node: ".$snmp->error)
+	#		if (!$snmp->testsession);
 	
 	# remove any old redundant useless and otherwise annoying entries.
 	delete $S->{info}{interface};
@@ -93,7 +114,7 @@ sub update_plugin
 		# How to identify it is an ARAM-D?
 		#"For ARAM-D with extensions "
 		$version = 4.1;
-		my ($indexes,$rack_count,$shelf_count) = build_41_interface_indexes(NI => $NI);
+		my ($indexes,$rack_count,$shelf_count) = build_interface_indexes(NI => $NI);
 		@ifIndexNum = @{$indexes};
 		
 	}
@@ -101,13 +122,13 @@ sub update_plugin
 	elsif( $asamSoftwareVersion =~ /$asamVersion42/ )
 	{
 		$version = 4.2;
-		my $indexes = build_42_interface_indexes(NI => $NI);
+		my $indexes = build_interface_indexes(NI => $NI);
 		@ifIndexNum = @{$indexes};
 	}
 	elsif( $asamSoftwareVersion =~ /$asamVersion43/ )
 	{
 		$version = 4.3;
-		my ($indexes,$rack_count,$shelf_count) = build_41_interface_indexes(NI => $NI);
+		my ($indexes,$rack_count,$shelf_count) = build_interface_indexes(NI => $NI);
 		@ifIndexNum = @{$indexes};
 	}
 	else {
@@ -118,7 +139,7 @@ sub update_plugin
 	
 	my $intfTotal = 0;
 	my $intfCollect = 0; # reset counters
-
+		
 	foreach my $index (@ifIndexNum) {
 		$intfTotal++;				
 		my $ifDescr = getIfDescr(prefix => "ATM", version => $version, ifIndex => $index);
@@ -128,17 +149,41 @@ sub update_plugin
 		if ( $version eq "4.2" )  {
 			$offset = 6291456;
 		}
+
+		my $offsetIndex = $index - $offset;
 		
 		#asamIfExtCustomerId
 		my $prefix = "1.3.6.1.4.1.637.61.1.6.5.1.1";
-		my $offsetIndex = $index - $offset;
 		my $oid = "$prefix.$offsetIndex";
-		my $customerid = $snmp->get($oid);
-		
-		dbg("SNMP $node $ifDescr $Description, index=$index, offset=$offset, offsetIndex=$offsetIndex, customerid=$customerid->{$oid}");
-		if ( $customerid->{$oid} ne "" and $customerid->{$oid} !~ /SNMP ERROR/ ) {
-			$Description = $customerid->{$oid};
+
+		if ( defined $NI->{Customer_ID} and defined $NI->{Customer_ID}{$offsetIndex} ) {
+			$Description = $NI->{Customer_ID}{$offsetIndex}{asamIfExtCustomerId};
+			dbg("Customer_ID $node $ifDescr $Description");
 		}
+		else {
+			#my $customerid = $snmp->get($oid);		
+			my $customerid;
+			if ( $session ) {
+				print "DEBUG: running the SNMP NOW\n";
+				my @oids = ( $oid );			
+				$customerid = $session->get_request(
+					-varbindlist => \@oids
+				);
+	
+				if ( $session->error() ) {
+					dbg("ERROR with SNMP on $node: ". $session->error());
+				}
+			}
+			else {
+				dbg("ERROR some session problem with SNMP on $node");
+			}
+			
+			if ( $customerid->{$oid} ne "" and $customerid->{$oid} !~ /SNMP ERROR/ ) {
+				$Description = $customerid->{$oid};
+			}
+			dbg("SNMP $node $ifDescr $Description, index=$index, offset=$offset, offsetIndex=$offsetIndex, customerid=$Description");
+		}
+		
 		
 		$S->{info}{interface}{$index} = {
 			'Description' => $Description,
@@ -524,7 +569,7 @@ sub build_42_interface_indexes {
 	#Look at the eqptHolderPlannedType data to see what is planned for this device.
 	#if ( exists $NI->{eqptHolder} ) {
 	#	$systemConfig = getRackShelfMatrix("4.2",$NI->{eqptHolder});
-	}#
+	#}
 	if ( exists $NI->{eqptHolder} ) {
 		$systemConfig = getRackShelfMatrix("4.2",$NI->{eqptPortMapping});
 	}
@@ -551,6 +596,28 @@ sub build_42_interface_indexes {
 			push( @interfaces, $index );
 		}		
 	}
+	return \@interfaces;
+}
+
+sub build_interface_indexes {
+	my %args = @_;
+	my $NI = $args{NI};
+	my $systemConfig;
+
+	my $level = 3;
+	
+	my @interfaces = ();
+	
+	if ( exists $NI->{ifTable} ) {
+		foreach my $ifIndex (oid_lex_sort(keys(%{$NI->{ifTable}}))) {
+			if ( $NI->{ifTable}{$ifIndex}{ifDescr} eq "atm Interface" ) {
+				push( @interfaces, $ifIndex );
+			}
+		}
+	}
+	
+	dbg("DEBUG indexes=@interfaces");
+
 	return \@interfaces;
 }
 

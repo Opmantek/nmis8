@@ -109,9 +109,21 @@ sub update_plugin
 	#		if (!$snmp->open(config => $NC->{node}, host_addr => $NI->{system}->{host_addr}));
 	#return (2, "Could not retrieve SNMP vars from node $node: ".$snmp->error)
 	#		if (!$snmp->testsession);
+	
+	info("Working on $node Customer_ID");
+	foreach my $ifIndex (oid_lex_sort(keys %{$NI->{Customer_ID}})) {
+		my $entry = $NI->{Customer_ID}{$ifIndex};
+
+		if ( defined $NI->{ifTable}{$ifIndex} ) {
+			$entry->{ifDescr} = $NI->{ifTable}{$ifIndex}{ifDescr};
+			$entry->{ifAdminStatus} = $NI->{ifTable}{$ifIndex}{ifAdminStatus};
+			$entry->{ifOperStatus} = $NI->{ifTable}{$ifIndex}{ifOperStatus};
+			$entry->{ifType} = $NI->{ifTable}{$ifIndex}{ifType};
+			$changesweremade = 1;
+		}
+	}
 
 	if ( $session ) {
-	
 		# Using the data we collect from the atmVcl we will fill in the details of the DSLAM Port.
 		info("Working on $node atmVcl");
 	
@@ -119,7 +131,105 @@ sub update_plugin
 		if ( $version eq "4.2" )  {
 			$offset = 6291456;
 		}
+		
+		my @atmVclVars = qw(
+			asamIfExtCustomerId
+			xdslLineServiceProfileNbr
+			xdslLineSpectrumProfileNbr
+		);
+		
+		# the ordered list of SNMP variables I want.
+		my @dslamVarList = qw(
+			asamIfExtCustomerId
+			xdslLineServiceProfileNbr
+			xdslLineSpectrumProfileNbr
+			xdslLineOutputPowerDownstream
+			xdslLineLoopAttenuationUpstream
+			xdslFarEndLineOutputPowerUpstream
+			xdslFarEndLineLoopAttenuationDownstream
+			xdslXturInvSystemSerialNumber
+			xdslLinkUpActualBitrateUpstream
+			xdslLinkUpActualBitrateDownstream
+			xdslLinkUpActualNoiseMarginUpstream
+			xdslLinkUpActualNoiseMarginDownstream
+			xdslLinkUpAttenuationUpstream
+			xdslLinkUpAttenuationDownstream
+			xdslLinkUpAttainableBitrateUpstream
+			xdslLinkUpAttainableBitrateDownstream
+			xdslLinkUpMaxBitrateUpstream
+			xdslLinkUpMaxBitrateDownstream
+		);
+			
+		foreach my $key (oid_lex_sort(keys %{$NI->{atmVcl}}))
+		{
+			my $entry = $NI->{atmVcl}->{$key};
+	                    
+			if ( my @parts = split(/\./,$entry->{index}) ) 
+			{
+				my $ifIndex = shift(@parts);
+				my $atmVclVpi = shift(@parts);
+				my $atmVclVci = shift(@parts);
 	
+				# the crazy magic of ASAM
+				my $offsetIndex = $ifIndex - $offset;
+		
+				# the set of oids with dynamic index I want.
+				my %atmOidSet = (
+	 				asamIfExtCustomerId => 											"1.3.6.1.4.1.637.61.1.6.5.1.1.$offsetIndex",
+					xdslLineServiceProfileNbr => 								"1.3.6.1.4.1.637.61.1.39.3.7.1.1.$offsetIndex",
+					xdslLineSpectrumProfileNbr => 							"1.3.6.1.4.1.637.61.1.39.3.7.1.2.$offsetIndex",					
+				);
+	
+				# build an array combining the atmVclVars and atmOidSet into a single array
+				my @oids = map {$atmOidSet{$_}} @atmVclVars;
+				#print Dumper \@oids;
+	
+				# get the snmp data from the thing
+				my $snmpdata = $session->get_request(
+					-varbindlist => \@oids
+				);
+								
+				if ( $session->error() ) {
+					dbg("ERROR with SNMP on $node: ". $session->error());
+				}
+
+				# save the data for the atmVcl					
+				$entry->{ifIndex} = $ifIndex;
+				$entry->{atmVclVpi} = $atmVclVpi;
+				$entry->{atmVclVci} = $atmVclVci;
+				$entry->{asamIfExtCustomerId} = "N/A";
+				$entry->{xdslLineServiceProfileNbr} = "N/A";
+				$entry->{xdslLineSpectrumProfileNbr} = "N/A";
+				
+				if ( $snmpdata ) {
+
+					foreach my $var (@atmVclVars) {
+						my $dataKey = $atmOidSet{$var};
+						if ( $snmpdata->{$dataKey} ne "" and $snmpdata->{$dataKey} !~ /SNMP ERROR/ ) {
+							$entry->{$var} = $snmpdata->{$dataKey};
+						}
+						else {
+							dbg("ERROR with SNMP on $node var=$var: ".$snmpdata->{$dataKey}) if ($snmpdata->{$dataKey} =~ /SNMP ERROR/);
+							$entry->{$var} = "N/A";
+						}
+					}
+							
+					dbg("atmVcl SNMP Results: ifIndex=$ifIndex atmVclVpi=$atmVclVpi atmVclVci=$atmVclVci asamIfExtCustomerId=$entry->{asamIfExtCustomerId}");
+		
+					if ( defined $IF->{$ifIndex}{ifDescr} ) {
+						$entry->{ifDescr} = $IF->{$ifIndex}{ifDescr};
+						$entry->{ifDescr_url} = "/cgi-nmis8/network.pl?conf=$C->{conf}&act=network_interface_view&intf=$ifIndex&node=$node";
+						$entry->{ifDescr_id} = "node_view_$node";
+					}
+					else {
+						$entry->{ifDescr} = getIfDescr(prefix => "ATM", version => $version, ifIndex => $ifIndex);
+					}
+
+					$changesweremade = 1;
+				}
+			}
+		}
+
 		#"xdslLinkUp"																	"1.3.6.1.4.1.637.61.1.39.12"
 		#"xdslLinkUpTable"														"1.3.6.1.4.1.637.61.1.39.12.1"
 		#"xdslLinkUpEntry"														"1.3.6.1.4.1.637.61.1.39.12.1.1"
@@ -156,73 +266,40 @@ sub update_plugin
 		#"xdslLinkUpAttainableBitrateDownstream"			"1.3.6.1.4.1.637.61.1.39.12.1.1.10"
 		#"xdslLinkUpMaxBitrateUpstream"								"1.3.6.1.4.1.637.61.1.39.12.1.1.11"
 		#"xdslLinkUpMaxBitrateDownstream"							"1.3.6.1.4.1.637.61.1.39.12.1.1.12"
-		
-		my @atmVclVars = qw(
-			asamIfExtCustomerId
-			xdslLineServiceProfileNbr
-			xdslLineSpectrumProfileNbr
-		);
-		
-		my @varList = qw(
-			asamIfExtCustomerId
-			xdslLineServiceProfileNbr
-			xdslLineSpectrumProfileNbr
-			xdslLineOutputPowerDownstream
-			xdslLineLoopAttenuationUpstream
-			xdslFarEndLineOutputPowerUpstream
-			xdslFarEndLineLoopAttenuationDownstream
-			xdslXturInvSystemSerialNumber
-			xdslLinkUpActualBitrateUpstream
-			xdslLinkUpActualBitrateDownstream
-			xdslLinkUpActualNoiseMarginUpstream
-			xdslLinkUpActualNoiseMarginDownstream
-			xdslLinkUpAttenuationUpstream
-			xdslLinkUpAttenuationDownstream
-			xdslLinkUpAttainableBitrateUpstream
-			xdslLinkUpAttainableBitrateDownstream
-			xdslLinkUpMaxBitrateUpstream
-			xdslLinkUpMaxBitrateDownstream
-		);
 	
+		info("Working on $node ifTable for DSLAM Port Data");
 		
-		for my $key (oid_lex_sort(keys %{$NI->{atmVcl}}))
-		{
-			my $entry = $NI->{atmVcl}->{$key};
-			my $dslamPort = $NI->{DSLAM_Ports}->{$key};
-	                    
-			if ( my @parts = split(/\./,$entry->{index}) ) 
-			{
-				my $ifIndex = shift(@parts);
-				my $atmVclVpi = shift(@parts);
-				my $atmVclVci = shift(@parts);
-	
+		for my $ifIndex (oid_lex_sort(keys %{$NI->{ifTable}})) {
+			my $entry = $NI->{ifTable}->{$ifIndex};
+			my $dslamPort = $NI->{DSLAM_Ports}->{$ifIndex};
+			if ( $entry->{ifDescr} eq "XDSL Line" ) {					
 				# the crazy magic of ASAM
-				my $offsetIndex = $ifIndex - $offset;
+				my $atmOffsetIndex = $ifIndex + $offset;
 		
 				# the set of oids with dynamic index I want.
-				my %oidSet = (
-	 				asamIfExtCustomerId => 											"1.3.6.1.4.1.637.61.1.6.5.1.1.$offsetIndex",
-					xdslLineServiceProfileNbr => 								"1.3.6.1.4.1.637.61.1.39.3.7.1.1.$offsetIndex",
-					xdslLineSpectrumProfileNbr => 							"1.3.6.1.4.1.637.61.1.39.3.7.1.2.$offsetIndex",					
-					xdslLineOutputPowerDownstream =>						"1.3.6.1.4.1.637.61.1.39.3.8.1.1.3.$offsetIndex",
-					xdslLineLoopAttenuationUpstream =>					"1.3.6.1.4.1.637.61.1.39.3.8.1.1.5.$offsetIndex",
-					xdslFarEndLineOutputPowerUpstream =>				"1.3.6.1.4.1.637.61.1.39.4.1.1.1.3.$offsetIndex",
-					xdslFarEndLineLoopAttenuationDownstream =>	"1.3.6.1.4.1.637.61.1.39.4.1.1.1.5.$offsetIndex",
-					xdslXturInvSystemSerialNumber =>						"1.3.6.1.4.1.637.61.1.39.8.1.1.2.$offsetIndex",
-					xdslLinkUpActualBitrateUpstream =>					"1.3.6.1.4.1.637.61.1.39.12.1.1.3.$offsetIndex",
-					xdslLinkUpActualBitrateDownstream =>				"1.3.6.1.4.1.637.61.1.39.12.1.1.4.$offsetIndex",
-					xdslLinkUpActualNoiseMarginUpstream =>			"1.3.6.1.4.1.637.61.1.39.12.1.1.5.$offsetIndex",
-					xdslLinkUpActualNoiseMarginDownstream =>		"1.3.6.1.4.1.637.61.1.39.12.1.1.6.$offsetIndex",
-					xdslLinkUpAttenuationUpstream =>						"1.3.6.1.4.1.637.61.1.39.12.1.1.7.$offsetIndex",
-					xdslLinkUpAttenuationDownstream =>					"1.3.6.1.4.1.637.61.1.39.12.1.1.8.$offsetIndex",
-					xdslLinkUpAttainableBitrateUpstream =>			"1.3.6.1.4.1.637.61.1.39.12.1.1.9.$offsetIndex",
-					xdslLinkUpAttainableBitrateDownstream =>		"1.3.6.1.4.1.637.61.1.39.12.1.1.10.$offsetIndex",
-					xdslLinkUpMaxBitrateUpstream =>							"1.3.6.1.4.1.637.61.1.39.12.1.1.11.$offsetIndex",
-					xdslLinkUpMaxBitrateDownstream =>						"1.3.6.1.4.1.637.61.1.39.12.1.1.12.$offsetIndex",
+				my %dslamOidSet = (
+	 				asamIfExtCustomerId => 											"1.3.6.1.4.1.637.61.1.6.5.1.1.$ifIndex",
+					xdslLineServiceProfileNbr => 								"1.3.6.1.4.1.637.61.1.39.3.7.1.1.$ifIndex",
+					xdslLineSpectrumProfileNbr => 							"1.3.6.1.4.1.637.61.1.39.3.7.1.2.$ifIndex",					
+					xdslLineOutputPowerDownstream =>						"1.3.6.1.4.1.637.61.1.39.3.8.1.1.3.$ifIndex",
+					xdslLineLoopAttenuationUpstream =>					"1.3.6.1.4.1.637.61.1.39.3.8.1.1.5.$ifIndex",
+					xdslFarEndLineOutputPowerUpstream =>				"1.3.6.1.4.1.637.61.1.39.4.1.1.1.3.$ifIndex",
+					xdslFarEndLineLoopAttenuationDownstream =>	"1.3.6.1.4.1.637.61.1.39.4.1.1.1.5.$ifIndex",
+					xdslXturInvSystemSerialNumber =>						"1.3.6.1.4.1.637.61.1.39.8.1.1.2.$ifIndex",
+					xdslLinkUpActualBitrateUpstream =>					"1.3.6.1.4.1.637.61.1.39.12.1.1.3.$ifIndex",
+					xdslLinkUpActualBitrateDownstream =>				"1.3.6.1.4.1.637.61.1.39.12.1.1.4.$ifIndex",
+					xdslLinkUpActualNoiseMarginUpstream =>			"1.3.6.1.4.1.637.61.1.39.12.1.1.5.$ifIndex",
+					xdslLinkUpActualNoiseMarginDownstream =>		"1.3.6.1.4.1.637.61.1.39.12.1.1.6.$ifIndex",
+					xdslLinkUpAttenuationUpstream =>						"1.3.6.1.4.1.637.61.1.39.12.1.1.7.$ifIndex",
+					xdslLinkUpAttenuationDownstream =>					"1.3.6.1.4.1.637.61.1.39.12.1.1.8.$ifIndex",
+					xdslLinkUpAttainableBitrateUpstream =>			"1.3.6.1.4.1.637.61.1.39.12.1.1.9.$ifIndex",
+					xdslLinkUpAttainableBitrateDownstream =>		"1.3.6.1.4.1.637.61.1.39.12.1.1.10.$ifIndex",
+					xdslLinkUpMaxBitrateUpstream =>							"1.3.6.1.4.1.637.61.1.39.12.1.1.11.$ifIndex",
+					xdslLinkUpMaxBitrateDownstream =>						"1.3.6.1.4.1.637.61.1.39.12.1.1.12.$ifIndex",
 				);
 	
-				# build an array combining the varList and oidSet into a single array
-				my @oids = map {$oidSet{$_}} @varList;
+				# build an array combining the dslamVarList and dslamOidSet into a single array
+				my @oids = map {$dslamOidSet{$_}} @dslamVarList;
 				#print Dumper \@oids;
 	
 				# get the snmp data from the thing
@@ -234,35 +311,15 @@ sub update_plugin
 					dbg("ERROR with SNMP on $node: ". $session->error());
 				}
 
-				# save the data for the atmVcl					
-				$entry->{ifIndex} = $ifIndex;
-				$entry->{atmVclVpi} = $atmVclVpi;
-				$entry->{atmVclVci} = $atmVclVci;
-				$entry->{asamIfExtCustomerId} = "N/A";
-				$entry->{xdslLineServiceProfileNbr} = "N/A";
-				$entry->{xdslLineSpectrumProfileNbr} = "N/A";
-
 				# save the data for the dslamPort					
 				$dslamPort->{ifIndex} = $ifIndex;
-				$dslamPort->{atmVclVpi} = $atmVclVpi;
-				$dslamPort->{atmVclVci} = $atmVclVci;
+				$dslamPort->{atmIfIndex} = $atmOffsetIndex;
 				
 				if ( $snmpdata ) {
-
-					foreach my $var (@atmVclVars) {
-						my $dataKey = $oidSet{$var};
-						if ( $snmpdata->{$dataKey} ne "" and $snmpdata->{$dataKey} !~ /SNMP ERROR/ ) {
-							$entry->{$var} = $snmpdata->{$dataKey};
-						}
-						else {
-							dbg("ERROR with SNMP on $node var=$var: ".$snmpdata->{$dataKey}) if ($snmpdata->{$dataKey} =~ /SNMP ERROR/);
-							$entry->{$var} = "N/A";
-						}
-					}
 															
 					# now get each of the required vars snmp data into the entry for saving.
-					foreach my $var (@varList) {
-						my $dataKey = $oidSet{$var};
+					foreach my $var (@dslamVarList) {
+						my $dataKey = $dslamOidSet{$var};
 						if ( $snmpdata->{$dataKey} ne "" and $snmpdata->{$dataKey} !~ /SNMP ERROR/ ) {
 							$dslamPort->{$var} = $snmpdata->{$dataKey};
 						}
@@ -271,38 +328,32 @@ sub update_plugin
 							$dslamPort->{$var} = "N/A";
 						}
 					}
-		
-					dbg("ASAM SNMP Results: ifIndex=$ifIndex atmVclVpi=$atmVclVpi atmVclVci=$atmVclVci asamIfExtCustomerId=$entry->{asamIfExtCustomerId}");
-		
-					if ( defined $IF->{$ifIndex}{ifDescr} ) {
-						$entry->{ifDescr} = $IF->{$ifIndex}{ifDescr};
-						$entry->{ifDescr_url} = "/cgi-nmis8/network.pl?conf=$C->{conf}&act=network_interface_view&intf=$ifIndex&node=$node";
-						$entry->{ifDescr_id} = "node_view_$node";
 
-						$dslamPort->{ifDescr} = $IF->{$ifIndex}{ifDescr};
+					$dslamPort->{ifDescr} = getIfDescr(prefix => "ATM", version => $version, ifIndex => $atmOffsetIndex);
+		
+					dbg("DSLAM SNMP Results: ifIndex=$ifIndex ifDescr=$dslamPort->{ifDescr} asamIfExtCustomerId=$dslamPort->{asamIfExtCustomerId}");
+								
+					if ( $entry->{ifLastChange} ) { 
+						$dslamPort->{ifLastChange} = convUpTime(int($entry->{ifLastChange}/100));
 					}
 					else {
-						$entry->{ifDescr} = getIfDescr(prefix => "ATM", version => $version, ifIndex => $ifIndex);
-						$dslamPort->{ifDescr} = getIfDescr(prefix => "ATM", version => $version, ifIndex => $ifIndex);
+						$dslamPort->{ifLastChange} = '0:00:00',
 					}
+					$dslamPort->{ifOperStatus} = $entry->{ifOperStatus} ? $entry->{ifOperStatus} : "N/A";
+					$dslamPort->{ifAdminStatus} = $entry->{ifAdminStatus} ? $entry->{ifAdminStatus} : "N/A";
 
-					# grab the interface data for the dslam port.
-					if ( defined $ifTable->{$ifIndex} ) {
-						
-						if ( $ifTable->{$ifIndex}{ifLastChange} ) { 
-							$dslamPort->{ifLastChange} = convUpTime(int($ifTable->{$ifIndex}{ifLastChange}/100));
-						}
-						else {
-							$dslamPort->{ifLastChange} = '0:00:00',
-						}
-						$dslamPort->{ifOperStatus} = $ifTable->{$ifIndex}{ifOperStatus} ? $ifTable->{$ifIndex}{ifOperStatus} : "N/A";
-						$dslamPort->{ifAdminStatus} = $ifTable->{$ifIndex}{ifAdminStatus} ? $ifTable->{$ifIndex}{ifAdminStatus} : "N/A";
-						
-						
+
+					# get the Service Profile Name based on the xdslLineServiceProfileNbr
+					if ( defined $NI->{xdslLineServiceProfile} and defined $dslamPort->{xdslLineServiceProfileNbr} ) {
+						my $profileNumber = $dslamPort->{xdslLineServiceProfileNbr};
+						$dslamPort->{xdslLineServiceProfileName}  = $NI->{xdslLineServiceProfile}{$profileNumber}{xdslLineServiceProfileName} ? $NI->{xdslLineServiceProfile}{$profileNumber}{xdslLineServiceProfileName} : "N/A";						
 					}
 
 					$changesweremade = 1;
 				}
+			}
+			else {
+				delete $NI->{DSLAM_Ports}->{$ifIndex};
 			}
 		}
 	}
@@ -389,7 +440,5 @@ sub getIfDescr {
 		return "$prefix-1-1-$slot-$circuit";		
 	}
 }
-
-
 
 1;
