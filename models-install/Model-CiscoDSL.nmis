@@ -62,7 +62,7 @@
     }
   },
   'systemHealth' => {
-    'sections' => 'ADSL_Physical,ADSL_Channel,entityMib,ciscoAsset',
+    'sections' => 'ADSL_Physical,ADSL_Channel,ifStack,entityMib,ciscoAsset',
     'sys' => {
       'ifStack' => {        
         'indexed' => 'ifStackStatus',
