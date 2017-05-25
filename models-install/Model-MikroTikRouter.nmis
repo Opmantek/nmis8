@@ -92,8 +92,22 @@
 #"mtxrWlApAuthClientCount"			"1.3.6.1.4.1.14988.1.1.1.3.1.11"
   
   'systemHealth' => {
-    'sections' => 'mtxrWlAp,mtxrWlRtab',
+    'sections' => 'mtxrWlAp,mtxrWlRtab,hrProcessorLoad',
     'sys' => {
+      'hrProcessorLoad' => {
+        'headers' => 'hrDeviceDescr',
+        'indexed' => 'hrDeviceDescr',
+        'snmp' => {
+          'hrDeviceDescr' => {
+            'oid' => 'hrDeviceDescr',
+            'title' => 'Device Description'
+          },
+          'hrProcessorLoad' => {
+            'oid' => 'hrProcessorLoad',
+            'title' => 'Processor Load'
+          }
+        }
+      },
       'mtxrWlAp' => {
         'headers' => 'SSID,BSSID,Frequency,Band,ClientCount,AuthClientCount',
         'indexed' => 'SSID',
@@ -225,6 +239,16 @@
 #"mtxrWlRtabTxStrength"			"1.3.6.1.4.1.14988.1.1.1.2.1.19"
          
     'rrd' => {
+      'hrProcessorLoad' => {
+        'graphtype' => 'hrprocload',
+        'indexed' => 'true',
+        'snmp' => {
+          'hrProcessorLoad' => {
+            'oid' => 'hrProcessorLoad',
+            'option' => 'gauge,0:U'
+          },
+        },
+      },
       'mtxrWlAp' => {
         'graphtype' => 'LinkRateAp',
         'indexed' => 'true',
@@ -308,10 +332,21 @@
     }, #rrd
   },  
   'system' => {
-    'nodegraph' => 'health,response',
+    'nodegraph' => 'health,response,hrmem,mikrotikCpu',
     'nodeModel' => 'MikroTikRouter',
     'nodeType' => 'router',
     'rrd' => {
+      'mikrotikCpu' => {
+        #'indexed' => 'true',
+        'graphtype' => 'mikrotikCpu',
+        'snmp' => {
+          'mikrotikCpu' => {
+            #'oid' => '1.3.6.1.4.1.2021.11.10',
+            'oid' => 'ssCpuSystem',
+            'option' => 'gauge,0:100',
+          },
+        },
+      },
     #  'mikrotik' => {
     #    'graphtype' => 'env-temp,systemvoltage',
     #    'snmp' => {
@@ -628,6 +663,32 @@
       'ifType' => 'other'
     }
   },
-
+  'storage' => {
+    'sys' => {
+      'storage' => {
+        'snmp' => {
+          'hrStorageUnits' => {
+            'oid' => 'hrStorageAllocationUnits'
+          },
+          'hrStorageSize' => {
+            'oid' => 'hrStorageSize'
+          },
+          'hrStorageUsed' => {
+            'oid' => 'hrStorageUsed'
+          },
+          'hrStorageDescr' => {
+            'oid' => 'hrStorageDescr'
+          },
+          'hrStorageType' => {
+            'oid' => 'hrStorageType'
+          }
+        },
+        'indexed' => 'true'
+      }
+    },
+    'nocollect' => {
+      'Description' => '/mnt/cdrom|boot'
+    }
+  },
 );
 

@@ -182,8 +182,8 @@
       'radio' => '/nodes/$node/health/radio.rrd',
       'Radio' => '/nodes/$node/health/radio-$index.rrd',
       'Chain' => '/nodes/$node/health/Chain-$index.rrd',
-      'Stream' => '/nodes/$node/health/Stream-$index.rrd',      
-      
+      'Stream' => '/nodes/$node/health/Stream-$index.rrd', 
+      'mikrotikCpu' => '/nodes/$node/health/mikrotikCpu.rrd',     
     }
   }
 );

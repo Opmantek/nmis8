@@ -215,6 +215,7 @@
       'Wlan' => 'WLAN Transmitted/Received',
       'Radio' => 'Radio Information',
       'signal' => "Signal Level",
+      'mikrotikCpu' => 'CPU Usage',
     }
   }
 );
