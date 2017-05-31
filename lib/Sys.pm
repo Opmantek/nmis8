@@ -27,7 +27,7 @@
 #
 # *****************************************************************************
 package Sys;
-our $VERSION = "2.0.0";
+our $VERSION = "2.0.1";
 
 use strict;
 use lib "../../lib";
@@ -327,9 +327,10 @@ sub open
 	# prime config for snmp, based mostly on cfg->node - cloned to not leak any of the updated bits
 	my $snmpcfg = Clone::clone($self->{cfg}->{node});
 
-	# check if numeric ip address is available for speeding up, conversion done by type=update
-	$snmpcfg->{host} = ( $self->{info}{system}{host_addr}
-											 || $self->{cfg}{node}{host} || $self->{cfg}{node}{name} );
+	# check if numeric ip address is available for speeding up, update done in getnodeinfo, AFTER this open
+	# hence host_addr must be ignored if this is type=update, or a bad one will never clear
+	$snmpcfg->{host} = (($self->{update}? undef : $self->{info}{system}{host_addr})
+											|| $self->{cfg}{node}{host} || $self->{cfg}{node}{name});
 	$snmpcfg->{timeout} = $args{timeout} || 5;
 	$snmpcfg->{retries} = $args{retries} || 1;
 	$snmpcfg->{oidpkt} = $args{oidpkt} || 10;
