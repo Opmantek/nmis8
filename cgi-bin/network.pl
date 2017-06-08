@@ -2691,7 +2691,7 @@ sub viewCpuList {
 								. ", status=$NI->{system}{status_summary}"));
 	}
 
-	print Tr(th({class=>'title',colspan=>'7'},"List of CPU's on node $NI->{system}{name}"));
+	print Tr(th({class=>'title',colspan=>'7'},"List of CPUs on node $NI->{system}{name}"));
 
   my $url = url(-absolute=>1)."?conf=$Q->{conf}&act=network_service_list&refresh=$Q->{refresh}&widget=$widget&node=".uri_escape($node);
 
@@ -2700,7 +2700,7 @@ sub viewCpuList {
 			td({class=>'header'},"CPU ID and Description"),
 			td({class=>'header'},"History"),
 		);
-		foreach my $index ( @cpus ) {
+		foreach my $index ( sort @cpus ) {
 			print Tr(
 				td({class=>'lft Plain'},"Server CPU $index ($NI->{device}{$index}{hrDeviceDescr})"),
 				td({class=>'info Plain'},htmlGraph(graphtype=>"hrsmpcpu",node=>$node,intf=>$index, width=>$smallGraphWidth,height=>$smallGraphHeight) )
@@ -2708,7 +2708,7 @@ sub viewCpuList {
 		}
 	}
 	else {
-		print Tr(th({class=>'title',colspan=>'6'},"No Services found for $NI->{system}{name}"));
+		print Tr(th({class=>'title',colspan=>'6'},"No CPUs found for $NI->{system}{name}"));
 	}
 	print end_table;
 	pageEnd() if (!$wantwidget);
