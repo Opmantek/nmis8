@@ -3196,7 +3196,7 @@ sub updateNodeInfo
 		}
 		elsif (!$doIfNumberCheck and $ifNumber != $NI->{system}{ifNumber})
 		{
-			logMsg("INFO ($NI->{system}{name}) Number of interfaces changed from $ifNumber now $NI->{system}{ifNumber}, but modelling configured to ignore changes to ifNumber");
+			logMsg("INFO ($NI->{system}{name}) Ignoring the number of interfaces changed from $ifNumber now $NI->{system}{ifNumber} based on custom interface modelling");
 		}
 
 		my $interface_max_number = $C->{interface_max_number} ? $C->{interface_max_number} : 5000;
