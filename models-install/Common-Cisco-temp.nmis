@@ -31,12 +31,20 @@
   'alerts' => {
     'env-temp' => {
       'tempStatus' => {
-        'element' => 'index',
-        'event' => 'Temperature Status',
-        'level' => 'Warning',
-        'test' => 'CVAR1=currentTemp;$CVAR1 > 75',
-        'type' => 'test',
-        'unit' => '',
+        'type' => 'threshold-rising',
+        'threshold' => {
+          'Normal' => '79',
+          'Warning' => '80',
+          'Minor' => '85',
+          'Major' => '80',
+          'Critical' => '95',
+          'Fatal' => '100',
+        },
+        'control' => 'CVAR=tempType;$CVAR =~ /celsius/',
+        'element' => 'tempDescr',
+        'event' => 'High Temperature',
+        'test' => '',
+        'unit' => 'celsius',
         'value' => 'CVAR1=currentTemp;int($CVAR1)'
       }
     },
