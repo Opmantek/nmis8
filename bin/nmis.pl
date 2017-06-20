@@ -3187,12 +3187,16 @@ sub updateNodeInfo
 		# a new control to minimise when interfaces are added,
 		# if disabled {custom}{interface}{ifNumber} eq "false" then don't run getIntfInfo when intf changes
 		my $doIfNumberCheck = ( exists($S->{mdl}->{custom}) && exists($S->{mdl}->{custom}->{interface}) # do not autovivify
-														&& !getbool($S->{mdl}->{custom}->{interface}->{ifNumber}));
+														&& getbool($S->{mdl}->{custom}->{interface}->{ifNumber}));
 
 		if ($doIfNumberCheck and $ifNumber != $NI->{system}{ifNumber})
 		{
 			logMsg("INFO ($NI->{system}{name}) Number of interfaces changed from $ifNumber now $NI->{system}{ifNumber}");
 			getIntfInfo(sys=>$S); # get new interface table
+		}
+		elsif (!$doIfNumberCheck and $ifNumber != $NI->{system}{ifNumber})
+		{
+			logMsg("INFO ($NI->{system}{name}) Number of interfaces changed from $ifNumber now $NI->{system}{ifNumber}, but modelling configured to ignore changes to ifNumber");
 		}
 
 		my $interface_max_number = $C->{interface_max_number} ? $C->{interface_max_number} : 5000;
