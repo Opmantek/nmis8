@@ -581,6 +581,24 @@
         },
       }
     },
+
+    'BTI Photonic Systems' => {
+      'order' => {
+        '10' => {
+          'BTI-7800' => 'BTI 7800'
+        },
+        '20' => {
+          'BTI-7000' => 'BTI 7000'
+        },
+      }
+    },
+    'Oplink Communications, Inc.' => {
+      'order' => {
+        '10' => {
+          'BTI-OPS' => 'oplink snmp-agent'
+        },
+      }
+    },
   },
   'system' => {
     'nodeModel' => 'Default',

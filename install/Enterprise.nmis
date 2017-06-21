@@ -73720,4 +73720,8 @@
     'Enterprise' => 'Ubiquiti Networks, Inc.',
     'OID' => '41112'
   },
+  '19547' => {
+    'Enterprise' => 'Oplink Communications, Inc.',
+    'OID' => '19547'
+  },
 );
