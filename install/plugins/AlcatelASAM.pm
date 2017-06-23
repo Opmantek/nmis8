@@ -49,8 +49,8 @@ sub update_plugin
 	my $NI = $S->ndinfo;
 	my $IF = $S->ifinfo;
 	my $ifTable = $NI->{ifTable};
+	my $V = $S->view;
 	
-
 	# anything to do?
 	return (0,undef) if ( $NI->{system}{nodeModel} !~ "AlcatelASAM" 
 												or !getbool($NI->{system}->{collect}));
@@ -59,6 +59,27 @@ sub update_plugin
 	my $asamVersion42 = qr/OSWPAA42|L6GPAA42|OSWPAA46/;
 	my $asamVersion43 = qr/OSWPRA43|OSWPAN43/;
 
+	# we have been told index 17 of the eqptHolder is the ASAM Model	
+	my $asamModel = $NI->{eqptHolder}{17}{eqptHolderPlannedType};
+
+
+	if ( $asamModel eq "NFXS-A" ) {
+		$asamModel = "7302 ($asamModel)";
+	}
+	elsif ( $asamModel eq "NFXS-B" ) {
+		$asamModel = "7330-FD ($asamModel)";
+	}
+	elsif ( $asamModel eq "ARAM-D" ) {
+		$asamModel = "ARAM-D ($asamModel)";
+	}
+	elsif ( $asamModel eq "ARAM-E" ) {
+		$asamModel = "ARAM-E ($asamModel)";
+	}
+
+	$NI->{system}{asamModel} = $asamModel;
+	$V->{system}{"asamModel_value"} = $asamModel;
+	$V->{system}{"asamModel_title"} = "ASAM Model";
+	
 	my $asamSoftwareVersion = $NI->{system}{asamSoftwareVersion1};
 	if ( $NI->{system}{asamActiveSoftware2} eq "active" ) 
 	{
@@ -222,7 +243,7 @@ sub update_plugin
 						$entry->{ifDescr_id} = "node_view_$node";
 					}
 					else {
-						$entry->{ifDescr} = getIfDescr(prefix => "ATM", version => $version, ifIndex => $ifIndex);
+						$entry->{ifDescr} = getIfDescr(prefix => "ATM", version => $version, ifIndex => $ifIndex, asamModel => $asamModel);
 					}
 
 					$changesweremade = 1;
@@ -329,7 +350,7 @@ sub update_plugin
 						}
 					}
 
-					$dslamPort->{ifDescr} = getIfDescr(prefix => "ATM", version => $version, ifIndex => $atmOffsetIndex);
+					$dslamPort->{ifDescr} = getIfDescr(prefix => "ATM", version => $version, ifIndex => $atmOffsetIndex, asamModel => $asamModel);
 		
 					dbg("DSLAM SNMP Results: ifIndex=$ifIndex ifDescr=$dslamPort->{ifDescr} asamIfExtCustomerId=$dslamPort->{asamIfExtCustomerId}");
 								
@@ -400,6 +421,7 @@ sub getIfDescr {
 	
 	my $oid_value 		= $args{ifIndex};	
 	my $prefix 		= $args{prefix};	
+	my $asamModel 		= $args{asamModel};	
 	
 	if ( $args{version} eq "4.1" or $args{version} eq "4.3" ) {
 		my $rack_mask 		= 0x70000000;
@@ -418,6 +440,8 @@ sub getIfDescr {
 		$slot = $slot - 2;
 		++$circuit;	
 		
+		$slot = asamSlotCorrection($slot,$asamModel);
+
 		return "$prefix-$rack-$shelf-$slot-$circuit";
 	}
 	else {
@@ -436,9 +460,33 @@ sub getIfDescr {
 		++$circuit;	
 		
 		$prefix = "XDSL" if $level == 16;
+		
+		$slot = asamSlotCorrection($slot,$asamModel);
 
 		return "$prefix-1-1-$slot-$circuit";		
 	}
 }
+
+sub asamSlotCorrection {
+	my $slot = shift;
+	my $asamModel = shift;
+	
+	if ( $asamModel =~ /7302/ and $slot >= 9 ) {
+		$slot = $slot + 3;
+	}
+	elsif ( $asamModel =~ /ARAM-D/ ) {
+		$slot = $slot + 3
+	}
+	elsif ( $asamModel =~ /ARAM-E/ and $slot < 9 ) {
+		$slot = $slot + 1
+	}
+	elsif ( $asamModel =~ /ARAM-E/ and $slot >= 9 ) {
+		$slot = $slot + 3
+	}
+	elsif ( $asamModel =~ /7330-FD/ ) {
+		$slot = $slot + 3
+	}
+	return $slot;
+} 
 
 1;

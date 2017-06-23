@@ -88,6 +88,26 @@ sub update_plugin
 	my $asamVersion41 = qr/OSWPAA41|L6GPAA41|OSWPAA37|L6GPAA37|OSWPRA41/;
 	my $asamVersion42 = qr/OSWPAA42|L6GPAA42|OSWPAA46/;
 	my $asamVersion43 = qr/OSWPRA43|OSWPAN43/;
+
+	# we have been told index 17 of the eqptHolder is the ASAM Model	
+	my $asamModel = $NI->{eqptHolder}{17}{eqptHolderPlannedType};
+
+	if ( $asamModel eq "NFXS-A" ) {
+		$asamModel = "7302 ($asamModel)";
+	}
+	elsif ( $asamModel eq "NFXS-B" ) {
+		$asamModel = "7330-FD ($asamModel)";
+	}
+	elsif ( $asamModel eq "ARAM-D" ) {
+		$asamModel = "ARAM-D ($asamModel)";
+	}
+	elsif ( $asamModel eq "ARAM-E" ) {
+		$asamModel = "ARAM-E ($asamModel)";
+	}
+
+	$NI->{system}{asamModel} = $asamModel;
+	$V->{system}{"asamModel_value"} = $asamModel;
+	$V->{system}{"asamModel_title"} = "ASAM Model";
 	
 	my $rack_count = 1;
 	my $shelf_count = 1;
@@ -142,7 +162,7 @@ sub update_plugin
 		
 	foreach my $index (@ifIndexNum) {
 		$intfTotal++;				
-		my $ifDescr = getIfDescr(prefix => "ATM", version => $version, ifIndex => $index);
+		my $ifDescr = getIfDescr(prefix => "ATM", version => $version, ifIndex => $index, asamModel => $asamModel);
 		my $Description = getDescription(version => $version, ifIndex => $index);
 				
 		my $offset = 12288;
@@ -410,6 +430,7 @@ sub getIfDescr {
 	
 	my $oid_value 		= $args{ifIndex};	
 	my $prefix 		= $args{prefix};	
+	my $asamModel 		= $args{asamModel};	
 	
 	if ( $args{version} eq "4.1" or $args{version} eq "4.3" ) {
 		my $rack_mask 		= 0x70000000;
@@ -428,6 +449,8 @@ sub getIfDescr {
 		$slot = $slot - 2;
 		++$circuit;	
 		
+		$slot = asamSlotCorrection($slot,$asamModel);
+
 		return "$prefix-$rack-$shelf-$slot-$circuit";
 	}
 	else {
@@ -446,10 +469,34 @@ sub getIfDescr {
 		++$circuit;	
 		
 		$prefix = "XDSL" if $level == 16;
+		
+		$slot = asamSlotCorrection($slot,$asamModel);
 
 		return "$prefix-1-1-$slot-$circuit";		
 	}
 }
+
+sub asamSlotCorrection {
+	my $slot = shift;
+	my $asamModel = shift;
+	
+	if ( $asamModel =~ /7302/ and $slot >= 9 ) {
+		$slot = $slot + 3;
+	}
+	elsif ( $asamModel =~ /ARAM-D/ ) {
+		$slot = $slot + 3
+	}
+	elsif ( $asamModel =~ /ARAM-E/ and $slot < 9 ) {
+		$slot = $slot + 1
+	}
+	elsif ( $asamModel =~ /ARAM-E/ and $slot >= 9 ) {
+		$slot = $slot + 3
+	}
+	elsif ( $asamModel =~ /7330-FD/ ) {
+		$slot = $slot + 3
+	}
+	return $slot;
+} 
 
 sub getDescription {
 	my %args = @_;
