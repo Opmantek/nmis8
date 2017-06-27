@@ -49,7 +49,7 @@ my $C = loadConfTable(conf=>$arg{conf},debug=>$arg{debug});
 
 my $LNT = loadLocalNodeTable();
 
-print qq|"name","host","group","version","active","collect","last updated","icmp working","wmi working","snmp working","nodeModel","nodeVendor","nodeType","roleType","netType","sysObjectID","sysObjectName","sysDescr","intCount","intCollect"\n|;
+print qq|"name","host","group","version","active","collect","last updated","icmp working","wmi working","snmp working","nodeModel","nodeVendor","nodeType","roleType","netType","sysObjectID","sysName","sysObjectName","sysDescr","intCount","intCollect"\n|;
 
 foreach my $node (sort keys %{$LNT}) {
 
@@ -83,5 +83,5 @@ foreach my $node (sort keys %{$LNT}) {
 	$pingable = "unknown" if not defined $NI->{system}{nodedown};
 	$snmpable = "unknown" if not defined $NI->{system}{snmpdown};
 
-	print qq|"$LNT->{$node}{name}","$LNT->{$node}{host}","$LNT->{$node}{group}","$LNT->{$node}{version}","$LNT->{$node}{active}","$LNT->{$node}{collect}","$lastUpdate","$pingable","$wmiworks","$snmpable","$NI->{system}{nodeModel}","$NI->{system}{nodeVendor}","$NI->{system}{nodeType}","$LNT->{$node}{roleType}","$LNT->{$node}{netType}","$NI->{system}{sysObjectID}","$NI->{system}{sysObjectName}","$sysDescr","$intCount","$intCollect"\n|;
+	print qq|"$LNT->{$node}{name}","$LNT->{$node}{host}","$LNT->{$node}{group}","$LNT->{$node}{version}","$LNT->{$node}{active}","$LNT->{$node}{collect}","$lastUpdate","$pingable","$wmiworks","$snmpable","$NI->{system}{nodeModel}","$NI->{system}{nodeVendor}","$NI->{system}{nodeType}","$LNT->{$node}{roleType}","$LNT->{$node}{netType}","$NI->{system}{sysObjectID}","$NI->{system}{sysName}","$NI->{system}{sysObjectName}","$sysDescr","$intCount","$intCollect"\n|;
 }
