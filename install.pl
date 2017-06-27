@@ -1821,7 +1821,7 @@ sub enable_custom_repo
 	elsif ($reponame eq "gf")
 	{
 		echolog("\nEnabling Ghettoforge repository\n");
-		execPrint("yum -y install 'http://mirror.symnds.com/distributions/gf/el/$majorlevel/gf/x86_64/gf-release-$majorlevel-10.gf.el$majorlevel.noarch.rpm'");
+		execPrint("yum -y install 'http://mirror.ghettoforge.org/distributions/gf/gf-release-latest.gf.el$majorlevel.noarch.rpm'");
 	}
 	else
 	{
