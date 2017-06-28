@@ -41,7 +41,7 @@ use WMI;
 use Fcntl qw(:DEFAULT :flock);
 use Data::Dumper;
 $Data::Dumper::Indent = 1;
-use List::Util;
+use List::Util 1.33;						# older versions have no working any()
 use Clone;
 
 # the sys constructor does next to nothing, just roughly setup the structure

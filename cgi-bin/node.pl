@@ -35,7 +35,7 @@ use lib "$FindBin::Bin/../lib";
 
 #
 use strict;
-use List::Util;
+use List::Util 1.33;						# older versions don't have a usable any()
 use NMIS;
 use func;
 use Sys;
