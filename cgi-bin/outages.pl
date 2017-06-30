@@ -114,7 +114,9 @@ sub viewOutage {
 			. hidden(-override => 1, -name => "act", -value => "outage_table_doadd")
 			. hidden(-override => 1, -name => "widget", -value => $widget);
 
-	print createHrButtons(node=>$node, system=>$S, refresh=>$Q->{refresh},widget=>$widget, conf => $Q->{conf}, AU => $AU);
+	# doesn't make sense to run the bar creator if it can't create any output anyway...
+	print createHrButtons(node=>$node, system=>$S, refresh=>$Q->{refresh},widget=>$widget, conf => $Q->{conf}, AU => $AU)
+			if ($node);
 
 	print start_table;
 
