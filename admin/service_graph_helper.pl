@@ -260,11 +260,11 @@ for my $idx (0..$#whichreadings)
 
 			$color = sprintf("%02x%02x%02x", int(rand(256)), int(rand(256)), int(rand(256)))
 					if ($color eq "random");
-
-			my $linedef = "LINE1:$ds#$color:$label";
-			push @{$graph{option}->{standard}}, $linedef;
-			push @{$graph{option}->{small}}, $linedef;
 		}
+
+		my $linedef = "LINE1:$ds#$color:$label";
+		push @{$graph{option}->{standard}}, $linedef;
+		push @{$graph{option}->{small}}, $linedef;
 	}
 
 	# now deal with the printing choices
