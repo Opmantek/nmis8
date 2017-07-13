@@ -203,7 +203,7 @@ logMsg( !getbool($C->{daemon_fping_dns_cache},"invert")?
 my $origscript = $FindBin::RealBin."/".$FindBin::Script;
 # we want to keep any params, except kill
 my @restartparams = map { "$_=".$nvp{$_}; } (grep($_ ne "kill", keys %nvp));
-
+$0 = $me;
 
 my (%state,											# nodename -> ip, lastping, nextping, nextdns, avg, loss
 		$preveventcfg,							# change detection
@@ -212,6 +212,7 @@ my (%state,											# nodename -> ip, lastping, nextping, nextdns, avg, loss
 while (!$mustexit)
 {
 	my $now = Time::HiRes::time;
+	my $escalatables;
 
 	# nmis locked? nothing for this daemon to do
 	my $lockoutfile = $C->{'<nmis_conf>'}."/NMIS_IS_LOCKED";
@@ -417,6 +418,7 @@ while (!$mustexit)
 				# Device is DOWN, was up, as no entry in event database
 				debug("$nodename is now DOWN, was UP, updating event database");
 				fpingNotify($nodename);
+				++$escalatables;
 			}
 		}
 		else # node somewhat pingable, not 100% loss
@@ -433,14 +435,15 @@ while (!$mustexit)
 				# Only post the status if the event database records as currently down
 				debug("$nodename is now UP, was DOWN, updating event database");
 				fpingCheckEvent($nodename);
+				++$escalatables;
 			}
 		}
 	}
 
-	# if desired, run the NMIS escalation process here,
+	# if desired and useful, run the NMIS escalation process here
 	# for faster outage notifications; also runs as part of collect,
 	# or can be run via cron.
-	if (getbool($C->{daemon_fping_run_escalation}))
+	if ($escalatables && getbool($C->{daemon_fping_run_escalation}))
 	{
 		# but we certainly don't wait for it to finish
 		fork || exec("$C->{'<nmis_bin>'}/nmis.pl","type=escalate");
