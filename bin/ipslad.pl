@@ -127,7 +127,9 @@ if (-f $pidfile) {
   chomp $pid;
   if ($pid != $$) {
     logIpsla("IPSLAD: pidfile exists killing the pidfile process $pid");
-    kill 9, $pid;
+		kill('TERM',$pid);
+		sleep(1);
+    kill('KILL', $pid);
     unlink($pidfile);
     logIpsla("IPSLAD: pidfile $pidfile deleted");
   }

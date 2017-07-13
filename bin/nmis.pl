@@ -5453,11 +5453,11 @@ hrSWRunType hrSWRunPerfCPU hrSWRunPerfMem))
 
 			if ($@ and $@ eq "alarm\n")
 			{
-				kill($pid);							# get rid of the service tester, it ran over time...
+				kill('TERM', $pid);							# get rid of the service tester, it ran over time...
 				info("ERROR, service program $svc->{Program} exceeded Max_Runtime of $svc->{Max_Runtime}s, terminated.");
 				logMsg("ERROR: service program $svc->{Program} exceeded Max_Runtime of $svc->{Max_Runtime}s, terminated.");
 				$ret=0;
-				kill("SIGKILL",$pid);
+				kill("KILL",$pid);
 			}
 			else
 			{

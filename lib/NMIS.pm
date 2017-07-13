@@ -37,7 +37,7 @@ use RRDs;
 use Time::ParseDate;
 use Time::Local;
 use Net::hostent;
-use Socket;
+use Socket 2.001;								# for getnameinfo() used by resolveDNStoAddr
 use func;
 use csv;
 use notify;
@@ -2341,24 +2341,42 @@ sub dutyTime {
 }
 
 
-sub resolveDNStoAddr {
-	my $dns = shift;
-	my $addr;
-	my $oct;
+# quick dns lookup for names
+# args: name
+# returns: list of addresses (or empty array)
+sub resolve_dns_name
+{
+	my ($lookup) = @_;
+	my @results;
 
-	# convert node name to octal ip address
-	if ($dns ne "" ) {
-		if ($dns !~ /\d+\.\d+\.\d+\.\d+/) {
-			my $h = gethostbyname($dns);
-			return if not $h;
-			$addr = inet_ntoa($h->addr) ;
-		} else { $addr = $dns; }
-		return $addr if $addr =~ /\d+\.\d+\.\d+\.\d+/;
+	# full ipv6 support works only with newer socket module
+	my ($err,@possibles) = Socket::getaddrinfo($lookup,'',
+																						 {socktype => SOCK_RAW});
+	return () if ($err);
+
+	for my $address (@possibles)
+	{
+		my ($err,$ipaddr) = Socket::getnameinfo(
+			$address->{addr},
+			Socket::NI_NUMERICHOST(),
+			Socket::NIx_NOSERV());
+		push @results, $ipaddr if (!$err and $ipaddr ne $lookup); # suppress any nop results
 	}
-	return;
+	return @results;
 }
 
+# wrapper around resolve_dns_name, 
+# returns the _first_ available ip _v4_ address or undef
+sub resolveDNStoAddr 
+{
+	my ($name) = @_;
 
+	my @addrs = resolve_dns_name($name);
+	my @v4 = grep(/^\d+.\d+.\d+\.\d+$/, @addrs);
+
+	return $v4[0];
+}
+	
 # create http for a clickable graph
 sub htmlGraph {
 	my %args = @_;
