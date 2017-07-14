@@ -978,7 +978,7 @@ sub getLevelLogEvent {
 		else {
 			$mdl_level = 'Major';
 			# not found, use default
-			logMsg("node=$NI->{system}{name}, event=$event, role=$role not found in class=event of model=$NI->{system}{nodeModel}");
+			dbg("no custom event level found for node=$NI->{system}{name}, event=$event, role=$role, model=$NI->{system}{nodeModel}, using '$mdl_level'");
 		}
 	}
 	elsif ( $event =~ /^Alert/i ) {
