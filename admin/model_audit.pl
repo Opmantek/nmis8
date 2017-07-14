@@ -73,13 +73,13 @@ foreach my $node (sort keys %{$LNT}) {
 	my $sysDescr = $NI->{system}{sysDescr};
 	$sysDescr =~ s/[\x0A\x0D]/\\n/g;
 
-	my $lastUpdate = returnDateStamp($NI->{system}{lastUpdateSec});
+	my $lastUpdate = returnDateStamp($NI->{system}{last_poll});
 
 	my $pingable = getbool($LNT->{$node}->{ping})? getbool($NI->{system}{nodedown})? "false": "true" : "N/A";
 	my $snmpable = defined($NI->{system}->{snmpdown})? getbool($NI->{system}->{snmpdown})? "false" : "true" : "N/A";
 	my $wmiworks = defined($NI->{system}->{wmidown})? getbool($NI->{system}->{wmidown})? "false" : "true" : "N/A";
 
-	$lastUpdate = "unknown" if not defined $NI->{system}{lastUpdateSec};
+	$lastUpdate = "unknown" if not defined $NI->{system}{last_poll};
 	$pingable = "unknown" if not defined $NI->{system}{nodedown};
 	$snmpable = "unknown" if not defined $NI->{system}{snmpdown};
 

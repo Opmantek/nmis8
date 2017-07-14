@@ -1164,7 +1164,7 @@ sub getNodeSummary {
 		$nt{$nd}{nodeType} = $NI->{system}{nodeType};
 		$nt{$nd}{nodeModel} = $NI->{system}{nodeModel};
 		$nt{$nd}{nodeVendor} = $NI->{system}{nodeVendor};
-		$nt{$nd}{lastUpdateSec} = $NI->{system}{lastUpdateSec};
+		$nt{$nd}{last_poll} = $NI->{system}{last_poll};
 		$nt{$nd}{sysName} = $NI->{system}{sysName} ;
 		$nt{$nd}{server} = $C->{'server_name'};
 

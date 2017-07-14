@@ -170,7 +170,7 @@ sub processNodes {
 			}
 
 
-			if ( $NI->{system}{nodedown} eq "true" and $NI->{system}{lastUpdateSec} eq "" ) {
+			if ( $NI->{system}{nodedown} eq "true" and $NI->{system}{last_poll} eq "" ) {
 				# run an update.
 				#print "$node has never been polled\n";
 				push(@badNodes,"$node,$LNT->{$node}{host}");

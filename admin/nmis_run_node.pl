@@ -81,7 +81,7 @@ foreach my $node (sort keys %{$LNT}) {
 		
 		my $recentUpdate = 0;
 		# has an update been run in the last 24 hours?
-		if ( $NI->{system}{lastUpdatePoll} > time() - $update ) {
+		if ( $NI->{system}{last_update} > time() - $update ) {
 			$recentUpdate = 1;
 		}
 		
@@ -106,7 +106,7 @@ foreach my $node (sort keys %{$LNT}) {
 			print "SKIP No Match: $NI->{system}{name}: $arg{field}=$NI->{system}{$arg{field}}\n";
 		}
 		if ( not $runIt and $recentUpdate ) {
-			print "SKIP Update: $NI->{system}{name}: lastUpdatePoll=$NI->{system}{lastUpdatePoll}\n";
+			print "SKIP Update: $NI->{system}{name}: lastUpdatePoll=$NI->{system}{last_update}\n";
 		}
 	}
 }

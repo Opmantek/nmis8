@@ -804,7 +804,7 @@ sub doUpdate
 			}
 		}
 		$S->close; # close snmp session if one is open
-		$NI->{system}{lastUpdatePoll} = time();
+		$NI->{system}{last_update} = time();
 	}
 
 	my $reachdata = runReach(sys=>$S, delayupdate => 1); # don't let it make the rrd update, we want to add updatetime!
@@ -1012,7 +1012,7 @@ sub doCollect
 	$S->readNodeView;  # s->init does NOT load that, but we need it as we're overwriting some view info
 
 	# run an update if no update poll time is known
-	if ( !exists($NI->{system}{lastUpdatePoll}) or !$NI->{system}{lastUpdatePoll})
+	if ( !exists($NI->{system}{last_update}) or !$NI->{system}{last_update})
 	{
 		info("no cached node data available, running an update now");
 		doUpdate(name=>$name);
@@ -1274,7 +1274,7 @@ sub runPing
 		# info for web page
 		$V->{system}{lastUpdate_value} = returnDateStamp();
 		$V->{system}{lastUpdate_title} = 'Last Update';
-		$NI->{system}{lastUpdateSec} = time();
+		$NI->{system}{last_poll} = time();
 	}
 	else
 	{
@@ -3235,7 +3235,7 @@ sub updateNodeInfo
 
 		$V->{system}{lastUpdate_value} = returnDateStamp();
 		$V->{system}{lastUpdate_title} = 'Last Update';
-		$NI->{system}{lastUpdateSec} = time();
+		$NI->{system}{last_poll} = time();
 
 		# get and apply any nodeconf override if such exists for this node
 		my $node = $NI->{system}{name};
