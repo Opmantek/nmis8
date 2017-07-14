@@ -207,6 +207,7 @@ $0 = $me;
 
 my (%state,											# nodename -> ip, lastping, nextping, nextdns, avg, loss
 		$preveventcfg,							# change detection
+		$prevmaincfg,								# change detection - loadconftable is not mtime-aware...
 		$mustexit);
 
 while (!$mustexit)
@@ -224,11 +225,12 @@ while (!$mustexit)
 
 	# react to actual changes to events config by restarting, as that'd affect the notify/checkEvent code
 	my $eventconfig = loadTable(dir => 'conf', name => 'Events');
-	my $mainconfig = loadConfTable();
+	my $mainconfig = loadTable(dir => 'conf', name => 'Config');
 
 	my $whichchanged = (defined($preveventcfg) && !eq_deeply($preveventcfg, $eventconfig) ?
 											"Events List" :
-											!eq_deeply($C,$mainconfig) ? "Config" : undef);
+											(defined($prevmaincfg) && !eq_deeply($prevmaincfg,$mainconfig) ? 
+											 "Config" : undef));
 	if ($whichchanged)
 	{
 		logMsg("INFO fpingd will restart, $whichchanged has changed");
@@ -236,6 +238,7 @@ while (!$mustexit)
 		die "$0 couldn't restart itself: $!\n"; # shouldn't be reached
 	}
 	$preveventcfg = $eventconfig;
+	$prevmaincfg = $mainconfig;
 
 	# nodes, polling-policy: reread every cycle, cached
 	my $policies = loadTable(dir => 'conf', name => "Polling-Policy") || {};
