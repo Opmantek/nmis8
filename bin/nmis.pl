@@ -3158,6 +3158,8 @@ sub updateNodeInfo
 			my $sourcename = uc($source);
 			$RI->{"${source}result"} = 100;
 			HandleNodeDown(sys=>$S, type => $source, up => 1, details => "$sourcename ok");
+			# record the collect operation separately for the different sources
+			$NI->{system}->{"last_poll_$source"} = time;
 		}
 		# not ok if enabled and error
 		elsif ($curstate->{"${source}_enabled"} && $curstate->{"${source}_error"})
