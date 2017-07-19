@@ -4939,7 +4939,6 @@ sub runServices
 
 	my $cpu;
 	my $memory;
-	my $msg;
 	my %services;		# hash to hold snmp gathered service status.
 	my %status;			# hash to collect generic/non-snmp service status
 
@@ -5130,7 +5129,6 @@ hrSWRunType hrSWRunPerfCPU hrSWRunPerfMem))
 		# - tcp would be easy enough to do with a plain connect, but udp accessible-or-closed needs extra smarts
 		elsif ( $ST->{$service}{Service_Type} eq "port" )
 		{
-			$msg = '';
 			my ( $scan, $port) = split ':' , $ST->{$service}{Port};
 
 			my $nmap = ( $scan =~ /^udp$/i ? "nmap -sU --host_timeout 3000 -p $port -oG - $NI->{system}{host}"
@@ -5143,11 +5141,9 @@ hrSWRunType hrSWRunPerfCPU hrSWRunPerfMem))
 				logMsg($errmsg);
 				info($errmsg);
 			}
-			while (<NMAP>)
-			{
-				$msg .= $_;							# this retains the newlines
-			}
+			my $nmap_out = join("", <NMAP>);
 			close(NMAP);
+			
 			my $exitcode = $?;
 			# if the pipe close doesn't wait until the child is gone (which it may do...)
 			# then wait and collect explicitely
@@ -5160,17 +5156,17 @@ hrSWRunType hrSWRunPerfCPU hrSWRunPerfMem))
 				logMsg("ERROR, NMAP ($nmap) returned exitcode ".($exitcode >> 8). " (raw $exitcode)");
 				info("$nmap returned exitcode ".($exitcode >> 8). " (raw $exitcode)");
 			}
-			if ($msg =~ /Ports: $port\/open/)
+			if ($nmap_out =~ /Ports: $port\/open/)
 			{
 				$ret = 1;
-				info("NMAP reported success for port $port: $msg");
-				logMsg("INFO, NMAP reported success for port $port: $msg") if ($C->{debug} or $C->{info});
+				info("NMAP reported success for port $port: $nmap_out");
+				logMsg("INFO, NMAP reported success for port $port: $nmap_out") if ($C->{debug} or $C->{info});
 			}
 			else
 			{
 				$ret = 0;
-				info("NMAP reported failure for port $port: $msg");
-				logMsg("INFO, NMAP reported failure for port $port: $msg") if ($C->{debug} or $C->{info});
+				info("NMAP reported failure for port $port: $nmap_out");
+				logMsg("INFO, NMAP reported failure for port $port: $nmap_out") if ($C->{debug} or $C->{info});
 			}
 		}
 		# now the snmp services - but only if snmp is on
@@ -5270,11 +5266,12 @@ hrSWRunType hrSWRunPerfCPU hrSWRunPerfMem))
 						my $timeout = ($ST->{$service}->{Max_Runtime} > 0)?
 								$ST->{$service}->{Max_Runtime} : 3;
 
-						($ret,$msg) = sapi($NI->{system}{host},
-															 $ST->{$service}{Port},
-															 $scripttext,
-															 $timeout);
-						dbg("Results of $service is $ret, msg is $msg");
+						($ret,my $sapi_out) = sapi($NI->{system}{host},
+																			 $ST->{$service}{Port},
+																			 $scripttext,
+																			 $timeout);
+						# the sapi thing can pass back raw protocol data...
+						dbg("Results of $service is $ret, msg is '$sapi_out'");
 				}
 		}
 		# 'real' scripts, or more precisely external programs
