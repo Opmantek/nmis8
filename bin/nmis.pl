@@ -172,7 +172,7 @@ NMIS version $NMIS::VERSION
 &NMIS::upgrade_nodeconf_structure;
 
 if ($type =~ /^(collect|update|services)$/) {
-	runThreads(type=>$type,node=>$node,mthread=>$mthread,mthreadDebug=>$mthreadDebug);
+	runThreads(type=>$type, node=>$node, mthread=>$mthread, mthreadDebug=>$mthreadDebug);
 }
 elsif ( $type eq "escalate") { runEscalate(); printRunTime(); } # included in type=collect
 elsif ( $type eq "config" ) { checkConfig(change => "true"); }
@@ -201,7 +201,6 @@ sub	runThreads
 	my $node_select = $args{'node'};
 	my $mthread = getbool($args{mthread});
 	my $mthreadDebug = getbool($args{mthreadDebug});
-	my $debug_watch;
 
 	dbg("Starting, operation is $type");
 
@@ -300,8 +299,6 @@ sub	runThreads
 
 	my $debug_global = $C->{debug};
 	my $debug = $C->{debug};
-	my $PIDFILE;
-	my $pid;
 
 	# used for plotting major events on world map in 'Current Events' display
 	$C->{netDNS} = 0;
@@ -412,145 +409,208 @@ sub	runThreads
 	my $maxruntime = defined($C->{max_child_runtime}) && $C->{max_child_runtime} > 0 ?
 			$C->{max_child_runtime} : 0;
 
-	# don't run longer than X seconds for the main process, only if in non-thread mode or specific node
-	alarm($maxruntime) if ($maxruntime && (!$mthread or $node_select));
+	my (@list_of_handled_nodes,		# for any after_x_plugin() functions
+			@todo_nodes,							# for the actual update/polling work
+			@cand_nodes,
+			%whichflavours);					# attempt smmp, wmi or both
 
-	my @list_of_handled_nodes;		# for any after_x_plugin() functions
-	if ($node_select eq "")
+	# what to work on? one named node, or the nodes that are members of a given group or all nodes
+	# iff active and the polling policy agrees, that is...
+	@cand_nodes = $node_select? $node_select 
+			: $runGroup? grep($_->{group} eq $runGroup, keys %$NT) : keys %$NT;
+
+	# note: force arg overrides the polling policy
+	if ($type eq "update" or getbool($nvp{force}))
 	{
-		# operate on all nodes, sort the nodes so we get consistent polling cycles
-		# sort could be more sophisticated if we like, eg sort by core, dist, access or group
-		foreach my $onenode (sort keys %{$NT}) {
-			# This will allow debugging to be turned on for a
-			# specific node where there is a problem
-			if ( $onenode eq "$debug_watch" ) {
-				$debug = "true";
-			} else { $debug = $debug_global; }
-
-			# KS 16 Mar 02, implementing David Gay's requirement for deactiving
-			# a node, ie keep a node in nodes.csv but no collection done.
-			# also if $runGroup set, only do the nodes for that group.
-			if ( $runGroup eq "" or $NT->{$onenode}{group} eq $runGroup ) {
-				if ( getbool($NT->{$onenode}{active}) ) {
-					++$nodecount;
-					push @list_of_handled_nodes, $onenode;
-
-					# One process for each node until maxThreads is reached.
-					# This loop is entered only if the commandlinevariable mthread=true is used!
-					if ($mthread)
-					{
-						my $pid=fork;
-						if ( defined ($pid) and $pid==0) {
-
-							# this will be run only by the child
-							if ($mthreadDebug) {
-								print "CHILD $$-> I am a CHILD with the PID $$ processing $onenode\n";
-							}
-
-							# don't run longer than X seconds
-							alarm($maxruntime) if ($maxruntime);
-							&$meth(name=>$onenode);
-							alarm(0) if ($maxruntime);
-
-							# all the work in this thread is done now this child will die.
-							if ($mthreadDebug) {
-								print "CHILD $$-> $onenode will now exit\n";
-							}
-
-							# killing child
-							exit 0;
-						} # end of child
-						else
-						{
-							# parent
-							my $others = func::find_nmis_processes(config => $C);
-							my $procs_now = 1 + scalar keys %$others; # the current process isn't returned
-							$maxprocs = $procs_now if $procs_now > $maxprocs;
-						}
-					}
-					else
-					{
-						# iterate over nodes in this process, if mthread is false
-						&$meth(name=>$onenode);
-					}
-				} #if active
-				else {
-					 dbg("Skipping as $onenode is marked 'inactive'");
-				}
-			} #if runGroup
-		} # foreach $onenode
-
-		# only do the child process cleanup if we have mthread enabled
-		if ($mthread) {
-			# cleanup
-			# wait this will block until children are done
-			1 while wait != -1;
-		}
+		@todo_nodes = grep(getbool($NT->{$_}->{active}), @cand_nodes);
 	}
 	else
 	{
-		# specific node is given to work on, threading not relevant
-		if ( (my $node = checkNodeName($node_select))) { # ignore lc & uc
-			if ( getbool($NT->{$node}{active}) ) {
-				++$nodecount;
-				push @list_of_handled_nodes, $node;
-				&$meth(name=>$node);
-			}
-			else {
-				 dbg("Skipping as $node_select is marked 'inactive'");
+		# find out what nodes are due as per polling policy
+		my $policies = loadTable(dir => 'conf', name => "Polling-Policy") || {};
+		my %intervals = ( default => { snmp => 300, wmi => 300 });
+		# translate period specs X.Ys, A.Bm, etc. into seconds
+		for my $polname (keys %$policies)
+		{
+			next if (ref($policies->{$polname}) ne "HASH");
+			for my $subtype (qw(snmp wmi))
+			{
+				my $interval = $policies->{$polname}->{$subtype};
+				if ($interval =~ /^\s*(\d+(\.\d+)?)([smhd])$/)
+				{
+					my ($rawvalue, $unit) = ($1, $3);
+					$interval = $rawvalue * ($unit eq 'm'? 60 : $unit eq 'h'? 3600 : $unit eq 'd'? 86400 : 1);
+				}
+				$intervals{$polname}->{$subtype} = $interval; # now in seconds
 			}
 		}
-		else {
-			print "\t Invalid node $node_select No node of that name!\n";
-			return;
+
+		my $now = time;
+		for my $maybe (@cand_nodes)
+		{
+			next if (!getbool($NT->{$maybe}->{active}));
+			my $polname = $NT->{maybe}->{polling_policy} || "default";
+
+			# unfortunately we require the nodeinfo data to make the candidate-or-not decision...
+			my $ninfo = loadNodeInfoTable($maybe);
+
+			# logic for collect now or later: candidate if no past successful collect whatsoever,
+			# or if either of the two worked and was done long enough ago.
+			#
+			# if no history is known for a source, then disregard it for the now-or-later logic
+			# but DO enable it for trying!
+			my $lastsnmp = $ninfo->{system}->{last_poll_snmp};
+			my $lastwmi = $ninfo->{system}->{last_poll_wmi};
+
+			if (!defined($lastsnmp) && !defined($lastwmi))
+			{
+				dbg("Node $maybe has neither last_poll_snmp nor last_poll_wmi, due for poll at $now");
+				push @todo_nodes, $maybe;
+				$whichflavours{$maybe}->{wmi} = $whichflavours{$maybe}->{snmp} = 1;
+			}
+			else
+			{
+				# accept delta-previous-now interval if it's at least 95% of the configured interval
+				my $nextsnmp = ($lastsnmp // 0) + $intervals{$polname}->{snmp} * 1.05;
+				my $nextwmi = ($lastwmi // 0) + $intervals{$polname}->{wmi} * 1.05;
+
+				# only flavours which worked in the past contribute to the now-or-later logic
+				if ((defined($lastsnmp) && $nextsnmp <= $now )
+						|| (defined($lastwmi) && $nextwmi <= $now))
+				{
+					dbg("Node $maybe is due for poll at $now, last snmp: ".($lastsnmp//"never")
+							.", last wmi: ".($lastwmi//"never")
+							. ", next snmp: ".($lastsnmp ? (($now - $nextsnmp)."s ago"):"n/a")
+							.", next wmi: ".($lastwmi? (($now - $nextwmi)."s ago"):"n/a"));
+					push @todo_nodes, $maybe;
+
+					# but if we've decided on polling, then DO try flavours that have not worked in the past!
+					# nextwmi <= now also covers the case of undefined lastwmi...
+					$whichflavours{$maybe}->{wmi} = ($nextwmi <= $now);
+					$whichflavours{$maybe}->{snmp} = ($nextsnmp <= $now);
+				}
+				else
+				{
+					dbg("Node $maybe is NOT due for poll at $now, last snmp: ".($lastsnmp//"never")
+							.", last wmi: ".($lastwmi//"never")
+							. ", next snmp: ".($lastsnmp? $nextsnmp :"n/a")
+							.", next wmi: ".($lastwmi? $nextwmi :"n/a"));
+				}
+			}
 		}
 	}
-	alarm(0) if ($maxruntime && (!$mthread or $node_select));
 
-	dbg("### continue normally ###");
+	# anything to do?
+	if (!@todo_nodes)
+	{
+		logMsg("No nodes due for $type found.");
+		print "No nodes active or due for $type\n"
+				if ($node_select);
+		return;
+	}
+	
+	dbg("Selected nodes for $type: ".join(", ",@todo_nodes));
+	$mthread = 0 if (@todo_nodes <= 1); # multiprocessing makes no sense with just one todo node
+		
+	for my $onenode (@todo_nodes)
+	{
+		++$nodecount;
+		push @list_of_handled_nodes, $onenode;
+		
+		# One process per node, until maxThreads is reached (then block and wait)
+		if ($mthread)
+		{
+			my $pid=fork;
+			if ( defined ($pid) and $pid==0) 
+			{
+				# this will be run only by the child
+				print "CHILD $$-> I am a CHILD with the PID $$ processing $onenode\n"
+						if ($mthreadDebug);
+
+				# don't run longer than X seconds
+				alarm($maxruntime) if ($maxruntime);
+				my @methodargs = (name => $onenode);
+				# try both flavours if force is on
+				push @methodargs, (wantsnmp => getbool($nvp{force}) ||  $whichflavours{$onenode}->{snmp},
+													 wantwmi => getbool($nvp{force}) || $whichflavours{$onenode}->{wmi})
+						if ($type eq "collect"); # flavours irrelevant for update
+				&$meth(@methodargs);
+
+				
+				# all the work in this thread is done now this child will die.
+				print "CHILD $$-> $onenode is done, exiting\n"
+						if ($mthreadDebug);
+				exit 0;
+			} # end of child
+			else
+			{
+				# parent
+				my $others = func::find_nmis_processes(config => $C);
+				my $procs_now = 1 + scalar keys %$others; # the current process isn't returned
+				$maxprocs = $procs_now if $procs_now > $maxprocs;
+			}
+		}
+		else
+		{
+			# just one node or no multi-processing wanted -> work in this process.
+			alarm($maxruntime);
+			my @methodargs = (name => $onenode);
+			# try both flavours if force is on
+			push @methodargs, (wantsnmp => getbool($nvp{force}) ||  $whichflavours{$onenode}->{snmp},
+												 wantwmi => getbool($nvp{force}) || $whichflavours{$onenode}->{wmi})
+					if ($type eq "collect"); # flavours irrelevant for update
+			&$meth(@methodargs);
+			alarm(0) if ($maxruntime);
+		}
+		
+		# outermost parent process
+		if ($mthread) 
+		{
+			# wait blockingly until all worker children are done
+			1 while wait != -1;
+		}
+	}
+
 	my $collecttime = Time::HiRes::time();
-
 	my $S;
 	# on update prime the interface summary
 	if ( $type eq "update" )
 	{
-		### 2013-08-30 keiths, restructured to avoid creating and loading large Interface summaries
 		getNodeAllInfo(); # store node info in <nmis_var>/nmis-nodeinfo.xxxx
-		if ( !getbool($C->{disable_interfaces_summary}) ) {
+		if ( !getbool($C->{disable_interfaces_summary}) ) 
+		{
 			getIntfAllInfo(); # concatencate all the interface info in <nmis_var>/nmis-interfaces.xxxx
 			runLinks();
 		}
 	}
-	# some collect post-processing, but only if running on all nodes
-	elsif ( $type eq "collect" and $node_select eq "" )
+	# some collect post-processing
+	elsif ($type eq "collect")
 	{
-		$S = Sys->new; # object nmis-system
+		$S = Sys->new;
 		$S->init();
 
 		my $NI = $S->ndinfo;
 		delete $NI->{database};	 # remove pre-8.5.0 key as it's not used anymore
 
-		### 2011-12-29 keiths, adding a general purpose master control thing, run reliably every poll cycle.
-		if ( getbool($C->{'nmis_master_poll_cycle'}) or !getbool($C->{'nmis_master_poll_cycle'},"invert") ) {
+		# do some masterly type things
+		if (!getbool($C->{'nmis_master_poll_cycle'},"invert") # if not false
+				 && getbool($C->{server_master}))
+		{
 			my $pollTimer = NMIS::Timing->new;
-
+			
 			dbg("Starting nmisMaster");
-			nmisMaster() if getbool($C->{server_master});	# do some masterly type things.
-
-			logMsg("Poll Time: nmisMaster, ". $pollTimer->elapTime()) if ( defined $C->{log_polling_time} and getbool($C->{log_polling_time}));
-		}
-		else {
-			dbg("Skipping nmisMaster with configuration 'nmis_master_poll_cycle' = $C->{'nmis_master_poll_cycle'}");
+			nmisMaster();
+			logMsg("Poll Time: nmisMaster, ". $pollTimer->elapTime()) if ( getbool($C->{log_polling_time}));
 		}
 
-		if ( getbool($C->{'nmis_summary_poll_cycle'}) or !getbool($C->{'nmis_summary_poll_cycle'},"invert") ) {
+		# calculate and cache the summary stats
+		if (!getbool($C->{'nmis_summary_poll_cycle'},"invert") # if not false
+				&& getbool($C->{cache_summary_tables}))
+		{
 			dbg("Starting nmisSummary");
-			nmisSummary() if getbool($C->{cache_summary_tables});	# calculate and cache the summary stats
+			nmisSummary();
 		}
-		else {
-			dbg("Skipping nmisSummary with configuration 'nmis_summary_poll_cycle' = $C->{'nmis_summary_poll_cycle'}");
-		}
-
+		
 		dbg("Starting runMetrics");
 		runMetrics(sys=>$S);
 
@@ -574,7 +634,7 @@ sub	runThreads
 		runEscalate();
 
 		# nmis collect runtime, process counts and save
-		my $D;
+		my $D = {};
 		$D->{collect}{value} = $collecttime - $starttime;
 		$D->{collect}{option} = 'gauge,0:U';
 		$D->{total}{value} = Time::HiRes::time() - $starttime;
@@ -964,15 +1024,17 @@ sub doServices
 	return;
 }
 
+# 
 sub doCollect
 {
 	my %args = @_;
-	my $name = $args{name};
+	my ($name,$wantsnmp,$wantwmi) = @args{"name","wantsnmp","wantwmi"};
 
 	my $pollTimer = NMIS::Timing->new;
 
 	info("================================");
-	info("Starting collect, node $name");
+	info("Starting collect, node $name, want SNMP: ".($wantsnmp?"yes":"no")
+			 .", want WMI: ".($wantwmi?"yes":"no"));
 
 	# Check for both update and collect LOCKs
 	if ( existsPollLock(type => "update", conf => $C->{conf}, node => $name) ) {
@@ -992,8 +1054,9 @@ sub doCollect
 	# lets change our name, so a ps will report who we are - iff not debugging
 	$0 = "nmis-".$C->{conf}."-collect-$name" if (!$C->{debug});
 
-	my $S = Sys->new; # create system object
-	if (! $S->init(name=>$name) )	# init will usually load node info data, model etc, returns 1 if _all_ is ok
+	my $S = Sys->new; # create system object, does next to nothing
+	# init will usually load node info data, model etc, returns 1 if _all_ is ok
+	if (! $S->init(name=>$name, snmp => $wantsnmp, wmi => $wantwmi) )	
 	{
 		dbg("Sys init for $name failed: ".join(", ", map { "$_=".$S->status->{$_} } (qw(error snmp_error wmi_error))));
 
@@ -1224,18 +1287,8 @@ sub runPing
 
 			info("Starting $S->{name} ($host) with timeout=$timeout retries=$retries packet=$packet");
 
-			# fixme: invalid condition, root is generally NOT required for ping anymore!
-			if ($<)
-			{
-				# not root and update, assume called from www interface
-				$pingresult = 100;
-				dbg("SKIPPING Pinging as we are NOT running with root privileges");
-			}
-			else
-			{
-				( $ping_min, $ping_avg, $ping_max, $ping_loss) = ext_ping($host, $packet, $retries, $timeout );
-				$pingresult = defined $ping_min ? 100 : 0;		# ping_min is undef if unreachable.
-			}
+			( $ping_min, $ping_avg, $ping_max, $ping_loss) = ext_ping($host, $packet, $retries, $timeout );
+			$pingresult = defined $ping_min ? 100 : 0;		# ping_min is undef if unreachable.
 		}
 		# at this point ping_{min,avg,max,loss} and pingresult are all set
 
@@ -3152,22 +3205,29 @@ sub updateNodeInfo
 	my $curstate = $S->status;
 	for my $source (qw(snmp wmi))
 	{
-		# ok if enabled and no errors
-		if ($curstate->{"${source}_enabled"} && !$curstate->{"${source}_error"})
+		if ($curstate->{"${source}_enabled"})
 		{
-			my $sourcename = uc($source);
-			$RI->{"${source}result"} = 100;
-			HandleNodeDown(sys=>$S, type => $source, up => 1, details => "$sourcename ok");
-			# record the collect operation separately for the different sources
-			$NI->{system}->{"last_poll_$source"} = time;
+			# ok if enabled and no errors
+			if (!$curstate->{"${source}_error"})
+			{
+				my $sourcename = uc($source);
+				$RI->{"${source}result"} = 100;
+				HandleNodeDown(sys=>$S, type => $source, up => 1, details => "$sourcename ok");
+
+				# record a _successful_ collect for the different sources, 
+				# the collect now-or-later logic needs that, not just attempted at time x
+				$NI->{system}->{"last_poll_$source"} = time;
+				$NI->{system}->{last_polling_policy} = $NC->{polling_policy} || 'default';
+			}
+			# not ok if enabled and error
+			else
+			{
+				HandleNodeDown(sys=>$S, type => $source, details => $curstate->{"${source}_error"} );
+				$RI->{"${source}result"} = 0;
+
+			}
 		}
-		# not ok if enabled and error
-		elsif ($curstate->{"${source}_enabled"} && $curstate->{"${source}_error"})
-		{
-			HandleNodeDown(sys=>$S, type => $source, details => $curstate->{"${source}_error"} );
-			$RI->{"${source}result"} = 0;
-		}
-		# don't care about nonenabled sources, sys won't touch them nor set errors, RI stays whatever it was
+		# we don't care about nonenabled sources, sys won't touch them nor set errors, RI stays whatever it was
 	}
 
 	if ($loadsuccess)
