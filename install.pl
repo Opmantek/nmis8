@@ -258,6 +258,10 @@ perl-Excel-Writer-XLSX
 		push @rhpackages, "perl-CGI";
 	}
 
+	# stretch ships with these packages
+	push @debpackages, (qw(libproc-queue-perl libstatistics-lite-perl))
+			if ($osflavour eq "debian" and $osmajor >= 9);
+	
 	my $pkgmgr = $osflavour eq "redhat"? "YUM": ($osflavour eq "debian" or $osflavour eq "ubuntu")? "APT": undef;
 	my $pkglist = $osflavour eq "redhat"? \@rhpackages : ($osflavour eq "debian" or $osflavour eq "ubuntu")? \@debpackages: undef;
 
