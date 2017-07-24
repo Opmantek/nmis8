@@ -669,7 +669,7 @@ sub optionsRRD
 										$mdlinfo->{database}->{db}->{timing}->{$type} // $mdlinfo->{database}->{db}->{timing}->{"default"} :  undef;
 	$timinginfo //= { heartbeat => 900, poll => 300 };
 	# note: heartbeat is overridable per DS by passing in 'heartbeat' in data!
-	dbg("timing options for this file: step $timinginfo->{poll}, heartbeat $timinginfo->{heartbeat}");
+	dbg("timing options for this file of type $type: step $timinginfo->{poll}, heartbeat $timinginfo->{heartbeat}");
 
 	# align the start time with the step interval, but reduce by one interval so that we can send data immediately
 	my $starttime = time - (time % $timinginfo->{poll}) - $timinginfo->{poll};

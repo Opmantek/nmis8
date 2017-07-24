@@ -271,8 +271,7 @@ sub init
 	return 0 if (!$self->loadModel(model => $loadthis));
 
 	# if a policy is given, override the database timing part of the model data
-	# traverse all the model sections, find out which sections are
-	# subject to which timing policy
+	# traverse all the model sections, find out which sections are subject to which timing policy
 	if (ref($policy) eq "HASH")
 	{
 		for my $topsect (keys %{$self->{mdl}})
@@ -316,7 +315,12 @@ sub init
 				}
 			}
 		}
-
+		# AND set the default to the snmp timing, to cover unmodelled sections (which are currently all snmp-based, e.g. hrsmpcpu)
+		if ($policy->{snmp})
+		{
+			$self->{mdl}->{database}->{db}->{timing}->{default}->{poll} = $policy->{snmp};
+			$self->{mdl}->{database}->{db}->{timing}->{default}->{heartbeat} = 3* $policy->{snmp};
+		}
 	}
 
 	# init the snmp accessor if snmp wanted and possible, but do not connect (yet)
