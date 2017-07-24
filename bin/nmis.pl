@@ -450,8 +450,9 @@ sub	runThreads
 		for my $maybe (@cand_nodes)
 		{
 			next if (ref($NT->{$maybe}) ne "HASH" or !getbool($NT->{$maybe}->{active}));
-			my $polname = $NT->{$maybe}->{polling_policy} || "default";
-			dbg("Node $maybe is using polling policy \"$polname\"") if ($polname ne "default");
+			# save it back for the xyz-node file, and cgi-bin/network...
+			my $polname = ($NT->{$maybe}->{polling_policy} ||= "default");
+			dbg("Node $maybe is using polling policy \"$polname\"");
 
 			# unfortunately we require the nodeinfo data to make the candidate-or-not decision...
 			my $ninfo = loadNodeInfoTable($maybe);

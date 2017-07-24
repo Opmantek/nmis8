@@ -1507,6 +1507,7 @@ EO_HTML
 		,'notes'
 		,'nodeType'
 		,'nodeModel'
+		,'polling_policy'
 		,'sysUpTime'
 		,'ifNumber'
 		,'sysLocation'
