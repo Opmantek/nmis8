@@ -416,8 +416,28 @@ sub	runThreads
 
 	# what to work on? one named node, or the nodes that are members of a given group or all nodes
 	# iff active and the polling policy agrees, that is...
-	@cand_nodes = $node_select? $node_select 
+	@cand_nodes = $node_select? $node_select
 			: $runGroup? grep($_->{group} eq $runGroup, keys %$NT) : keys %$NT;
+
+
+	# get the polling policies and translate into seconds (for rrd file options)
+	my $policies = loadTable(dir => 'conf', name => "Polling-Policy") || {};
+	my %intervals = ( default => { ping=> 60, snmp => 300, wmi => 300 });
+	# translate period specs X.Ys, A.Bm, etc. into seconds
+	for my $polname (keys %$policies)
+	{
+		next if (ref($policies->{$polname}) ne "HASH");
+		for my $subtype (qw(snmp wmi ping))
+		{
+			my $interval = $policies->{$polname}->{$subtype};
+			if ($interval =~ /^\s*(\d+(\.\d+)?)([smhd])$/)
+			{
+				my ($rawvalue, $unit) = ($1, $3);
+				$interval = $rawvalue * ($unit eq 'm'? 60 : $unit eq 'h'? 3600 : $unit eq 'd'? 86400 : 1);
+			}
+			$intervals{$polname}->{$subtype} = $interval; # now in seconds
+		}
+	}
 
 	# note: force arg overrides the polling policy
 	if ($type eq "update" or getbool($nvp{force}))
@@ -427,29 +447,12 @@ sub	runThreads
 	else
 	{
 		# find out what nodes are due as per polling policy
-		my $policies = loadTable(dir => 'conf', name => "Polling-Policy") || {};
-		my %intervals = ( default => { snmp => 300, wmi => 300 });
-		# translate period specs X.Ys, A.Bm, etc. into seconds
-		for my $polname (keys %$policies)
-		{
-			next if (ref($policies->{$polname}) ne "HASH");
-			for my $subtype (qw(snmp wmi))
-			{
-				my $interval = $policies->{$polname}->{$subtype};
-				if ($interval =~ /^\s*(\d+(\.\d+)?)([smhd])$/)
-				{
-					my ($rawvalue, $unit) = ($1, $3);
-					$interval = $rawvalue * ($unit eq 'm'? 60 : $unit eq 'h'? 3600 : $unit eq 'd'? 86400 : 1);
-				}
-				$intervals{$polname}->{$subtype} = $interval; # now in seconds
-			}
-		}
-
 		my $now = time;
 		for my $maybe (@cand_nodes)
 		{
 			next if (!getbool($NT->{$maybe}->{active}));
-			my $polname = $NT->{maybe}->{polling_policy} || "default";
+			my $polname = $NT->{$maybe}->{polling_policy} || "default";
+			dbg("Node $maybe is using polling policy $polname") if ($polname ne "default");
 
 			# unfortunately we require the nodeinfo data to make the candidate-or-not decision...
 			my $ninfo = loadNodeInfoTable($maybe);
@@ -508,20 +511,20 @@ sub	runThreads
 				if ($node_select);
 		return;
 	}
-	
+
 	dbg("Selected nodes for $type: ".join(", ",@todo_nodes));
 	$mthread = 0 if (@todo_nodes <= 1); # multiprocessing makes no sense with just one todo node
-		
+
 	for my $onenode (@todo_nodes)
 	{
 		++$nodecount;
 		push @list_of_handled_nodes, $onenode;
-		
+
 		# One process per node, until maxThreads is reached (then block and wait)
 		if ($mthread)
 		{
 			my $pid=fork;
-			if ( defined ($pid) and $pid==0) 
+			if ( defined ($pid) and $pid==0)
 			{
 				# this will be run only by the child
 				print "CHILD $$-> I am a CHILD with the PID $$ processing $onenode\n"
@@ -529,14 +532,15 @@ sub	runThreads
 
 				# don't run longer than X seconds
 				alarm($maxruntime) if ($maxruntime);
-				my @methodargs = (name => $onenode);
+				my @methodargs = ( name => $onenode,
+													 policy => $intervals{$NT->{$onenode}->{polling_policy} || "default"} );
 				# try both flavours if force is on
 				push @methodargs, (wantsnmp => getbool($nvp{force}) ||  $whichflavours{$onenode}->{snmp},
 													 wantwmi => getbool($nvp{force}) || $whichflavours{$onenode}->{wmi})
 						if ($type eq "collect"); # flavours irrelevant for update
 				&$meth(@methodargs);
 
-				
+
 				# all the work in this thread is done now this child will die.
 				print "CHILD $$-> $onenode is done, exiting\n"
 						if ($mthreadDebug);
@@ -554,17 +558,18 @@ sub	runThreads
 		{
 			# just one node or no multi-processing wanted -> work in this process.
 			alarm($maxruntime);
-			my @methodargs = (name => $onenode);
+			my @methodargs = ( name => $onenode,
+												 policy => $intervals{$NT->{$onenode}->{polling_policy} || "default"} );
 			# try both flavours if force is on
 			push @methodargs, (wantsnmp => getbool($nvp{force}) ||  $whichflavours{$onenode}->{snmp},
-												 wantwmi => getbool($nvp{force}) || $whichflavours{$onenode}->{wmi})
+												 wantwmi => getbool($nvp{force}) || $whichflavours{$onenode}->{wmi},)
 					if ($type eq "collect"); # flavours irrelevant for update
 			&$meth(@methodargs);
 			alarm(0) if ($maxruntime);
 		}
-		
+
 		# outermost parent process
-		if ($mthread) 
+		if ($mthread)
 		{
 			# wait blockingly until all worker children are done
 			1 while wait != -1;
@@ -577,7 +582,7 @@ sub	runThreads
 	if ( $type eq "update" )
 	{
 		getNodeAllInfo(); # store node info in <nmis_var>/nmis-nodeinfo.xxxx
-		if ( !getbool($C->{disable_interfaces_summary}) ) 
+		if ( !getbool($C->{disable_interfaces_summary}) )
 		{
 			getIntfAllInfo(); # concatencate all the interface info in <nmis_var>/nmis-interfaces.xxxx
 			runLinks();
@@ -597,7 +602,7 @@ sub	runThreads
 				 && getbool($C->{server_master}))
 		{
 			my $pollTimer = NMIS::Timing->new;
-			
+
 			dbg("Starting nmisMaster");
 			nmisMaster();
 			logMsg("Poll Time: nmisMaster, ". $pollTimer->elapTime()) if ( getbool($C->{log_polling_time}));
@@ -610,7 +615,7 @@ sub	runThreads
 			dbg("Starting nmisSummary");
 			nmisSummary();
 		}
-		
+
 		dbg("Starting runMetrics");
 		runMetrics(sys=>$S);
 
@@ -1024,11 +1029,11 @@ sub doServices
 	return;
 }
 
-# 
+#
 sub doCollect
 {
 	my %args = @_;
-	my ($name,$wantsnmp,$wantwmi) = @args{"name","wantsnmp","wantwmi"};
+	my ($name,$wantsnmp,$wantwmi, $policy) = @args{"name","wantsnmp","wantwmi","policy"};
 
 	my $pollTimer = NMIS::Timing->new;
 
@@ -1056,7 +1061,11 @@ sub doCollect
 
 	my $S = Sys->new; # create system object, does next to nothing
 	# init will usually load node info data, model etc, returns 1 if _all_ is ok
-	if (! $S->init(name=>$name, snmp => $wantsnmp, wmi => $wantwmi) )	
+	if (! $S->init(name=>$name,
+								 snmp => $wantsnmp,
+								 wmi => $wantwmi,
+								 policy => $policy,
+								 debug => $C->{debug} ) )
 	{
 		dbg("Sys init for $name failed: ".join(", ", map { "$_=".$S->status->{$_} } (qw(error snmp_error wmi_error))));
 
@@ -3214,7 +3223,7 @@ sub updateNodeInfo
 				$RI->{"${source}result"} = 100;
 				HandleNodeDown(sys=>$S, type => $source, up => 1, details => "$sourcename ok");
 
-				# record a _successful_ collect for the different sources, 
+				# record a _successful_ collect for the different sources,
 				# the collect now-or-later logic needs that, not just attempted at time x
 				$NI->{system}->{"last_poll_$source"} = time;
 				$NI->{system}->{last_polling_policy} = $NC->{polling_policy} || 'default';
@@ -4812,7 +4821,7 @@ sub runServer
 			{
 				my $D = $NI->{storage}{$index}; # new data
 
-				### 2017-02-13 keiths, handling larger disk sizes by converting to an unsigned integer				
+				### 2017-02-13 keiths, handling larger disk sizes by converting to an unsigned integer
 				$D->{hrStorageSize} = unpack("I", pack("i", $D->{hrStorageSize}));
 				$D->{hrStorageUsed} = unpack("I", pack("i", $D->{hrStorageUsed}));
 
@@ -5203,7 +5212,7 @@ hrSWRunType hrSWRunPerfCPU hrSWRunPerfMem))
 			}
 			my $nmap_out = join("", <NMAP>);
 			close(NMAP);
-			
+
 			my $exitcode = $?;
 			# if the pipe close doesn't wait until the child is gone (which it may do...)
 			# then wait and collect explicitely
@@ -8904,7 +8913,7 @@ sub doThreshold
 		if ( $name ) {
 			logMsg("Poll Time: $name, $polltime");
 		}
-		else {	
+		else {
 			logMsg("Poll Time: $polltime");
 		}
 	}

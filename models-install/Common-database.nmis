@@ -1,39 +1,10 @@
-#
-## $Id: Common-database.nmis,v 8.4 2012/08/14 12:20:36 keiths Exp $
-#
-#  Copyright 1999-2011 Opmantek Limited (www.opmantek.com)
-#  
-#  ALL CODE MODIFICATIONS MUST BE SENT TO CODE@OPMANTEK.COM
-#  
-#  This file is part of Network Management Information System (“NMIS”).
-#  
-#  NMIS is free software: you can redistribute it and/or modify
-#  it under the terms of the GNU General Public License as published by
-#  the Free Software Foundation, either version 3 of the License, or
-#  (at your option) any later version.
-#  
-#  NMIS is distributed in the hope that it will be useful,
-#  but WITHOUT ANY WARRANTY; without even the implied warranty of
-#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-#  GNU General Public License for more details.
-#  
-#  You should have received a copy of the GNU General Public License
-#  along with NMIS (most likely in a file named LICENSE).  
-#  If not, see <http://www.gnu.org/licenses/>
-#  
-#  For further information on NMIS or for a license other than GPL please see
-#  www.opmantek.com or email contact@opmantek.com 
-#  
-#  User group details:
-#  http://support.opmantek.com/users/
-#  
-# *****************************************************************************
-
 %hash = (
   'database' => {
     'db' => {
-      'hbeat' => '900',
-      'poll' => '300',
+			'timing' => {
+				'default' => { "heartbeat" => 900,
+											 "poll" => 300 },
+			},
       'size' => {
         'reachability' => {
           'step_year' => '288',
@@ -167,7 +138,7 @@
       'WindowsPagefile' => '/nodes/$node/health/WindowsPagefile-$index.rrd',
       'LogicalDisk' => '/nodes/$node/health/LogicalDisk-$index.rrd',
       'Radwin' => '/nodes/$node/health/RadwinTAB-$index.rrd',
-      'HBS' => '/nodes/$node/health/utilization-$index.rrd',  
+      'HBS' => '/nodes/$node/health/utilization-$index.rrd',
       'HBS-Util' => '/nodes/$node/health/hbs.rrd',
       'Station' => '/nodes/$node/health/ubnt-tab-$index.rrd',
       'capacity'  => '/nodes/$node/health/ubnt-capacity-$index.rrd',
@@ -182,8 +153,8 @@
       'radio' => '/nodes/$node/health/radio.rrd',
       'Radio' => '/nodes/$node/health/radio-$index.rrd',
       'Chain' => '/nodes/$node/health/Chain-$index.rrd',
-      'Stream' => '/nodes/$node/health/Stream-$index.rrd', 
-      'mikrotikCpu' => '/nodes/$node/health/mikrotikCpu.rrd',     
+      'Stream' => '/nodes/$node/health/Stream-$index.rrd',
+      'mikrotikCpu' => '/nodes/$node/health/mikrotikCpu.rrd',
     }
   }
 );

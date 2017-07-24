@@ -27,7 +27,7 @@
 #
 # *****************************************************************************
 package Sys;
-our $VERSION = "2.0.1";
+our $VERSION = "2.1.0";
 
 use strict;
 use lib "../../lib";
@@ -122,10 +122,12 @@ sub status
 #
 # node config is loaded if snmp or wmi args are true
 # args: node (mostly required, or name), snmp (defaults to 1), wmi (defaults to the value for snmp),
-# update (defaults to 0), cache_models (see code comments for defaults), force (defaults to 0)
+# update (defaults to 0), cache_models (see code comments for defaults), force (defaults to 0),
+# policy (default unset)
 #
 # update means ignore model loading errors, also disables cache_models
 # force means ignore the old node file, only relevant if update is enabled as well.
+# if policy is given (hashref of ping/wmi/snmp => numeric seconds) then the rrd db params are overridden
 #
 # returns: 1 if _everything_ was successful, 0 otherwise, also sets details for status()
 sub init
@@ -138,10 +140,13 @@ sub init
 	$self->{debug} = $args{debug};
 	$self->{update} = getbool($args{update});
 
+	my $policy = $args{policy};		# optional
+
 	# flag for init snmp accessor, default is yes
 	my $snmp = getbool(exists $args{snmp}? $args{snmp}: 1);
 	# ditto for wmi, but default from snmp
 	my $wantwmi = getbool(exists $args{wmi}? $args{wmi} : $snmp);
+
 
 	my $C = loadConfTable();			# needed to determine the correct dir; generally cached and a/v anyway
 	if (ref($C) ne "HASH" or !keys %$C)
@@ -264,6 +269,55 @@ sub init
 	dbg("loading model $loadthis for node $self->{name}");
 	# model loading failures are terminal
 	return 0 if (!$self->loadModel(model => $loadthis));
+
+	# if a policy is given, override the database timing part of the model data
+	# traverse all the model sections, find out which sections are
+	# subject to which timing policy
+	if (ref($policy) eq "HASH")
+	{
+		for my $topsect (keys %{$self->{mdl}})
+		{
+			next if (ref($self->{mdl}->{$topsect}->{rrd}) ne "HASH");
+			for my $subsect (keys %{$self->{mdl}->{$topsect}->{rrd}})
+			{
+				my $interesting = $self->{mdl}->{$topsect}->{rrd}->{$subsect};
+				my $haswmi = ref($interesting->{wmi}) eq "HASH";
+				my $hassnmp = ref($interesting->{snmp}) eq "HASH";
+				if ($hassnmp and $haswmi)
+				{
+					dbg("section $subsect subject to both snmp and wmi poll policy overrides: "
+							. "poll snmp $policy->{snmp}, wmi $policy->{wmi}") if ($self->{debug} > 1);
+					# poll: smaller of the two, heartbeat: larger of the two
+					my $poll = defined($policy->{snmp})?  $policy->{snmp} : 300;
+					$poll = $policy->{wmi} if (defined($policy->{wmi}) && $policy->{wmi} < $poll);
+					$poll ||= 300;
+
+					my $heartbeat = defined($policy->{snmp})?  $policy->{snmp} : 300;
+					$heartbeat = $policy->{wmi} if (defined($policy->{wmi}) && $policy->{wmi} > $heartbeat);
+					$heartbeat ||= 300;
+					$heartbeat *= 3;
+
+
+					$self->{mdl}->{database}->{db}->{timing}->{$subsect}->{poll} = $poll;
+					$self->{mdl}->{database}->{db}->{timing}->{$subsect}->{heartbeat} = $heartbeat;
+					dbg("overrode rrd timings for $subsect with step $poll, heartbeat $heartbeat");
+				}
+				elsif ($haswmi or $hassnmp)
+				{
+					my $which = $hassnmp? "snmp" : "wmi";
+					if (defined $policy->{$which})
+					{
+						dbg("section \"$subsect\" subject to $which polling policy override: poll $policy->{$which}")
+								if ($self->{debug} > 1);
+						$self->{mdl}->{database}->{db}->{timing}->{$subsect}->{poll} = $policy->{$which} || 300;
+						$self->{mdl}->{database}->{db}->{timing}->{$subsect}->{heartbeat} =
+								3*( $policy->{$which} || 900);
+					}
+				}
+			}
+		}
+
+	}
 
 	# init the snmp accessor if snmp wanted and possible, but do not connect (yet)
 	if ($self->{name} and $snmp and $thisnodeconfig->{collect})
