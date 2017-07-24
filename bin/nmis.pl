@@ -123,7 +123,7 @@ if (-f $lockoutfile or getbool($C->{global_collect},"invert"))
 
 # all arguments are now stored in nvp (name value pairs)
 my $type		= lc $nvp{type};
-my $node		= lc $nvp{node};
+my $node		= $nvp{node};
 my $rmefile		= $nvp{rmefile};
 my $runGroup	= $nvp{group};
 my $sleep	= $nvp{sleep};
@@ -439,33 +439,61 @@ sub	runThreads
 		}
 	}
 
-	# note: force arg overrides the polling policy
-	if ($type eq "update" or getbool($nvp{force}))
+	if ($type eq "update")
 	{
 		@todo_nodes = grep(getbool($NT->{$_}->{active}), @cand_nodes);
 	}
 	else
 	{
-		# find out what nodes are due as per polling policy
+		# find out what nodes are due as per polling policy - also honor force
 		my $now = time;
 		for my $maybe (@cand_nodes)
 		{
-			next if (!getbool($NT->{$maybe}->{active}));
+			next if (ref($NT->{$maybe}) ne "HASH" or !getbool($NT->{$maybe}->{active}));
 			my $polname = $NT->{$maybe}->{polling_policy} || "default";
-			dbg("Node $maybe is using polling policy $polname") if ($polname ne "default");
+			dbg("Node $maybe is using polling policy \"$polname\"") if ($polname ne "default");
 
 			# unfortunately we require the nodeinfo data to make the candidate-or-not decision...
 			my $ninfo = loadNodeInfoTable($maybe);
 
+			my $lastpolicy = $ninfo->{system}->{last_polling_policy};
+			my $lastsnmp = $ninfo->{system}->{last_poll_snmp};
+			my $lastwmi = $ninfo->{system}->{last_poll_wmi};
+
+			# handle the case of a changed polling policy: move all rrd files
+			# out of the way, and poll now
+			# note that this does NOT work with non-standard common-database structures
+			if (defined($lastpolicy) && $lastpolicy ne $polname)
+			{
+				logMsg("Node $maybe is changing polling policy, from \"$lastpolicy\" to \"$polname\", due for polling at $now");
+
+				my $lcnode = lc($maybe);
+				my $curdir = $C->{'database_root'}."/nodes/$lcnode";
+				my $backupdir = "$curdir.policy-$lastpolicy.".time();
+
+				if (!-d $curdir)
+				{
+					logMsg("WARN Node $maybe doesn't have RRD files under $curdir!");
+				}
+				else
+				{
+					rename($curdir,$backupdir) or logMsg("WARN failed to mv rrd files for $maybe: $!");
+				}
+				push @todo_nodes, $maybe;
+				$whichflavours{$maybe}->{wmi} = $whichflavours{$maybe}->{snmp} = 1; # and ignore the last-xyz markers
+			}
+			elsif (getbool($nvp{force}))
+			{
+				dbg("force is enabled, Node $maybe will be polled at $now");
+				push @todo_nodes, $maybe;
+				$whichflavours{$maybe}->{wmi} = $whichflavours{$maybe}->{snmp} = 1; # and ignore the last-xyz markers
+			}
 			# logic for collect now or later: candidate if no past successful collect whatsoever,
 			# or if either of the two worked and was done long enough ago.
 			#
 			# if no history is known for a source, then disregard it for the now-or-later logic
 			# but DO enable it for trying!
-			my $lastsnmp = $ninfo->{system}->{last_poll_snmp};
-			my $lastwmi = $ninfo->{system}->{last_poll_wmi};
-
-			if (!defined($lastsnmp) && !defined($lastwmi))
+			elsif (!defined($lastsnmp) && !defined($lastwmi))
 			{
 				dbg("Node $maybe has neither last_poll_snmp nor last_poll_wmi, due for poll at $now");
 				push @todo_nodes, $maybe;
@@ -519,6 +547,7 @@ sub	runThreads
 	{
 		++$nodecount;
 		push @list_of_handled_nodes, $onenode;
+
 
 		# One process per node, until maxThreads is reached (then block and wait)
 		if ($mthread)
@@ -3210,6 +3239,9 @@ sub updateNodeInfo
 	# this returns 0 iff none of the possible/configured sources worked, sets details
 	my $loadsuccess = $S->loadInfo(class=>'system', model=>$model);
 
+	# polling policy needs saving regardless of success/failure
+	$NI->{system}->{last_polling_policy} = $NC->{node}->{polling_policy} || 'default';
+
 	# handle dead sources, raise appropriate events
 	my $curstate = $S->status;
 	for my $source (qw(snmp wmi))
@@ -3226,7 +3258,7 @@ sub updateNodeInfo
 				# record a _successful_ collect for the different sources,
 				# the collect now-or-later logic needs that, not just attempted at time x
 				$NI->{system}->{"last_poll_$source"} = time;
-				$NI->{system}->{last_polling_policy} = $NC->{polling_policy} || 'default';
+
 			}
 			# not ok if enabled and error
 			else
