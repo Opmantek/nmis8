@@ -204,7 +204,8 @@ sub	runThreads
 
 	dbg("Starting, operation is $type");
 
-	# first thing: do a selftest and cache the result. this takes about five seconds (for the process stats)
+	# do a selftest and cache the result, but not too often
+	# this takes about five seconds (for the process stats)
 	# however, DON'T do one if nmis is run in handle-just-this-node mode, which is usually a debugging exercise
 	# which shouldn't be delayed at all. ditto for (possibly VERY) frequent type=services
 	if (!$node_select and $type ne "services")
@@ -212,56 +213,66 @@ sub	runThreads
 		info("Ensuring correct permissions on conf and model directories...");
 		setFileProtDirectory($C->{'<nmis_conf>'}, 1); # do recurse
 		setFileProtDirectory($C->{'<nmis_models>'}, 0); # no recursion required
-
-		info("Starting selftest (takes about 5 seconds)...");
+		
 		my $varsysdir = $C->{'<nmis_var>'}."/nmis_system";
 		if (!-d $varsysdir)
 		{
 			createDir($varsysdir);
 			setFileProt($varsysdir);
 		}
-
+		
 		my $selftest_cache = "$varsysdir/selftest";
-		# check the current state, to see if a perms check is due? once every 2 hours
 		my $laststate = readFiletoHash(file => $selftest_cache, json => 1);
+		# check if a selftest is due? once every 15 minutes
+		my $wantselftestnow = 1 if (ref($laststate) ne "HASH"
+																|| !defined($laststate->{lastupdate})
+																|| ($laststate->{lastupdate} + 900 < time));
+		# check the current state, to see if a perms check is due? once every 2 hours
 		my $wantpermsnow = 1 if (ref($laststate) ne "HASH"
 														 || !defined($laststate->{lastupdate_perms})
 														 || $laststate->{lastupdate_perms} + 7200 < time);
-
-		my ($allok, $tests) = func::selftest(config => $C, delay_is_ok => 'true',
-																				 perms => $wantpermsnow,
-																				 report_database_status => \$selftest_dbdir_status);
-
-		# keep the old permissions state if this test did not run a permissions test
-		# hardcoded test name isn't great, though.
-		if (!$wantpermsnow)
+		if ($wantselftestnow)
 		{
-			$laststate ||= { tests => [] };
-
-			my ($oldstate) = grep($_->[0] eq "Permissions", @{$laststate->{tests}}); # there will at most one
-			if (defined $oldstate)
+			info("Starting selftest (takes about 5 seconds)...");
+			my ($allok, $tests) = func::selftest(config => $C, delay_is_ok => 'true',
+																					 perms => $wantpermsnow,
+																					 report_database_status => \$selftest_dbdir_status);
+			
+			# keep the old permissions state if this test did not run a permissions test
+			# hardcoded test name isn't great, though.
+			if (!$wantpermsnow)
 			{
-				my ($targetidx) = grep($tests->[$_]->[0] eq "Permissions", (0..$#{$tests}));
-				if (defined $targetidx)
+				$laststate ||= { tests => [] };
+				
+				my ($oldstate) = grep($_->[0] eq "Permissions", @{$laststate->{tests}}); # there will at most one
+				if (defined $oldstate)
 				{
-					$tests->[$targetidx] = $oldstate;
+					my ($targetidx) = grep($tests->[$_]->[0] eq "Permissions", (0..$#{$tests}));
+					if (defined $targetidx)
+					{
+						$tests->[$targetidx] = $oldstate;
+					}
+					else
+					{
+						push @$tests, $oldstate;
+					}
+					$allok = 0 if ($oldstate->[1]); # not ok until that's cleared
 				}
-				else
-				{
-					push @$tests, $oldstate;
-				}
-				$allok = 0 if ($oldstate->[1]); # not ok until that's cleared
 			}
+			
+			writeHashtoFile(file => $selftest_cache, json => 1,
+											data => { status => $allok,
+																lastupdate => time,
+																lastupdate_perms => ($wantpermsnow? time
+																										 : $laststate?  $laststate->{lastupdate_perms} : undef),
+																		tests => $tests });
+			info("Selftest completed (status ".($allok?"ok":"FAILED!")."), cache file written");
 		}
-
-		writeHashtoFile(file => $selftest_cache, json => 1,
-									data => { status => $allok,
-														lastupdate => time,
-														lastupdate_perms => ($wantpermsnow? time
-																								 : $laststate?  $laststate->{lastupdate_perms} : undef),
-														tests => $tests });
-		info("Selftest completed (status ".($allok?"ok":"FAILED!")."), cache file written");
-	}
+		else
+		{
+			info("Skipping selftest, last run at ". returnDateStamp($laststate->{lastupdate}));
+		}
+	}	
 
 	# load all the files we need here
 	loadEnterpriseTable() if $type eq 'update'; # load in cache
@@ -558,9 +569,8 @@ sub	runThreads
 	# anything to do?
 	if (!@todo_nodes)
 	{
-		logMsg("No nodes due for $type found.");
-		print "No nodes active or due for $type\n"
-				if ($node_select);
+		info("Found no nodes due for $type.");
+		logMsg("Found no nodes due for $type.");
 		return;
 	}
 
