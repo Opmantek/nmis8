@@ -507,7 +507,7 @@ sub	runThreads
 				# and the 'snmp' policy is applied
 				if (!getbool($NT->{$maybe}->{collect}))
 				{
-					my $lastsnmp = $ninfo->{system}->{last_poll} // 0;
+					$lastsnmp = $ninfo->{system}->{last_poll} // 0;
 					dbg("Node $maybe is non-collecting, applying snmp policy to last check at $lastsnmp");
 				}
 
