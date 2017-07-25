@@ -4,6 +4,8 @@
 			'timing' => {
 				'default' => { "heartbeat" => 900,
 											 "poll" => 300 },
+				'nmis' => { "heartbeat" => 7200,
+											 "poll" => 60 },
 			},
       'size' => {
         'reachability' => {
