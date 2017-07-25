@@ -512,8 +512,9 @@ sub	runThreads
 				}
 
 				# accept delta-previous-now interval if it's at least 95% of the configured interval
-				my $nextsnmp = ($lastsnmp // 0) + $intervals{$polname}->{snmp} * 1.05;
-				my $nextwmi = ($lastwmi // 0) + $intervals{$polname}->{wmi} * 1.05;
+				# strict 100% would mean that we might skip a full interval when polling takes longer
+				my $nextsnmp = ($lastsnmp // 0) + $intervals{$polname}->{snmp} * 0.95;
+				my $nextwmi = ($lastwmi // 0) + $intervals{$polname}->{wmi} * 0.95;
 
 				# only flavours which worked in the past contribute to the now-or-later logic
 				if ((defined($lastsnmp) && $nextsnmp <= $now )
