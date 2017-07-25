@@ -1075,6 +1075,7 @@ sub doCollect
 	my %args = @_;
 	my ($name,$wantsnmp,$wantwmi, $policy) = @args{"name","wantsnmp","wantwmi","policy"};
 
+	my $starttime = time;
 	my $pollTimer = NMIS::Timing->new;
 
 	info("================================");
@@ -1154,7 +1155,8 @@ sub doCollect
 		}
 
 		# returns 1 if one or more sources have worked, also updates snmp/wmi down states in nodeinfo
-		my $updatewasok = updateNodeInfo(sys=>$S);
+		# and sets the relevant last_poll_xyz markers
+		my $updatewasok = updateNodeInfo(sys=>$S, time_marker => $starttime);
 		my $curstate = $S->status;	# updatenodeinfo does NOT disable faulty sources!
 
 		# was snmp ok? should we bail out? note that this is interpreted to apply to ALL sources being down simultaneously,
@@ -3237,6 +3239,8 @@ sub updateNodeInfo
 	my $result;
 	my $exit = 1;
 
+	my $time_marker = $args{time_marker} || time;
+
 	info("Starting Update Node Info, node $S->{name}");
 	# clear the node reset indication from the last run
 	$NI->{system}->{node_was_reset}=0;
@@ -3268,7 +3272,7 @@ sub updateNodeInfo
 
 				# record a _successful_ collect for the different sources,
 				# the collect now-or-later logic needs that, not just attempted at time x
-				$NI->{system}->{"last_poll_$source"} = time;
+				$NI->{system}->{"last_poll_$source"} = $time_marker;
 
 			}
 			# not ok if enabled and error
@@ -3349,7 +3353,7 @@ sub updateNodeInfo
 
 		$V->{system}{lastUpdate_value} = returnDateStamp();
 		$V->{system}{lastUpdate_title} = 'Last Update';
-		$NI->{system}{last_poll} = time();
+		$NI->{system}{last_poll} = $time_marker;
 
 		# get and apply any nodeconf override if such exists for this node
 		my $node = $NI->{system}{name};
