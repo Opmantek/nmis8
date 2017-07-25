@@ -541,7 +541,7 @@ sub	runThreads
 		return;
 	}
 
-	dbg("Selected nodes for $type: ".join(", ",@todo_nodes));
+	logMsg("INFO Selected nodes for $type: ".join(" ", sort @todo_nodes));
 	$mthread = 0 if (@todo_nodes <= 1); # multiprocessing makes no sense with just one todo node
 
 	for my $onenode (@todo_nodes)
