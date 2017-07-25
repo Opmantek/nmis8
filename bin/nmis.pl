@@ -494,7 +494,8 @@ sub	runThreads
 			#
 			# if no history is known for a source, then disregard it for the now-or-later logic
 			# but DO enable it for trying!
-			elsif (!defined($lastsnmp) && !defined($lastwmi))
+			# note that collect=false, i.e. ping-only nodes need to be excepted
+			elsif (!defined($lastsnmp) && !defined($lastwmi) && getbool($NT->{$maybe}->{collect}))
 			{
 				dbg("Node $maybe has neither last_poll_snmp nor last_poll_wmi, due for poll at $now");
 				push @todo_nodes, $maybe;
@@ -502,6 +503,14 @@ sub	runThreads
 			}
 			else
 			{
+				# for collect false/pingonly nodes the single 'generic' collect run counts,
+				# and the 'snmp' policy is applied
+				if (!getbool($NT->{$maybe}->{collect}))
+				{
+					my $lastsnmp = $ninfo->{system}->{last_poll} // 0;
+					dbg("Node $maybe is non-collecting, applying snmp policy to last check at $lastsnmp");
+				}
+
 				# accept delta-previous-now interval if it's at least 95% of the configured interval
 				my $nextsnmp = ($lastsnmp // 0) + $intervals{$polname}->{snmp} * 1.05;
 				my $nextwmi = ($lastwmi // 0) + $intervals{$polname}->{wmi} * 1.05;
