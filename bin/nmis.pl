@@ -489,13 +489,26 @@ sub	runThreads
 				push @todo_nodes, $maybe;
 				$whichflavours{$maybe}->{wmi} = $whichflavours{$maybe}->{snmp} = 1; # and ignore the last-xyz markers
 			}
+			# nodes that have not been pollable since forever: run at most once hourly
+			elsif (!$ninfo->{system}->{nodeModel} or $ninfo->{system}->{nodeModel} eq "Model")
+			{
+				my $lasttry = $ninfo->{system}->{last_poll} // 0;
+				my $nexttry = ($lasttry && ($now - $lasttry) <= 30*86400)? ($lasttry + 3600 * 0.95) : $now;
+				dbg("Node $maybe has no valid nodeModel, never polled successfully, demoting to hourly check, last attempt $lasttry, next $nexttry");
+				if ($nexttry <= $now)
+				{
+					push @todo_nodes, $maybe;
+					$whichflavours{$maybe}->{wmi} = $whichflavours{$maybe}->{snmp} = 1;
+				}
+			}
 			# logic for collect now or later: candidate if no past successful collect whatsoever,
 			# or if either of the two worked and was done long enough ago.
 			#
 			# if no history is known for a source, then disregard it for the now-or-later logic
 			# but DO enable it for trying!
-			# note that collect=false, i.e. ping-only nodes need to be excepted
-			elsif (!defined($lastsnmp) && !defined($lastwmi) && getbool($NT->{$maybe}->{collect}))
+			# note that collect=false, i.e. ping-only nodes need to be excepted, 
+			elsif (!defined($lastsnmp) && !defined($lastwmi) 
+						 && getbool($NT->{$maybe}->{collect}))
 			{
 				dbg("Node $maybe has neither last_poll_snmp nor last_poll_wmi, due for poll at $now");
 				push @todo_nodes, $maybe;
