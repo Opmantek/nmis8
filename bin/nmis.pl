@@ -213,14 +213,14 @@ sub	runThreads
 		info("Ensuring correct permissions on conf and model directories...");
 		setFileProtDirectory($C->{'<nmis_conf>'}, 1); # do recurse
 		setFileProtDirectory($C->{'<nmis_models>'}, 0); # no recursion required
-		
+
 		my $varsysdir = $C->{'<nmis_var>'}."/nmis_system";
 		if (!-d $varsysdir)
 		{
 			createDir($varsysdir);
 			setFileProt($varsysdir);
 		}
-		
+
 		my $selftest_cache = "$varsysdir/selftest";
 		my $laststate = readFiletoHash(file => $selftest_cache, json => 1);
 		# check if a selftest is due? once every 15 minutes
@@ -237,13 +237,13 @@ sub	runThreads
 			my ($allok, $tests) = func::selftest(config => $C, delay_is_ok => 'true',
 																					 perms => $wantpermsnow,
 																					 report_database_status => \$selftest_dbdir_status);
-			
+
 			# keep the old permissions state if this test did not run a permissions test
 			# hardcoded test name isn't great, though.
 			if (!$wantpermsnow)
 			{
 				$laststate ||= { tests => [] };
-				
+
 				my ($oldstate) = grep($_->[0] eq "Permissions", @{$laststate->{tests}}); # there will at most one
 				if (defined $oldstate)
 				{
@@ -259,7 +259,7 @@ sub	runThreads
 					$allok = 0 if ($oldstate->[1]); # not ok until that's cleared
 				}
 			}
-			
+
 			writeHashtoFile(file => $selftest_cache, json => 1,
 											data => { status => $allok,
 																lastupdate => time,
@@ -272,7 +272,7 @@ sub	runThreads
 		{
 			info("Skipping selftest, last run at ". returnDateStamp($laststate->{lastupdate}));
 		}
-	}	
+	}
 
 	# load all the files we need here
 	loadEnterpriseTable() if $type eq 'update'; # load in cache
@@ -457,8 +457,8 @@ sub	runThreads
 			#
 			# if no history is known for a source, then disregard it for the now-or-later logic
 			# but DO enable it for trying!
-			# note that collect=false, i.e. ping-only nodes need to be excepted, 
-			elsif (!defined($lastsnmp) && !defined($lastwmi) 
+			# note that collect=false, i.e. ping-only nodes need to be excepted,
+			elsif (!defined($lastsnmp) && !defined($lastwmi)
 						 && getbool($NT->{$maybe}->{collect}))
 			{
 				dbg("Node $maybe has neither last_poll_snmp nor last_poll_wmi, due for poll at $now");
@@ -519,7 +519,7 @@ sub	runThreads
 
 	# now perform process safety operations
 	# test if there are any collect processes running for any of the todo nodes
-	# for updates, just test 
+	# for updates, just test
 	### updates can run past 5 mins, BUT no two updates should run at the same time
 	### for potentially frequent type=services we don't do any of these.
 	if ( $type eq 'collect' or $type eq "update")
@@ -536,11 +536,11 @@ sub	runThreads
 		for my $pid (keys %$others)
 		{
 			$problematic{$pid} = 1
-					if (defined($others->{$pid}->{node}) 
+					if (defined($others->{$pid}->{node})
 							&& grep($_ eq $others->{$pid}->{node}, @todo_nodes)); # ugly
 		}
-					
-																									 
+
+
 		# if this is a collect and if told to ignore running processes (ignore_running=1/t),
 		# then only warn about processes and don't shoot them.
 		# the same is done if this is an interactive run with info or debug given
@@ -568,7 +568,7 @@ sub	runThreads
 
 				# and raise an event to inform the operator - unless told NOT to
 				# ie: either disable_nmis_process_events is set to true OR the event control Log property is set to false
-				if ((!defined $C->{disable_nmis_process_events} 
+				if ((!defined $C->{disable_nmis_process_events}
 						 or !getbool($C->{disable_nmis_process_events})
 						 and getbool($thisevent_control->{Log})))
 				{
@@ -652,7 +652,7 @@ sub	runThreads
 		# wait blockingly until all worker children are done
 		1 while wait != -1;
 	}
-	
+
 	my $collecttime = Time::HiRes::time();
 	my $S;
 	# on update prime the interface summary

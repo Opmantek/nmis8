@@ -2699,7 +2699,7 @@ sub update_operations_stamp
 # with type given, collects the processes that run that cmd AND have the same config
 # without type, collects ALL procs running perl and called nmis-something-... or nmis.pl,
 # NOT just the ones with this config!
-# returns: hashref of pid -> info about the process, namely $0/cmdline and starttime
+# returns: hashref of pid -> info about the process, namely $0/cmdline and starttime, possibly node
 sub find_nmis_processes
 {
 	my (%args) = @_;

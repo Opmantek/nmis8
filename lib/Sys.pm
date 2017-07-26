@@ -274,6 +274,10 @@ sub init
 	# traverse all the model sections, find out which sections are subject to which timing policy
 	if (ref($policy) eq "HASH")
 	{
+		# must get that before it's overwritten
+		my $standardstep = $self->{mdl}->{database}->{db}->{timing}->{default}->{poll} // 300;
+		my %resizeme;								# section name -> factor
+
 		for my $topsect (keys %{$self->{mdl}})
 		{
 			next if (ref($self->{mdl}->{$topsect}->{rrd}) ne "HASH");
@@ -282,6 +286,7 @@ sub init
 				my $interesting = $self->{mdl}->{$topsect}->{rrd}->{$subsect};
 				my $haswmi = ref($interesting->{wmi}) eq "HASH";
 				my $hassnmp = ref($interesting->{snmp}) eq "HASH";
+
 				if ($hassnmp and $haswmi)
 				{
 					dbg("section $subsect subject to both snmp and wmi poll policy overrides: "
@@ -296,10 +301,13 @@ sub init
 					$heartbeat ||= 300;
 					$heartbeat *= 3;
 
+					my $thistiming = $self->{mdl}->{database}->{db}->{timing}->{$subsect} ||= {};
 
-					$self->{mdl}->{database}->{db}->{timing}->{$subsect}->{poll} = $poll;
-					$self->{mdl}->{database}->{db}->{timing}->{$subsect}->{heartbeat} = $heartbeat;
+					$thistiming->{poll} = $poll;
+					$thistiming->{heartbeat} = $heartbeat;
+
 					dbg("overrode rrd timings for $subsect with step $poll, heartbeat $heartbeat");
+					$resizeme{$subsect} = $standardstep / $poll;
 				}
 				elsif ($haswmi or $hassnmp)
 				{
@@ -308,18 +316,45 @@ sub init
 					{
 						dbg("section \"$subsect\" subject to $which polling policy override: poll $policy->{$which}")
 								if ($self->{debug} > 1);
-						$self->{mdl}->{database}->{db}->{timing}->{$subsect}->{poll} = $policy->{$which} || 300;
-						$self->{mdl}->{database}->{db}->{timing}->{$subsect}->{heartbeat} =
-								3*( $policy->{$which} || 900);
+
+						my $thistiming = $self->{mdl}->{database}->{db}->{timing}->{$subsect} ||= {};
+						$thistiming->{poll} = $policy->{$which} || 300;
+						$thistiming->{heartbeat} = 3*( $policy->{$which} || 900);
+
+						$resizeme{$subsect} = $standardstep / $thistiming->{poll};
 					}
 				}
 			}
 		}
-		# AND set the default to the snmp timing, to cover unmodelled sections (which are currently all snmp-based, e.g. hrsmpcpu)
-		if ($policy->{snmp})
+		# AND set the default to the snmp timing, to cover unmodelled sections
+		# (which are currently all snmp-based, e.g. hrsmpcpu)
+		if ($policy->{snmp})				# not null
 		{
 			$self->{mdl}->{database}->{db}->{timing}->{default}->{poll} = $policy->{snmp};
 			$self->{mdl}->{database}->{db}->{timing}->{default}->{heartbeat} = 3* $policy->{snmp};
+			$resizeme{default} = $standardstep / $policy->{snmp};
+		}
+
+		# increase the rows_* sizes for these sections, if the step is shorter than the default
+		# use 'default' or hardcoded default if missing
+		my $standardsize = (ref($self->{mdl}->{database}->{db}->{size}) eq "HASH"
+												&& ref($self->{mdl}->{database}->{db}->{size}->{default}) eq "HASH"?
+												{ %{$self->{mdl}->{database}->{db}->{size}->{default} }} # shallow clone required, default is ALSO changed!
+												: { step_day => 1, step_week => 6, step_month => 24, step_year => 288,
+														rows_day => 2304, rows_week => 1536, rows_month => 2268, rows_year => 1890 });
+		for my $maybe (sort keys %resizeme)
+		{
+			my $factor = $resizeme{$maybe};
+			next if ($factor <= 1);
+
+			my $sizesection = $self->{mdl}->{database}->{db}->{size} ||= {};
+			$sizesection->{$maybe} ||= { %$standardsize }; # shallow clone
+			for my $period (qw(day week month year))
+			{
+				$sizesection->{$maybe}->{"rows_$period"} =
+						int($factor * $sizesection->{$maybe}->{"rows_$period"} + 0.5); # round up/down
+			}
+			dbg(sprintf("overrode rrd row counts for $maybe by factor %.2f",$factor)) if ($self->{debug} > 1);
 		}
 	}
 
