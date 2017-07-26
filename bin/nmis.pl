@@ -144,7 +144,7 @@ my @active_plugins;
 Proc::Queue::size($maxThreads); # changing limit of concurrent processes
 Proc::Queue::trace(0); # trace mode on
 Proc::Queue::debug(0); # debug is off
-Proc::Queue::delay(0.02); # set 20 milliseconds as minimum delay between fork calls, reduce to speed collect times
+Proc::Queue::delay(0);
 
 # if no type given, just run the command line options
 if ( $type eq "" ) {
@@ -326,66 +326,6 @@ sub	runThreads
 
 	runDaemons(); # start daemon processes
 
-	### test if we are still running, or zombied, and cron will email somebody if we are
-	### collects should not run past 5mins - if they do we have a problem
-	### updates can run past 5 mins, BUT no two updates should run at the same time
-	### for potentially frequent type=services we don't do any of these.
-	if ( $type eq 'collect' or $type eq "update")
-	{
-		# unrelated but also for collect and update only
-		@active_plugins = &load_plugins;
-
-		# first find all other nmis collect processes
-		my $others = func::find_nmis_processes(type => $type, config => $C);
-
-		# if this is a collect and if told to ignore running processes (ignore_running=1/t),
-		# then only warn about processes and don't shoot them.
-		# the same should be done if this is an interactive run with info or debug
-		if (($type eq "collect" and ( getbool($nvp{ignore_running})
-																	or $C->{debug} or $C->{info} ))
-				or ($type eq "update" and ($C->{debug} or $C->{info})))
-		{
-			for my $pid (keys %{$others})
-			{
-				logMsg("INFO ignoring old process $pid that is still running: $type, $others->{$pid}->{node}, started at ".returnDateStamp($others->{$pid}->{start}));
-			}
-		}
-		else
-		{
-			my $eventconfig = loadTable(dir => 'conf', name => 'Events');
-			my $event = "NMIS runtime exceeded";
-			my $thisevent_control = $eventconfig->{$event} || { Log => "true", Notify => "true", Status => "true"};
-
-			# if not told otherwise, shoot the others politely
-			for my $pid (keys %{$others})
-			{
-				print STDERR "Error: killing old NMIS $type process $pid which has not finished!\n";
-				logMsg("ERROR killing old NMIS $type process $pid which has not finished!");
-
-				kill("TERM",$pid);
-
-				# and raise an event to inform the operator - unless told NOT to
-				# ie: either disable_nmis_process_events is set to true OR the event control Log property is set to false
-				if ((!defined $C->{disable_nmis_process_events} or !getbool($C->{disable_nmis_process_events})
-						 and getbool($thisevent_control->{Log})))
-				{
-					# logging this event as the node name so it shows up as a problem with the node
-					logEvent(node => $others->{$pid}->{node},
-									 event => $event,
-									 level => "Warning",
-									 element => $others->{$pid}->{node},
-									 details => "Killed process $pid, $type of $others->{$pid}->{node}, started at "
-									 .returnDateStamp($others->{$pid}->{start}));
-				}
-			}
-			if (keys %{$others}) # for the others to shut down cleanly
-			{
-				my $grace = 5;
-				logMsg("INFO sleeping for $grace seconds to let old NMIS processes clean up");
-				sleep($grace);
-			}
-		}
-	}
 
 	# the signal handler handles termination more-or-less gracefully,
 	# and knows about critical sections
@@ -577,11 +517,84 @@ sub	runThreads
 	logMsg("INFO Selected nodes for $type: ".join(" ", sort @todo_nodes));
 	$mthread = 0 if (@todo_nodes <= 1); # multiprocessing makes no sense with just one todo node
 
+	# now perform process safety operations
+	# test if there are any collect processes running for any of the todo nodes
+	# for updates, just test 
+	### updates can run past 5 mins, BUT no two updates should run at the same time
+	### for potentially frequent type=services we don't do any of these.
+	if ( $type eq 'collect' or $type eq "update")
+	{
+		# unrelated but also for collect and update only
+		@active_plugins = &load_plugins;
+
+		# find all other nmis processes of the same type
+		my $others = func::find_nmis_processes(type => $type, config => $C);
+
+		# determine which of the other processes are of relevance: only the ones
+		# that affect nodes due for work at this time
+		my %problematic;
+		for my $pid (keys %$others)
+		{
+			$problematic{$pid} = 1
+					if (defined($others->{$pid}->{node}) 
+							&& grep($_ eq $others->{$pid}->{node}, @todo_nodes)); # ugly
+		}
+					
+																									 
+		# if this is a collect and if told to ignore running processes (ignore_running=1/t),
+		# then only warn about processes and don't shoot them.
+		# the same is done if this is an interactive run with info or debug given
+		if (($type eq "collect" and ( getbool($nvp{ignore_running})
+																	or $C->{debug} or $C->{info} ))
+				or ($type eq "update" and ($C->{debug} or $C->{info})))
+		{
+			for my $pid (keys %problematic)
+			{
+				logMsg("INFO ignoring old process $pid that is still running: $type, $others->{$pid}->{node}, started at ".returnDateStamp($others->{$pid}->{start}));
+			}
+		}
+		else
+		{
+			my $eventconfig = loadTable(dir => 'conf', name => 'Events');
+			my $event = "NMIS runtime exceeded";
+			my $thisevent_control = $eventconfig->{$event} || { Log => "true", Notify => "true", Status => "true"};
+
+			# if not told otherwise, shoot the others politely
+			for my $pid (keys %problematic)
+			{
+				print STDERR "Error: killing old NMIS $type process $pid which has not finished!\n";
+				logMsg("ERROR killing old NMIS $type process $pid ($others->{$pid}->{node}) which has not finished!");
+				kill("TERM",$pid);
+
+				# and raise an event to inform the operator - unless told NOT to
+				# ie: either disable_nmis_process_events is set to true OR the event control Log property is set to false
+				if ((!defined $C->{disable_nmis_process_events} 
+						 or !getbool($C->{disable_nmis_process_events})
+						 and getbool($thisevent_control->{Log})))
+				{
+					# logging this event as the node name so it shows up as a problem with the node
+					logEvent(node => $others->{$pid}->{node},
+									 event => $event,
+									 level => "Warning",
+									 element => $others->{$pid}->{node},
+									 details => "Killed process $pid, $type of $others->{$pid}->{node}, started at "
+									 .returnDateStamp($others->{$pid}->{start}));
+				}
+			}
+
+			if (keys %problematic) # for the others to shut down cleanly
+			{
+				my $grace = 2;
+				logMsg("INFO sleeping for $grace seconds to let old NMIS processes clean up");
+				sleep($grace);
+			}
+		}
+	}
+
 	for my $onenode (@todo_nodes)
 	{
 		++$nodecount;
 		push @list_of_handled_nodes, $onenode;
-
 
 		# One process per node, until maxThreads is reached (then block and wait)
 		if ($mthread)
@@ -630,15 +643,16 @@ sub	runThreads
 			&$meth(@methodargs);
 			alarm(0) if ($maxruntime);
 		}
-
-		# outermost parent process
-		if ($mthread)
-		{
-			# wait blockingly until all worker children are done
-			1 while wait != -1;
-		}
 	}
-
+	# outermost parent process: collects exit codes
+	if ($mthread)
+	{
+		print "PARENT $$-> waiting for child processes to complete...\n"
+						if ($mthreadDebug);
+		# wait blockingly until all worker children are done
+		1 while wait != -1;
+	}
+	
 	my $collecttime = Time::HiRes::time();
 	my $S;
 	# on update prime the interface summary
