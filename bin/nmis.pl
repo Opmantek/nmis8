@@ -181,10 +181,10 @@ elsif ( $type eq "links" ) { runLinks(); } # included in type=update
 elsif ( $type eq "apache" ) { printApache(); }
 elsif ( $type eq "apache24" ) { printApache24(); }
 elsif ( $type eq "crontab" ) { printCrontab(); }
-elsif ( $type eq "summary" ) { nmisSummary(); printRunTime(); } # included in type=collect
+elsif ( $type eq "summary" ) { nmisSummary(); printRunTime(); } # MIGHT be included in type=collect
 elsif ( $type eq "rme" ) { loadRMENodes($rmefile); }
-elsif ( $type eq "threshold" ) { runThreshold($node); printRunTime(); } # included in type=collect
-elsif ( $type eq "master" ) { nmisMaster(); printRunTime(); } # included in type=collect
+elsif ( $type eq "threshold" ) { runThreshold($node); printRunTime(); } # USUALLY included in type=collect
+elsif ( $type eq "master" ) { nmisMaster(); printRunTime(); } # MIGHT be included in type=collect
 elsif ( $type eq "groupsync" ) { sync_groups(); }
 elsif ( $type eq "purge" ) { my $error = purge_files(); die "$error\n" if $error; }
 else { checkArgs(); }
@@ -8349,33 +8349,35 @@ sub printCrontab
 PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 
 ######################################################
-# NMIS8 Config
+# Run (selective) Statistics Collection often
+* * * * * $usercol $C->{'<nmis_base>'}/bin/nmis.pl type=collect mthread=true
+
 ######################################################
-# Run Full Statistics Collection
-*/5 * * * * $usercol $C->{'<nmis_base>'}/bin/nmis.pl type=collect mthread=true
-# ######################################################
-# Optionally run a more frequent Services-only Collection
+# If you don't run the collect every minute, you might want Services-only Collection
 # */3 * * * * $usercol $C->{'<nmis_base>'}/bin/nmis.pl type=services mthread=true
+
 ######################################################
-# Run Summary Update every 2 minutes
-*/2 * * * * $usercol $C->{'<nmis_base>'}/bin/nmis.pl type=summary
-#####################################################
-# Run the interfaces 4 times an hour with Thresholding on!!!
-# if threshold_poll_cycle is set to false, then enable cron based thresholding
-#*/5 * * * * $usercol nice $C->{'<nmis_base>'}/bin/nmis.pl type=threshold
+# Run Summary Update every 5 minutes
+*/5 * * * * $usercol $C->{'<nmis_base>'}/bin/nmis.pl type=summary
+
+
 ######################################################
 # Run the update once a day
 30 20 * * * $usercol nice $C->{'<nmis_base>'}/bin/nmis.pl type=update mthread=true
+
 ######################################################
-# Log Rotation is now handled with /etc/logrotate.d/nmis, which
-# the installer offers to setup using install/logrotate*.conf
-#
+# Run the thresholding four times an hour
+# only necessary if threshold_poll_cycle is set to false
+#*/15 * * * * $usercol nice $C->{'<nmis_base>'}/bin/nmis.pl type=threshold
+
 # backup configuration, models and crontabs once a day, and keep 30 backups
 22 8 * * * $usercol $C->{'<nmis_base>'}/admin/config_backup.pl $C->{'<nmis_backups>'} 30
-##################################################
+
+######################################################
 # purge old files every few days
 2 2 */3 * * $usercol $C->{'<nmis_base>'}/bin/nmis.pl type=purge
-########################################
+
+######################################################
 # Save the Reports, Daily Monthly Weekly
 9 0 * * * $usercol $C->{'<nmis_base>'}/bin/run-reports.pl day all
 9 1 * * 0  $usercol $C->{'<nmis_base>'}/bin/run-reports.pl week all
