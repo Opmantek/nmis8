@@ -253,8 +253,8 @@ sub init
 	my $curmodel = $self->{info}{system}{nodeModel};
 	my $loadthis = "Model";
 
-	# get the specific model
-	if ($curmodel and not $self->{update})
+	# get the node's model IFF its valid
+	if ($curmodel and $curmodel ne "Model" and not $self->{update})
 	{
 		$loadthis = "Model-$curmodel";
 	}
