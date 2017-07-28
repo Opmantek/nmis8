@@ -42,6 +42,8 @@ my @groups = ();
 my $GT = loadGroupTable();
 foreach (sort split(',',$C->{group_list})) { push @groups, $_ if $AU->InGroup($_); }
 
+my @pollingpolicies = ("default", sort keys %{ loadGenericTable("Polling-Policy") || {}});
+
 my @nodes = ();
 my $LNT = loadLocalNodeTable(); # load from file or db
 foreach (sort {lc($a) cmp lc($b)} keys %{$LNT}) { push @nodes, $_ if $AU->InGroup($LNT->{$_}{group}); }
@@ -86,6 +88,7 @@ my $uuid = getUUID();
 	 { netType => { header => 'Net Type', display => 'popup',value => [ split(/\s*,\s*/, $C->{nettype_list}) ] }},
 	 { location => { header => 'Location',display => 'header,popup',value => [ sort keys %{loadGenericTable('Locations')}] }},
 	 { advanced_options => { special => 'separator', header => 'Advanced Options'}},
+	 { polling_policy => { header => "Polling Policy", display => 'header,popup', value => [@pollingpolicies]}},
 	 { model => { header => 'Model',display => 'popup',value => [@models] }},
 	 { active => { header => 'Active',display => 'header,popup',value => ["true", "false"] }},
 	 { ping => { header => 'Ping', display => 'header,popup',value => ["true", "false"] }},

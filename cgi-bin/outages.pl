@@ -3,37 +3,37 @@
 ## $Id: outages.pl,v 8.5 2012/04/28 00:59:36 keiths Exp $
 #
 #  Copyright (C) Opmantek Limited (www.opmantek.com)
-#  
+#
 #  ALL CODE MODIFICATIONS MUST BE SENT TO CODE@OPMANTEK.COM
-#  
+#
 #  This file is part of Network Management Information System (“NMIS”).
-#  
+#
 #  NMIS is free software: you can redistribute it and/or modify
 #  it under the terms of the GNU General Public License as published by
 #  the Free Software Foundation, either version 3 of the License, or
 #  (at your option) any later version.
-#  
+#
 #  NMIS is distributed in the hope that it will be useful,
 #  but WITHOUT ANY WARRANTY; without even the implied warranty of
 #  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 #  GNU General Public License for more details.
-#  
+#
 #  You should have received a copy of the GNU General Public License
-#  along with NMIS (most likely in a file named LICENSE).  
+#  along with NMIS (most likely in a file named LICENSE).
 #  If not, see <http://www.gnu.org/licenses/>
-#  
+#
 #  For further information on NMIS or for a license other than GPL please see
-#  www.opmantek.com or email contact@opmantek.com 
-#  
+#  www.opmantek.com or email contact@opmantek.com
+#
 #  User group details:
 #  http://support.opmantek.com/users/
-#  
+#
 # *****************************************************************************
 # Auto configure to the <nmis-base>/lib
 use FindBin;
 use lib "$FindBin::Bin/../lib";
 
-# 
+#
 use strict;
 use Time::ParseDate;
 use NMIS;
@@ -94,14 +94,14 @@ sub viewOutage {
 
 	my @out;
 	my $node = $Q->{node};
-	
+
 	my $title = $node? "Outages for $node" : "List of Outages";
 
 	my $time = time();
 
 	print header($headeropts);
 	pageStartJscript(title => $title, refresh => 86400) if (!$wantwidget);
-	
+
 	my $OT = loadOutageTable();
 	my $NT = loadNodeTable();
 
@@ -114,14 +114,16 @@ sub viewOutage {
 			. hidden(-override => 1, -name => "act", -value => "outage_table_doadd")
 			. hidden(-override => 1, -name => "widget", -value => $widget);
 
-	print createHrButtons(node=>$node, system=>$S, refresh=>$Q->{refresh},widget=>$widget, conf => $Q->{conf}, AU => $AU);
+	# doesn't make sense to run the bar creator if it can't create any output anyway...
+	print createHrButtons(node=>$node, system=>$S, refresh=>$Q->{refresh},widget=>$widget, conf => $Q->{conf}, AU => $AU)
+			if ($node);
 
 	print start_table;
 
 	if ($AU->CheckAccess("Table_Outages_rw",'check')) {
 
 		print Tr(td({class=>'header',colspan=>'6'},'Add Outage'));
-	
+
 		print Tr(
 			td({class=>'header',align=>'center'},'Node'),
 			td({class=>'header',align=>'center'},'Start'),
@@ -129,7 +131,7 @@ sub viewOutage {
 			td({class=>'header',align=>'center'},'Change'),
 			td({class=>'header',align=>'center',colspan=>'2'},'Action')
 			);
-	
+
 		my $start = $time+300;
 		my $end = $time+3600;
 		my $change = 'ticket #';
@@ -245,6 +247,7 @@ sub doaddOutage {
 	$AU->CheckAccess("Table_Outages_rw",'header');
 
 	my $node = $Q->{node};
+
 	my $start = parsedate($Q->{start}); # convert to number of seconds
 	my $end = parsedate($Q->{end});
 	my $change = $Q->{change};
@@ -272,8 +275,11 @@ sub doaddOutage {
 
 	my ($OT,$handle) = loadTable(dir=>'conf',name=>'Outage',lock=>'true');
 
-	# process multiple node select
-	foreach my $nd ( split(/,/,$node) ) {
+	# process multiple node selection - which arrives \0-packed if POSTed, ie. nonwidget,
+	# or comma separated in widget mode
+	my $sep = $wantwidget? qr/\s*,\s*/ : qr/\0/;
+	for my $nd ( split( $sep, $node) )
+	{
 		my $outageHash = "$nd-$start-$end"; # key
 		$OT->{$outageHash}{node} = $nd;
 		$OT->{$outageHash}{start} = $start;
@@ -296,4 +302,3 @@ sub dodeleteOutage {
 
 	$Q->{node} = '';
 }
-

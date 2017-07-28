@@ -51,6 +51,7 @@ use File::Basename;
 use JSON::XS;
 use Data::Dumper;
 use UI::Dialog;
+use version 0.77;
 
 use func;
 use NMIS;
@@ -87,10 +88,10 @@ Use the arrow keys and tab to navigate, space to select from lists.");
 
 die "User cancelled operation.\n" if ($dia->state ne "OK");
 
-my %allsvc = loadServiceStatus;
+my %allsvc = loadServiceStatus();
+
 # only interested in this server's services!
 %allsvc = %{$allsvc{$config->{server_name}}} if (ref($allsvc{$config->{server_name}}) eq "HASH");
-
 
 my $servicesel = $dia->menu( text => "Please select the service you want to graph:",
 														 list => [ map { ($_,'') } (sort keys %allsvc) ] );
@@ -260,11 +261,11 @@ for my $idx (0..$#whichreadings)
 
 			$color = sprintf("%02x%02x%02x", int(rand(256)), int(rand(256)), int(rand(256)))
 					if ($color eq "random");
-
-			my $linedef = "LINE1:$ds#$color:$label";
-			push @{$graph{option}->{standard}}, $linedef;
-			push @{$graph{option}->{small}}, $linedef;
 		}
+
+		my $linedef = "LINE1:$ds#$color:$label";
+		push @{$graph{option}->{standard}}, $linedef;
+		push @{$graph{option}->{small}}, $linedef;
 	}
 
 	# now deal with the printing choices
@@ -355,11 +356,15 @@ For further graphing and modelling info, please check out https://community.opma
 exit 0;
 
 
-#  ui::dialog doesn't escape current values :-(
+# versions of ui::dialog before 1.13 don't escape their inputs properly
+# https://rt.cpan.org/Public/Bug/Display.html?id=107364
 sub escape
 {
 	my ($input) = @_;
 
-	$input =~ s/\$/\\\$/g;
+	if (version->parse($UI::Dialog::VERSION) < version->parse("1.13"))
+	{
+		$input =~ s/\$/\\\$/g;
+	}
 	return $input;
 }

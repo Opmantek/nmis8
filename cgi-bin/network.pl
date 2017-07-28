@@ -1101,7 +1101,7 @@ sub selectLarge {
 			my $lastUpdate = "";
 			my $colorlast = $color;
 			my $lastUpdateClass = "info Plain nowrap";
-			my $time = $groupSummary->{$node}{lastUpdateSec};
+			my $time = $groupSummary->{$node}{last_poll};
 			if ( $time ne "") {
 				$lastUpdate = returnDateStamp($time);
 				if ($time < (time - 60*15)) {
@@ -1507,6 +1507,7 @@ EO_HTML
 		,'notes'
 		,'nodeType'
 		,'nodeModel'
+		,'polling_policy'
 		,'sysUpTime'
 		,'ifNumber'
 		,'sysLocation'
@@ -1645,7 +1646,7 @@ EO_HTML
 
 					if ($k eq 'lastUpdate') {
 						# check lastupdate
-						my $time = $NI->{system}{lastUpdateSec};
+						my $time = $NI->{system}{last_poll};
 						if ( $time ne "" ) {
 							if ($time < (time - 60*15)) {
 								$color = "#ffcc00"; # to late
@@ -3542,7 +3543,7 @@ sub nodeAdminSummary
 					my $lastCollectPoll = defined $NI->{system}{lastCollectPoll} ? returnDateStamp($NI->{system}{lastCollectPoll}) : "N/A";
 					my $lastCollectClass = "info Plain";
 
-					my $lastUpdatePoll = defined $NI->{system}{lastUpdatePoll} ? returnDateStamp($NI->{system}{lastUpdatePoll}) : "N/A";
+					my $lastUpdatePoll = defined $NI->{system}{last_update} ? returnDateStamp($NI->{system}{last_update}) : "N/A";
 					my $lastUpdateClass = "info Plain";
 
 					my $pingable = "unknown";
@@ -3580,13 +3581,13 @@ sub nodeAdminSummary
 						if ( $LNT->{$node}{active} eq "false" ) {
 							$lastUpdatePoll = "N/A";
 						}
-						elsif ( not defined $NI->{system}{lastUpdatePoll} ) {
+						elsif ( not defined $NI->{system}{last_update} ) {
 							$lastUpdatePoll = "unknown";
 							$lastUpdateClass = "info Plain Minor";
 							$exception = 1;
 							push(@issueList,"Last update poll is unknown");
 						}
-						elsif ( $NI->{system}{lastUpdatePoll} < (time - 86400) ) {
+						elsif ( $NI->{system}{last_update} < (time - 86400) ) {
 							$lastUpdateClass = "info Plain Major";
 							$exception = 1;
 							push(@issueList,"Last update poll was over 1 day ago");

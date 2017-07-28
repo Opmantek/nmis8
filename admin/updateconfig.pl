@@ -1,7 +1,5 @@
 #!/usr/bin/perl
 #
-## $Id: updateconfig.pl,v 1.6 2012/08/27 21:59:11 keiths Exp $
-#
 #  Copyright (C) Opmantek Limited (www.opmantek.com)
 #
 #  ALL CODE MODIFICATIONS MUST BE SENT TO CODE@OPMANTEK.COM
@@ -29,7 +27,7 @@
 #  http://support.opmantek.com/users/
 #
 # *****************************************************************************
-our $VERSION="1.1.0";
+our $VERSION="2.0.0";
 use strict;
 use File::Basename;
 
@@ -38,7 +36,7 @@ use lib "$FindBin::Bin/../lib";
 
 use func;
 
-my ($template, $live) = @ARGV;
+my ($template, $live, $wantdebug) = @ARGV;
 if (!$template or !-f $template or !$live or !-f $live)
 {
 	my $me = basename($0);
@@ -58,42 +56,59 @@ my $liveconf = readFiletoHash(file => $live);
 
 die "Invalid template config!\n" if (ref($templateconf) ne "HASH"
 																						or !keys %$templateconf);
-
 die "Invalid live config!\n" if (ref($liveconf) ne "HASH"
 																 or !keys %$liveconf);
 
-my @added;
-
-# attention: this covers ONLY TWO LEVELS of indirection!
-for my $section (sort keys %$templateconf)
-{
-	for my $item (sort keys %{$templateconf->{$section}})
-	{
-		next if (exists $liveconf->{$section}->{$item}); # undef is fine, only interested in MISSING
-		print "Updating missing $section/$item\n";
-
-		$liveconf->{$section}->{$item} =  $templateconf->{$section}->{$item};
-		push @added, [ $section, $item];
-	}
-}
-if (@added)
+my $havechanges;
+updateConfig($templateconf, $liveconf, "", 1, \$havechanges);
+if ($havechanges)
 {
 	writeHashtoFile(file=>$live, data=>$liveconf);
-	
-	print "\nItems added to Live Config:\n";
-	for (@added)
-	{
-		my ($section, $item) = @$_;
-		my $value = $liveconf->{$section}->{$item};
-		
-		print "  $section/$item=". (defined($value)?
-																$value =~ /\s+/ || $value eq ""? "'$value'": 
-																$value : "undef"). "\n";
-	}
 }
 else
 {
-	print "Found no items to add to Live Config.\n";
+	print "No missing configuration items were detected.\n";
 }
 exit 0;
+
+# recursively fill in _missing_ things from install into live
+# args: install, live - hash ref, loc (textual), further recursion allowed yes/no
+# returns: nothing
+sub updateConfig 
+{
+	my ($install, $live, $loc, $recurseok, $accum) = @_;
+
+	die "invalid install structure: ".ref($install)."\n"
+			if (ref($install) ne "HASH");
+	die "invalid live structure: ".ref($live)."\n"
+			if (ref($live) ne "HASH");
+	die "cannot merge live ".ref($live)
+			." and install ".ref($install)
+			.", structure mismatch\n" if (ref($live) ne ref($install));
+
+	for my $item (sort keys %$install)
+	{
+		if (exists($live->{$item}))
+		{
+			if (ref($install->{$item}) eq "HASH"
+					&& ref($live->{$item}) eq "HASH"
+					&& $recurseok)
+			{
+				print "recursing deeper into ${loc}/$item\n" if ($wantdebug);
+				updateConfig($install->{$item}, $live->{$item}, "${loc}/$item", $recurseok, $accum);
+			}
+			else
+			{
+				print "NOT recursing into ${loc}/$item\n" if (ref($install->{$item}) && $wantdebug);
+			}
+		}
+		else
+		{
+			print "Adding ${loc}/$item = ".(ref($install->{$item})? "<STRUCTURE>": $install->{$item})."\n";
+			$live->{$item} = $install->{$item};
+			++$$accum;
+		}
+	}
+	return;
+}
 

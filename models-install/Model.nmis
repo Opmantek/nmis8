@@ -32,8 +32,16 @@
 %hash = (
   'database' => {
     'db' => {
-      'hbeat' => '900',
-      'poll' => '300',
+			'timing' => {
+				'default' => {
+					"heartbeat" => 900,
+					"poll" => 300,
+				},
+				'nmis' => {
+					"heartbeat" => 7200,
+					"poll" => 60,
+				},
+			},
       'size' => {
         'default' => {
           'step_year' => '288',
@@ -552,7 +560,7 @@
           'RadwinWireless' => 'Wireless Link'
         }
       }
-    },  
+    },
     'ALCOMA, Ltd' => {
       'order' => {
         '10' => {

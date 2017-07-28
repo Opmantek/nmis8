@@ -123,7 +123,7 @@ if (-f $lockoutfile or getbool($C->{global_collect},"invert"))
 
 # all arguments are now stored in nvp (name value pairs)
 my $type		= lc $nvp{type};
-my $node		= lc $nvp{node};
+my $node		= $nvp{node};
 my $rmefile		= $nvp{rmefile};
 my $runGroup	= $nvp{group};
 my $sleep	= $nvp{sleep};
@@ -144,7 +144,7 @@ my @active_plugins;
 Proc::Queue::size($maxThreads); # changing limit of concurrent processes
 Proc::Queue::trace(0); # trace mode on
 Proc::Queue::debug(0); # debug is off
-Proc::Queue::delay(0.02); # set 20 milliseconds as minimum delay between fork calls, reduce to speed collect times
+Proc::Queue::delay(0);
 
 # if no type given, just run the command line options
 if ( $type eq "" ) {
@@ -172,7 +172,7 @@ NMIS version $NMIS::VERSION
 &NMIS::upgrade_nodeconf_structure;
 
 if ($type =~ /^(collect|update|services)$/) {
-	runThreads(type=>$type,node=>$node,mthread=>$mthread,mthreadDebug=>$mthreadDebug);
+	runThreads(type=>$type, node=>$node, mthread=>$mthread, mthreadDebug=>$mthreadDebug);
 }
 elsif ( $type eq "escalate") { runEscalate(); printRunTime(); } # included in type=collect
 elsif ( $type eq "config" ) { checkConfig(change => "true"); }
@@ -181,10 +181,10 @@ elsif ( $type eq "links" ) { runLinks(); } # included in type=update
 elsif ( $type eq "apache" ) { printApache(); }
 elsif ( $type eq "apache24" ) { printApache24(); }
 elsif ( $type eq "crontab" ) { printCrontab(); }
-elsif ( $type eq "summary" ) { nmisSummary(); printRunTime(); } # included in type=collect
+elsif ( $type eq "summary" ) { nmisSummary(); printRunTime(); } # MIGHT be included in type=collect
 elsif ( $type eq "rme" ) { loadRMENodes($rmefile); }
-elsif ( $type eq "threshold" ) { runThreshold($node); printRunTime(); } # included in type=collect
-elsif ( $type eq "master" ) { nmisMaster(); printRunTime(); } # included in type=collect
+elsif ( $type eq "threshold" ) { runThreshold($node); printRunTime(); } # USUALLY included in type=collect
+elsif ( $type eq "master" ) { nmisMaster(); printRunTime(); } # MIGHT be included in type=collect
 elsif ( $type eq "groupsync" ) { sync_groups(); }
 elsif ( $type eq "purge" ) { my $error = purge_files(); die "$error\n" if $error; }
 else { checkArgs(); }
@@ -201,11 +201,11 @@ sub	runThreads
 	my $node_select = $args{'node'};
 	my $mthread = getbool($args{mthread});
 	my $mthreadDebug = getbool($args{mthreadDebug});
-	my $debug_watch;
 
 	dbg("Starting, operation is $type");
 
-	# first thing: do a selftest and cache the result. this takes about five seconds (for the process stats)
+	# do a selftest and cache the result, but not too often
+	# this takes about five seconds (for the process stats)
 	# however, DON'T do one if nmis is run in handle-just-this-node mode, which is usually a debugging exercise
 	# which shouldn't be delayed at all. ditto for (possibly VERY) frequent type=services
 	if (!$node_select and $type ne "services")
@@ -214,7 +214,6 @@ sub	runThreads
 		setFileProtDirectory($C->{'<nmis_conf>'}, 1); # do recurse
 		setFileProtDirectory($C->{'<nmis_models>'}, 0); # no recursion required
 
-		info("Starting selftest (takes about 5 seconds)...");
 		my $varsysdir = $C->{'<nmis_var>'}."/nmis_system";
 		if (!-d $varsysdir)
 		{
@@ -223,45 +222,56 @@ sub	runThreads
 		}
 
 		my $selftest_cache = "$varsysdir/selftest";
-		# check the current state, to see if a perms check is due? once every 2 hours
 		my $laststate = readFiletoHash(file => $selftest_cache, json => 1);
+		# check if a selftest is due? once every 15 minutes
+		my $wantselftestnow = 1 if (ref($laststate) ne "HASH"
+																|| !defined($laststate->{lastupdate})
+																|| ($laststate->{lastupdate} + 900 < time));
+		# check the current state, to see if a perms check is due? once every 2 hours
 		my $wantpermsnow = 1 if (ref($laststate) ne "HASH"
 														 || !defined($laststate->{lastupdate_perms})
 														 || $laststate->{lastupdate_perms} + 7200 < time);
-
-		my ($allok, $tests) = func::selftest(config => $C, delay_is_ok => 'true',
-																				 perms => $wantpermsnow,
-																				 report_database_status => \$selftest_dbdir_status);
-
-		# keep the old permissions state if this test did not run a permissions test
-		# hardcoded test name isn't great, though.
-		if (!$wantpermsnow)
+		if ($wantselftestnow)
 		{
-			$laststate ||= { tests => [] };
+			info("Starting selftest (takes about 5 seconds)...");
+			my ($allok, $tests) = func::selftest(config => $C, delay_is_ok => 'true',
+																					 perms => $wantpermsnow,
+																					 report_database_status => \$selftest_dbdir_status);
 
-			my ($oldstate) = grep($_->[0] eq "Permissions", @{$laststate->{tests}}); # there will at most one
-			if (defined $oldstate)
+			# keep the old permissions state if this test did not run a permissions test
+			# hardcoded test name isn't great, though.
+			if (!$wantpermsnow)
 			{
-				my ($targetidx) = grep($tests->[$_]->[0] eq "Permissions", (0..$#{$tests}));
-				if (defined $targetidx)
-				{
-					$tests->[$targetidx] = $oldstate;
-				}
-				else
-				{
-					push @$tests, $oldstate;
-				}
-				$allok = 0 if ($oldstate->[1]); # not ok until that's cleared
-			}
-		}
+				$laststate ||= { tests => [] };
 
-		writeHashtoFile(file => $selftest_cache, json => 1,
-									data => { status => $allok,
-														lastupdate => time,
-														lastupdate_perms => ($wantpermsnow? time
-																								 : $laststate?  $laststate->{lastupdate_perms} : undef),
-														tests => $tests });
-		info("Selftest completed (status ".($allok?"ok":"FAILED!")."), cache file written");
+				my ($oldstate) = grep($_->[0] eq "Permissions", @{$laststate->{tests}}); # there will at most one
+				if (defined $oldstate)
+				{
+					my ($targetidx) = grep($tests->[$_]->[0] eq "Permissions", (0..$#{$tests}));
+					if (defined $targetidx)
+					{
+						$tests->[$targetidx] = $oldstate;
+					}
+					else
+					{
+						push @$tests, $oldstate;
+					}
+					$allok = 0 if ($oldstate->[1]); # not ok until that's cleared
+				}
+			}
+
+			writeHashtoFile(file => $selftest_cache, json => 1,
+											data => { status => $allok,
+																lastupdate => time,
+																lastupdate_perms => ($wantpermsnow? time
+																										 : $laststate?  $laststate->{lastupdate_perms} : undef),
+																		tests => $tests });
+			info("Selftest completed (status ".($allok?"ok":"FAILED!")."), cache file written");
+		}
+		else
+		{
+			info("Skipping selftest, last run at ". returnDateStamp($laststate->{lastupdate}));
+		}
 	}
 
 	# load all the files we need here
@@ -300,8 +310,6 @@ sub	runThreads
 
 	my $debug_global = $C->{debug};
 	my $debug = $C->{debug};
-	my $PIDFILE;
-	my $pid;
 
 	# used for plotting major events on world map in 'Current Events' display
 	$C->{netDNS} = 0;
@@ -318,66 +326,6 @@ sub	runThreads
 
 	runDaemons(); # start daemon processes
 
-	### test if we are still running, or zombied, and cron will email somebody if we are
-	### collects should not run past 5mins - if they do we have a problem
-	### updates can run past 5 mins, BUT no two updates should run at the same time
-	### for potentially frequent type=services we don't do any of these.
-	if ( $type eq 'collect' or $type eq "update")
-	{
-		# unrelated but also for collect and update only
-		@active_plugins = &load_plugins;
-
-		# first find all other nmis collect processes
-		my $others = func::find_nmis_processes(type => $type, config => $C);
-
-		# if this is a collect and if told to ignore running processes (ignore_running=1/t),
-		# then only warn about processes and don't shoot them.
-		# the same should be done if this is an interactive run with info or debug
-		if (($type eq "collect" and ( getbool($nvp{ignore_running})
-																	or $C->{debug} or $C->{info} ))
-				or ($type eq "update" and ($C->{debug} or $C->{info})))
-		{
-			for my $pid (keys %{$others})
-			{
-				logMsg("INFO ignoring old process $pid that is still running: $type, $others->{$pid}->{node}, started at ".returnDateStamp($others->{$pid}->{start}));
-			}
-		}
-		else
-		{
-			my $eventconfig = loadTable(dir => 'conf', name => 'Events');
-			my $event = "NMIS runtime exceeded";
-			my $thisevent_control = $eventconfig->{$event} || { Log => "true", Notify => "true", Status => "true"};
-
-			# if not told otherwise, shoot the others politely
-			for my $pid (keys %{$others})
-			{
-				print STDERR "Error: killing old NMIS $type process $pid which has not finished!\n";
-				logMsg("ERROR killing old NMIS $type process $pid which has not finished!");
-
-				kill("TERM",$pid);
-
-				# and raise an event to inform the operator - unless told NOT to
-				# ie: either disable_nmis_process_events is set to true OR the event control Log property is set to false
-				if ((!defined $C->{disable_nmis_process_events} or !getbool($C->{disable_nmis_process_events})
-						 and getbool($thisevent_control->{Log})))
-				{
-					# logging this event as the node name so it shows up as a problem with the node
-					logEvent(node => $others->{$pid}->{node},
-									 event => $event,
-									 level => "Warning",
-									 element => $others->{$pid}->{node},
-									 details => "Killed process $pid, $type of $others->{$pid}->{node}, started at "
-									 .returnDateStamp($others->{$pid}->{start}));
-				}
-			}
-			if (keys %{$others}) # for the others to shut down cleanly
-			{
-				my $grace = 5;
-				logMsg("INFO sleeping for $grace seconds to let old NMIS processes clean up");
-				sleep($grace);
-			}
-		}
-	}
 
 	# the signal handler handles termination more-or-less gracefully,
 	# and knows about critical sections
@@ -412,143 +360,346 @@ sub	runThreads
 	my $maxruntime = defined($C->{max_child_runtime}) && $C->{max_child_runtime} > 0 ?
 			$C->{max_child_runtime} : 0;
 
-	# don't run longer than X seconds for the main process, only if in non-thread mode or specific node
-	alarm($maxruntime) if ($maxruntime && (!$mthread or $node_select));
+	my (@list_of_handled_nodes,		# for any after_x_plugin() functions
+			@todo_nodes,							# for the actual update/polling work
+			@cand_nodes,
+			%whichflavours);					# attempt smmp, wmi or both
 
-	my @list_of_handled_nodes;		# for any after_x_plugin() functions
-	if ($node_select eq "")
+	# what to work on? one named node, or the nodes that are members of a given group or all nodes
+	# iff active and the polling policy agrees, that is...
+	@cand_nodes = $node_select? $node_select
+			: $runGroup? grep($_->{group} eq $runGroup, keys %$NT) : sort keys %$NT;
+
+
+	# get the polling policies and translate into seconds (for rrd file options)
+	my $policies = loadTable(dir => 'conf', name => "Polling-Policy") || {};
+	my %intervals = ( default => { ping=> 60, snmp => 300, wmi => 300 });
+	# translate period specs X.Ys, A.Bm, etc. into seconds
+	for my $polname (keys %$policies)
 	{
-		# operate on all nodes, sort the nodes so we get consistent polling cycles
-		# sort could be more sophisticated if we like, eg sort by core, dist, access or group
-		foreach my $onenode (sort keys %{$NT}) {
-			# This will allow debugging to be turned on for a
-			# specific node where there is a problem
-			if ( $onenode eq "$debug_watch" ) {
-				$debug = "true";
-			} else { $debug = $debug_global; }
-
-			# KS 16 Mar 02, implementing David Gay's requirement for deactiving
-			# a node, ie keep a node in nodes.csv but no collection done.
-			# also if $runGroup set, only do the nodes for that group.
-			if ( $runGroup eq "" or $NT->{$onenode}{group} eq $runGroup ) {
-				if ( getbool($NT->{$onenode}{active}) ) {
-					++$nodecount;
-					push @list_of_handled_nodes, $onenode;
-
-					# One process for each node until maxThreads is reached.
-					# This loop is entered only if the commandlinevariable mthread=true is used!
-					if ($mthread)
-					{
-						my $pid=fork;
-						if ( defined ($pid) and $pid==0) {
-
-							# this will be run only by the child
-							if ($mthreadDebug) {
-								print "CHILD $$-> I am a CHILD with the PID $$ processing $onenode\n";
-							}
-
-							# don't run longer than X seconds
-							alarm($maxruntime) if ($maxruntime);
-							&$meth(name=>$onenode);
-							alarm(0) if ($maxruntime);
-
-							# all the work in this thread is done now this child will die.
-							if ($mthreadDebug) {
-								print "CHILD $$-> $onenode will now exit\n";
-							}
-
-							# killing child
-							exit 0;
-						} # end of child
-						else
-						{
-							# parent
-							my $others = func::find_nmis_processes(config => $C);
-							my $procs_now = 1 + scalar keys %$others; # the current process isn't returned
-							$maxprocs = $procs_now if $procs_now > $maxprocs;
-						}
-					}
-					else
-					{
-						# iterate over nodes in this process, if mthread is false
-						&$meth(name=>$onenode);
-					}
-				} #if active
-				else {
-					 dbg("Skipping as $onenode is marked 'inactive'");
-				}
-			} #if runGroup
-		} # foreach $onenode
-
-		# only do the child process cleanup if we have mthread enabled
-		if ($mthread) {
-			# cleanup
-			# wait this will block until children are done
-			1 while wait != -1;
+		next if (ref($policies->{$polname}) ne "HASH");
+		for my $subtype (qw(snmp wmi ping))
+		{
+			my $interval = $policies->{$polname}->{$subtype};
+			if ($interval =~ /^\s*(\d+(\.\d+)?)([smhd])$/)
+			{
+				my ($rawvalue, $unit) = ($1, $3);
+				$interval = $rawvalue * ($unit eq 'm'? 60 : $unit eq 'h'? 3600 : $unit eq 'd'? 86400 : 1);
+			}
+			$intervals{$polname}->{$subtype} = $interval; # now in seconds
 		}
+	}
+
+	# find all other nmis processes of the same type
+	my $otherprocesses = func::find_nmis_processes(type => $type, config => $C)
+			if ($type eq "update" or $type eq "collect"); # relevant only for these
+	my %problematic;
+
+	if ($type eq "update" or $type eq "services")
+	{
+		@todo_nodes = grep(getbool($NT->{$_}->{active}), @cand_nodes);
 	}
 	else
 	{
-		# specific node is given to work on, threading not relevant
-		if ( (my $node = checkNodeName($node_select))) { # ignore lc & uc
-			if ( getbool($NT->{$node}{active}) ) {
-				++$nodecount;
-				push @list_of_handled_nodes, $node;
-				&$meth(name=>$node);
+		# find out what nodes are due as per polling policy - also honor force,
+		# and any in-progress polling that hasn't finished yet...
+		my $now = time;
+		for my $maybe (@cand_nodes)
+		{
+			next if (ref($NT->{$maybe}) ne "HASH" or !getbool($NT->{$maybe}->{active}));
+			# save it back for the xyz-node file, and cgi-bin/network...
+			my $polname = ($NT->{$maybe}->{polling_policy} ||= "default");
+			dbg("Node $maybe is using polling policy \"$polname\"");
+
+			# unfortunately we require the nodeinfo data to make the candidate-or-not decision...
+			my $ninfo = loadNodeInfoTable($maybe);
+
+			my $lastpolicy = $ninfo->{system}->{last_polling_policy};
+			my $lastsnmp = $ninfo->{system}->{last_poll_snmp};
+			my $lastwmi = $ninfo->{system}->{last_poll_wmi};
+
+			# that's it for completed polls - for in-progress uncompleted we need other time logic,
+			# overriding these markers from the active process' start time
+			my @isinprogress = grep($otherprocesses->{$_}->{node} &&
+															$otherprocesses->{$_}->{node} eq $maybe,
+															keys %$otherprocesses);
+			map { $problematic{$maybe} = $_; } (@isinprogress);
+
+			if (!getbool($nvp{force}) and @isinprogress)
+			{
+				# there should be at most one, we ignore any unexpected others
+				my $otherstart = $otherprocesses->{ $isinprogress[0] }->{start};
+				dbg("Node $maybe: collect in progress, using process start $otherstart instead of last_poll markers");
+				$lastsnmp = $lastwmi = $otherstart;
+				$lastpolicy = $polname;	# and no policy change triggering either...
 			}
-			else {
-				 dbg("Skipping as $node_select is marked 'inactive'");
+
+			# handle the case of a changed polling policy: move all rrd files
+			# out of the way, and poll now
+			# note that this does NOT work with non-standard common-database structures
+			if (defined($lastpolicy) && $lastpolicy ne $polname)
+			{
+				logMsg("Node $maybe is changing polling policy, from \"$lastpolicy\" to \"$polname\", due for polling at $now");
+				my $lcnode = lc($maybe);
+				my $curdir = $C->{'database_root'}."/nodes/$lcnode";
+				my $backupdir = "$curdir.policy-$lastpolicy.".time();
+
+				if (!-d $curdir)
+				{
+					logMsg("WARN Node $maybe doesn't have RRD files under $curdir!");
+				}
+				else
+				{
+					rename($curdir,$backupdir) or logMsg("WARN failed to mv rrd files for $maybe: $!");
+				}
+				push @todo_nodes, $maybe;
+				$whichflavours{$maybe}->{wmi} = $whichflavours{$maybe}->{snmp} = 1; # and ignore the last-xyz markers
 			}
-		}
-		else {
-			print "\t Invalid node $node_select No node of that name!\n";
-			return;
+			elsif (getbool($nvp{force}))
+			{
+				dbg("force is enabled, Node $maybe will be polled at $now");
+				push @todo_nodes, $maybe;
+				$whichflavours{$maybe}->{wmi} = $whichflavours{$maybe}->{snmp} = 1; # and ignore the last-xyz markers
+			}
+			# nodes that have not been pollable since forever: run at most once hourly
+			elsif (!$ninfo->{system}->{nodeModel} or $ninfo->{system}->{nodeModel} eq "Model")
+			{
+				my $lasttry = $ninfo->{system}->{last_poll} // 0;
+				my $nexttry = ($lasttry && ($now - $lasttry) <= 30*86400)? ($lasttry + 3600 * 0.95) : $now;
+				dbg("Node $maybe has no valid nodeModel, never polled successfully, demoting to hourly check, last attempt $lasttry, next $nexttry");
+				if ($nexttry <= $now)
+				{
+					push @todo_nodes, $maybe;
+					$whichflavours{$maybe}->{wmi} = $whichflavours{$maybe}->{snmp} = 1;
+				}
+			}
+			# logic for collect now or later: candidate if no past successful collect whatsoever,
+			# or if either of the two worked and was done long enough ago.
+			#
+			# if no history is known for a source, then disregard it for the now-or-later logic
+			# but DO enable it for trying!
+			# note that collect=false, i.e. ping-only nodes need to be excepted,
+			elsif (!defined($lastsnmp) && !defined($lastwmi)
+						 && getbool($NT->{$maybe}->{collect}))
+			{
+				dbg("Node $maybe has neither last_poll_snmp nor last_poll_wmi, due for poll at $now");
+				push @todo_nodes, $maybe;
+				$whichflavours{$maybe}->{wmi} = $whichflavours{$maybe}->{snmp} = 1;
+			}
+			else
+			{
+				# for collect false/pingonly nodes the single 'generic' collect run counts,
+				# and the 'snmp' policy is applied
+				if (!getbool($NT->{$maybe}->{collect}))
+				{
+					$lastsnmp = $ninfo->{system}->{last_poll} // 0;
+					dbg("Node $maybe is non-collecting, applying snmp policy to last check at $lastsnmp");
+				}
+
+				# accept delta-previous-now interval if it's at least 95% of the configured interval
+				# strict 100% would mean that we might skip a full interval when polling takes longer
+				my $nextsnmp = ($lastsnmp // 0) + $intervals{$polname}->{snmp} * 0.95;
+				my $nextwmi = ($lastwmi // 0) + $intervals{$polname}->{wmi} * 0.95;
+
+				# only flavours which worked in the past contribute to the now-or-later logic
+				if ((defined($lastsnmp) && $nextsnmp <= $now )
+						|| (defined($lastwmi) && $nextwmi <= $now))
+				{
+					dbg("Node $maybe is due for poll at $now, last snmp: ".($lastsnmp//"never")
+							.", last wmi: ".($lastwmi//"never")
+							. ", next snmp: ".($lastsnmp ? (($now - $nextsnmp)."s ago"):"n/a")
+							.", next wmi: ".($lastwmi? (($now - $nextwmi)."s ago"):"n/a"));
+					push @todo_nodes, $maybe;
+
+					# but if we've decided on polling, then DO try flavours that have not worked in the past!
+					# nextwmi <= now also covers the case of undefined lastwmi...
+					$whichflavours{$maybe}->{wmi} = ($nextwmi <= $now);
+					$whichflavours{$maybe}->{snmp} = ($nextsnmp <= $now);
+				}
+				else
+				{
+					dbg("Node $maybe is NOT due for poll at $now, last snmp: ".($lastsnmp//"never")
+							.", last wmi: ".($lastwmi//"never")
+							. ", next snmp: ".($lastsnmp? $nextsnmp :"n/a")
+							.", next wmi: ".($lastwmi? $nextwmi :"n/a"));
+				}
+			}
 		}
 	}
-	alarm(0) if ($maxruntime && (!$mthread or $node_select));
 
-	dbg("### continue normally ###");
+	# anything to do?
+	if (!@todo_nodes)
+	{
+		info("Found no nodes due for $type.");
+		logMsg("Found no nodes due for $type.");
+		return;
+	}
+
+	logMsg("INFO Selected nodes for $type: ".join(" ", sort @todo_nodes));
+	$mthread = 0 if (@todo_nodes <= 1); # multiprocessing makes no sense with just one todo node
+
+	# now perform process safety operations
+	# test if there are any collect processes running for any of the todo nodes
+	# for updates, just test
+	### updates can run past 5 mins, BUT no two updates should run at the same time
+	### for potentially frequent type=services we don't do any of these.
+	if ( $type eq 'collect' or $type eq "update")
+	{
+		# unrelated but also for collect and update only
+		@active_plugins = &load_plugins;
+
+		# if this is a collect and if told to ignore running processes (ignore_running=1/t),
+		# then only warn about processes and don't shoot them.
+		if ($type eq "collect" and getbool($nvp{ignore_running}))
+		{
+			for my $pid (keys %$otherprocesses)
+			{
+				logMsg("INFO ignoring old $type process $pid that is still running: $otherprocesses->{$pid}->{node}, started at ".returnDateStamp($otherprocesses->{$pid}->{start}));
+			}
+		}
+		else
+		{
+			my $eventconfig = loadTable(dir => 'conf', name => 'Events');
+			my $event = "NMIS runtime exceeded";
+			my $thisevent_control = $eventconfig->{$event} || { Log => "true", Notify => "true", Status => "true"};
+
+			# if not told otherwise, shoot the others politely
+			my $needgrace;
+			for my $node (@todo_nodes)
+			{
+				my $pid = $problematic{$node};
+				next if (!$pid);
+
+				$needgrace = 1;
+				print STDERR "Error: killing old NMIS $type process $pid ($otherprocesses->{$pid}->{node}) which has not finished!\n";
+				logMsg("ERROR killing old NMIS $type process $pid ($otherprocesses->{$pid}->{node}) which has not finished!");
+				kill("TERM",$pid);
+
+				# and raise an event to inform the operator - unless told NOT to
+				# ie: either disable_nmis_process_events is set to true OR the event control Log property is set to false
+				if ((!defined $C->{disable_nmis_process_events}
+						 or !getbool($C->{disable_nmis_process_events})
+						 and getbool($thisevent_control->{Log})))
+				{
+					# logging this event as the node name so it shows up as a problem with the node
+					logEvent(node => $otherprocesses->{$pid}->{node},
+									 event => $event,
+									 level => "Warning",
+									 element => $otherprocesses->{$pid}->{node},
+									 details => "Killed process $pid, $type of $otherprocesses->{$pid}->{node}, started at "
+									 .returnDateStamp($otherprocesses->{$pid}->{start}));
+				}
+			}
+
+			if ($needgrace) # give the others a moment to shut down cleanly
+			{
+				my $grace = 2;
+				logMsg("INFO sleeping for $grace seconds to let old NMIS processes clean up");
+				sleep($grace);
+			}
+		}
+	}
+
+	for my $onenode (@todo_nodes)
+	{
+		++$nodecount;
+		push @list_of_handled_nodes, $onenode;
+
+		# One process per node, until maxThreads is reached (then block and wait)
+		if ($mthread)
+		{
+			my $pid=fork;
+			if ( defined ($pid) and $pid==0)
+			{
+				# this will be run only by the child
+				print "CHILD $$-> I am a CHILD with the PID $$ processing $onenode\n"
+						if ($mthreadDebug);
+
+				# don't run longer than X seconds
+				alarm($maxruntime) if ($maxruntime);
+				my @methodargs = ( name => $onenode,
+													 policy => $intervals{$NT->{$onenode}->{polling_policy} || "default"} );
+				# try both flavours if force is on
+				push @methodargs, (wantsnmp => getbool($nvp{force}) ||  $whichflavours{$onenode}->{snmp},
+													 wantwmi => getbool($nvp{force}) || $whichflavours{$onenode}->{wmi})
+						if ($type eq "collect"); # flavours irrelevant for update
+				&$meth(@methodargs);
+
+
+				# all the work in this thread is done now this child will die.
+				print "CHILD $$-> $onenode is done, exiting\n"
+						if ($mthreadDebug);
+				exit 0;
+			} # end of child
+			else
+			{
+				# parent
+				my $others = func::find_nmis_processes(config => $C);
+				my $procs_now = 1 + scalar keys %$others; # the current process isn't returned
+				$maxprocs = $procs_now if $procs_now > $maxprocs;
+			}
+		}
+		else
+		{
+			# just one node or no multi-processing wanted -> work in this process.
+			alarm($maxruntime);
+			my @methodargs = ( name => $onenode,
+												 policy => $intervals{$NT->{$onenode}->{polling_policy} || "default"} );
+			# try both flavours if force is on
+			push @methodargs, (wantsnmp => getbool($nvp{force}) ||  $whichflavours{$onenode}->{snmp},
+												 wantwmi => getbool($nvp{force}) || $whichflavours{$onenode}->{wmi},)
+					if ($type eq "collect"); # flavours irrelevant for update
+			&$meth(@methodargs);
+			alarm(0) if ($maxruntime);
+		}
+	}
+	# outermost parent process: collects exit codes
+	if ($mthread)
+	{
+		print "PARENT $$-> waiting for child processes to complete...\n"
+						if ($mthreadDebug);
+		# wait blockingly until all worker children are done
+		1 while wait != -1;
+	}
+
 	my $collecttime = Time::HiRes::time();
-
 	my $S;
 	# on update prime the interface summary
 	if ( $type eq "update" )
 	{
-		### 2013-08-30 keiths, restructured to avoid creating and loading large Interface summaries
 		getNodeAllInfo(); # store node info in <nmis_var>/nmis-nodeinfo.xxxx
-		if ( !getbool($C->{disable_interfaces_summary}) ) {
+		if ( !getbool($C->{disable_interfaces_summary}) )
+		{
 			getIntfAllInfo(); # concatencate all the interface info in <nmis_var>/nmis-interfaces.xxxx
 			runLinks();
 		}
 	}
-	# some collect post-processing, but only if running on all nodes
-	elsif ( $type eq "collect" and $node_select eq "" )
+	# some collect post-processing
+	elsif ($type eq "collect")
 	{
-		$S = Sys->new; # object nmis-system
+		$S = Sys->new;
 		$S->init();
 
 		my $NI = $S->ndinfo;
 		delete $NI->{database};	 # remove pre-8.5.0 key as it's not used anymore
 
-		### 2011-12-29 keiths, adding a general purpose master control thing, run reliably every poll cycle.
-		if ( getbool($C->{'nmis_master_poll_cycle'}) or !getbool($C->{'nmis_master_poll_cycle'},"invert") ) {
+		# do some masterly type things
+		if (!getbool($C->{'nmis_master_poll_cycle'},"invert") # if not false
+				 && getbool($C->{server_master}))
+		{
 			my $pollTimer = NMIS::Timing->new;
 
 			dbg("Starting nmisMaster");
-			nmisMaster() if getbool($C->{server_master});	# do some masterly type things.
-
-			logMsg("Poll Time: nmisMaster, ". $pollTimer->elapTime()) if ( defined $C->{log_polling_time} and getbool($C->{log_polling_time}));
-		}
-		else {
-			dbg("Skipping nmisMaster with configuration 'nmis_master_poll_cycle' = $C->{'nmis_master_poll_cycle'}");
+			nmisMaster();
+			logMsg("Poll Time: nmisMaster, ". $pollTimer->elapTime()) if ( getbool($C->{log_polling_time}));
 		}
 
-		if ( getbool($C->{'nmis_summary_poll_cycle'}) or !getbool($C->{'nmis_summary_poll_cycle'},"invert") ) {
+		# calculate and cache the summary stats
+		if (!getbool($C->{'nmis_summary_poll_cycle'},"invert") # if not false
+				&& getbool($C->{cache_summary_tables}))
+		{
 			dbg("Starting nmisSummary");
-			nmisSummary() if getbool($C->{cache_summary_tables});	# calculate and cache the summary stats
-		}
-		else {
-			dbg("Skipping nmisSummary with configuration 'nmis_summary_poll_cycle' = $C->{'nmis_summary_poll_cycle'}");
+			nmisSummary();
 		}
 
 		dbg("Starting runMetrics");
@@ -574,7 +725,7 @@ sub	runThreads
 		runEscalate();
 
 		# nmis collect runtime, process counts and save
-		my $D;
+		my $D = {};
 		$D->{collect}{value} = $collecttime - $starttime;
 		$D->{collect}{option} = 'gauge,0:U';
 		$D->{total}{value} = Time::HiRes::time() - $starttime;
@@ -718,8 +869,8 @@ sub doUpdate
 	# create the update lock now.
 	my $lockHandle = createPollLock(type => "update", conf => $C->{conf}, node => $name);
 
-	# lets change our name, so a ps will report who we are - iff not debugging.
-	$0 = "nmis-".$C->{conf}."-update-$name" if (!$C->{debug});
+	# lets change our name, so a ps will report who we are
+	$0 = "nmis-".$C->{conf}."-update-$name";
 
 	my $S = Sys->new; # create system object
 	# loads old node info (unless force is active), and the DEFAULT(!) model (always!),
@@ -804,7 +955,7 @@ sub doUpdate
 			}
 		}
 		$S->close; # close snmp session if one is open
-		$NI->{system}{lastUpdatePoll} = time();
+		$NI->{system}{last_update} = time();
 	}
 
 	my $reachdata = runReach(sys=>$S, delayupdate => 1); # don't let it make the rrd update, we want to add updatetime!
@@ -945,8 +1096,8 @@ sub doServices
 	info("================================");
 	info("Starting services, node $name");
 
-	# lets change our name, so a ps will report who we are, iff not debugging
-	$0 = "nmis-".$C->{conf}."-services-$name" if (!$C->{debug});
+	# lets change our name, so a ps will report who we are
+	$0 = "nmis-".$C->{conf}."-services-$name";
 
 	my $S = Sys->new;
 	$S->init(name => $name);
@@ -964,15 +1115,18 @@ sub doServices
 	return;
 }
 
+#
 sub doCollect
 {
 	my %args = @_;
-	my $name = $args{name};
+	my ($name,$wantsnmp,$wantwmi, $policy) = @args{"name","wantsnmp","wantwmi","policy"};
 
+	my $starttime = time;
 	my $pollTimer = NMIS::Timing->new;
 
 	info("================================");
-	info("Starting collect, node $name");
+	info("Starting collect, node $name, want SNMP: ".($wantsnmp?"yes":"no")
+			 .", want WMI: ".($wantwmi?"yes":"no"));
 
 	# Check for both update and collect LOCKs
 	if ( existsPollLock(type => "update", conf => $C->{conf}, node => $name) ) {
@@ -989,11 +1143,16 @@ sub doCollect
 	# create the poll lock now.
 	my $lockHandle = createPollLock(type => "collect", conf => $C->{conf}, node => $name);
 
-	# lets change our name, so a ps will report who we are - iff not debugging
-	$0 = "nmis-".$C->{conf}."-collect-$name" if (!$C->{debug});
+	# lets change our name, so a ps will report who we are
+	$0 = "nmis-".$C->{conf}."-collect-$name";
 
-	my $S = Sys->new; # create system object
-	if (! $S->init(name=>$name) )	# init will usually load node info data, model etc, returns 1 if _all_ is ok
+	my $S = Sys->new; # create system object, does next to nothing
+	# init will usually load node info data, model etc, returns 1 if _all_ is ok
+	if (! $S->init(name=>$name,
+								 snmp => $wantsnmp,
+								 wmi => $wantwmi,
+								 policy => $policy,
+								 debug => $C->{debug} ) )
 	{
 		dbg("Sys init for $name failed: ".join(", ", map { "$_=".$S->status->{$_} } (qw(error snmp_error wmi_error))));
 
@@ -1012,7 +1171,7 @@ sub doCollect
 	$S->readNodeView;  # s->init does NOT load that, but we need it as we're overwriting some view info
 
 	# run an update if no update poll time is known
-	if ( !exists($NI->{system}{lastUpdatePoll}) or !$NI->{system}{lastUpdatePoll})
+	if ( !exists($NI->{system}{last_update}) or !$NI->{system}{last_update})
 	{
 		info("no cached node data available, running an update now");
 		doUpdate(name=>$name);
@@ -1042,7 +1201,8 @@ sub doCollect
 		}
 
 		# returns 1 if one or more sources have worked, also updates snmp/wmi down states in nodeinfo
-		my $updatewasok = updateNodeInfo(sys=>$S);
+		# and sets the relevant last_poll_xyz markers
+		my $updatewasok = updateNodeInfo(sys=>$S, time_marker => $starttime);
 		my $curstate = $S->status;	# updatenodeinfo does NOT disable faulty sources!
 
 		# was snmp ok? should we bail out? note that this is interpreted to apply to ALL sources being down simultaneously,
@@ -1224,18 +1384,8 @@ sub runPing
 
 			info("Starting $S->{name} ($host) with timeout=$timeout retries=$retries packet=$packet");
 
-			# fixme: invalid condition, root is generally NOT required for ping anymore!
-			if ($<)
-			{
-				# not root and update, assume called from www interface
-				$pingresult = 100;
-				dbg("SKIPPING Pinging as we are NOT running with root privileges");
-			}
-			else
-			{
-				( $ping_min, $ping_avg, $ping_max, $ping_loss) = ext_ping($host, $packet, $retries, $timeout );
-				$pingresult = defined $ping_min ? 100 : 0;		# ping_min is undef if unreachable.
-			}
+			( $ping_min, $ping_avg, $ping_max, $ping_loss) = ext_ping($host, $packet, $retries, $timeout );
+			$pingresult = defined $ping_min ? 100 : 0;		# ping_min is undef if unreachable.
 		}
 		# at this point ping_{min,avg,max,loss} and pingresult are all set
 
@@ -1274,7 +1424,7 @@ sub runPing
 		# info for web page
 		$V->{system}{lastUpdate_value} = returnDateStamp();
 		$V->{system}{lastUpdate_title} = 'Last Update';
-		$NI->{system}{lastUpdateSec} = time();
+		$NI->{system}{last_poll} = time();
 	}
 	else
 	{
@@ -3135,6 +3285,8 @@ sub updateNodeInfo
 	my $result;
 	my $exit = 1;
 
+	my $time_marker = $args{time_marker} || time;
+
 	info("Starting Update Node Info, node $S->{name}");
 	# clear the node reset indication from the last run
 	$NI->{system}->{node_was_reset}=0;
@@ -3148,24 +3300,36 @@ sub updateNodeInfo
 	# this returns 0 iff none of the possible/configured sources worked, sets details
 	my $loadsuccess = $S->loadInfo(class=>'system', model=>$model);
 
+	# polling policy needs saving regardless of success/failure
+	$NI->{system}->{last_polling_policy} = $NC->{node}->{polling_policy} || 'default';
+
 	# handle dead sources, raise appropriate events
 	my $curstate = $S->status;
 	for my $source (qw(snmp wmi))
 	{
-		# ok if enabled and no errors
-		if ($curstate->{"${source}_enabled"} && !$curstate->{"${source}_error"})
+		if ($curstate->{"${source}_enabled"})
 		{
-			my $sourcename = uc($source);
-			$RI->{"${source}result"} = 100;
-			HandleNodeDown(sys=>$S, type => $source, up => 1, details => "$sourcename ok");
+			# ok if enabled and no errors
+			if (!$curstate->{"${source}_error"})
+			{
+				my $sourcename = uc($source);
+				$RI->{"${source}result"} = 100;
+				HandleNodeDown(sys=>$S, type => $source, up => 1, details => "$sourcename ok");
+
+				# record a _successful_ collect for the different sources,
+				# the collect now-or-later logic needs that, not just attempted at time x
+				$NI->{system}->{"last_poll_$source"} = $time_marker;
+
+			}
+			# not ok if enabled and error
+			else
+			{
+				HandleNodeDown(sys=>$S, type => $source, details => $curstate->{"${source}_error"} );
+				$RI->{"${source}result"} = 0;
+
+			}
 		}
-		# not ok if enabled and error
-		elsif ($curstate->{"${source}_enabled"} && $curstate->{"${source}_error"})
-		{
-			HandleNodeDown(sys=>$S, type => $source, details => $curstate->{"${source}_error"} );
-			$RI->{"${source}result"} = 0;
-		}
-		# don't care about nonenabled sources, sys won't touch them nor set errors, RI stays whatever it was
+		# we don't care about nonenabled sources, sys won't touch them nor set errors, RI stays whatever it was
 	}
 
 	if ($loadsuccess)
@@ -3235,7 +3399,7 @@ sub updateNodeInfo
 
 		$V->{system}{lastUpdate_value} = returnDateStamp();
 		$V->{system}{lastUpdate_title} = 'Last Update';
-		$NI->{system}{lastUpdateSec} = time();
+		$NI->{system}{last_poll} = $time_marker;
 
 		# get and apply any nodeconf override if such exists for this node
 		my $node = $NI->{system}{name};
@@ -4750,7 +4914,7 @@ sub runServer
 			{
 				my $D = $NI->{storage}{$index}; # new data
 
-				### 2017-02-13 keiths, handling larger disk sizes by converting to an unsigned integer				
+				### 2017-02-13 keiths, handling larger disk sizes by converting to an unsigned integer
 				$D->{hrStorageSize} = unpack("I", pack("i", $D->{hrStorageSize}));
 				$D->{hrStorageUsed} = unpack("I", pack("i", $D->{hrStorageUsed}));
 
@@ -4937,7 +5101,6 @@ sub runServices
 
 	my $cpu;
 	my $memory;
-	my $msg;
 	my %services;		# hash to hold snmp gathered service status.
 	my %status;			# hash to collect generic/non-snmp service status
 
@@ -4954,8 +5117,8 @@ sub runServices
 	if ($snmp_allowed
 			and getbool($NT->{$node}{active})
 			and getbool($NT->{$node}{collect})
-			and grep(exists($ST->{$_}) && $ST->{$_}->{Service_Type} eq "service",
-							 split(/,/, $NT->{$NI->{system}{name}}->{services})) )
+			and grep(ref($ST->{$_}) eq "HASH" && $ST->{$_}->{Service_Type} eq "service",
+							 split(/,/, $NT->{ $NI->{system}{name} }->{services})) )
 	{
 		info("node has SNMP services to check");
 
@@ -5037,11 +5200,18 @@ hrSWRunType hrSWRunPerfCPU hrSWRunPerfMem))
 	# specific services to be tested are saved in a list - these are rrd-collected, too.
 	# note that this also covers the snmp-based services
 	my $didRunServices = 0;
-	for my $service ( split /,/ , $NT->{$NI->{system}{name}}{services} )
+	for my $service ( split /,/ , $NT->{ $NI->{system}{name} }->{services} )
 	{
+		my $thisservice = $ST->{$service};
 		# check for invalid service table data
-		next if ($service eq '' or $service =~ /n\/a/i or $ST->{$service}{Service_Type} =~ /n\/a/i);
-
+		next if (!$service 
+						 or $service =~ m!^n/a$!i 
+						 or ref($thisservice) ne "HASH" 
+						 or $thisservice->{Service_Type} =~ m!^n/a$!i);
+		
+		my ($name, $servicename, $servicetype) 
+				= @{$thisservice}{"Name","Service_Name","Service_Type"};
+		
 		# are we supposed to run this service now?
 		# load the service status and check the last run time
 		my %previous = loadServiceStatus(node => $node, service => $service);
@@ -5050,8 +5220,9 @@ hrSWRunType hrSWRunPerfCPU hrSWRunPerfMem))
 										&& $previous{$C->{server_name}}->{$service}->{$node})?
 				$previous{$C->{server_name}}->{$service}->{$node}->{last_run} : 0;
 
-		my $serviceinterval = $ST->{$service}->{Poll_Interval} || 300; # 5min
-		my $msg = "Service $service on $node (interval \"$serviceinterval\") last ran at ".returnDateStamp($lastrun).", ";
+		my $serviceinterval = $thisservice->{Poll_Interval} || 300;
+		my $msg = "Service $name on $node (interval \"$serviceinterval\") last ran at "
+				. returnDateStamp($lastrun).", ";
 		if ($serviceinterval =~ /^\s*(\d+(\.\d+)?)([mhd])$/)
 		{
 			my ($rawvalue, $unit) = ($1, $3);
@@ -5078,14 +5249,13 @@ hrSWRunType hrSWRunPerfCPU hrSWRunPerfMem))
 		}
 		# make sure that the rrd heartbeat is suitable for the service interval!
 		my $serviceheartbeat = ($serviceinterval * 3) || 300*3;
-
 		$didRunServices = 1;
 
 		# make sure this gets reinitialized for every service!
   	my $gotMemCpu = 0;
 		my %Val;
 
-		info("Checking service_type=$ST->{$service}{Service_Type} name=$ST->{$service}{Name} service_name=$ST->{$service}{Service_Name}");
+		info("Checking service name=$name type=$servicetype service_name=$servicename");
 
 		# clear global hash each time around as this is used to pass results to rrd update
 		my $ret = 0;
@@ -5097,12 +5267,14 @@ hrSWRunType hrSWRunPerfCPU hrSWRunPerfMem))
 
 		# DNS: lookup whatever Service_name contains (fqdn or ip address),
 		# nameserver being the host in question
-		if ( $ST->{$service}{Service_Type} eq "dns" ) {
+		if ( $servicetype eq "dns" ) 
+		{
 			use Net::DNS;
-			my $lookfor = $ST->{$service}{Service_Name};
+			my $lookfor = $servicename;
+
 			if (!$lookfor) {
-				dbg("Service_Name for $NI->{system}{host} must be a FQDN or IP address");
-				logMsg("ERROR, ($NI->{system}{name}) Service_name for service=$service must contain an FQDN or IP address");
+				dbg("Service_Name for service $service must be a FQDN or IP address");
+				logMsg("ERROR, ($NI->{system}{name}) Service_name for service=$service must be a FQDN or IP address");
 				next;
 			}
 			my $res = Net::DNS::Resolver->new;
@@ -5126,10 +5298,9 @@ hrSWRunType hrSWRunPerfCPU hrSWRunPerfMem))
 
 		# now the 'port' service checks, which rely on nmap
 		# - tcp would be easy enough to do with a plain connect, but udp accessible-or-closed needs extra smarts
-		elsif ( $ST->{$service}{Service_Type} eq "port" )
+		elsif ( $servicetype eq "port" )
 		{
-			$msg = '';
-			my ( $scan, $port) = split ':' , $ST->{$service}{Port};
+			my ( $scan, $port) = split ':' , $thisservice->{Port};
 
 			my $nmap = ( $scan =~ /^udp$/i ? "nmap -sU --host_timeout 3000 -p $port -oG - $NI->{system}{host}"
 									 : "nmap -sT --host_timeout 3000 -p $port -oG - $NI->{system}{host}" );
@@ -5141,11 +5312,9 @@ hrSWRunType hrSWRunPerfCPU hrSWRunPerfMem))
 				logMsg($errmsg);
 				info($errmsg);
 			}
-			while (<NMAP>)
-			{
-				$msg .= $_;							# this retains the newlines
-			}
+			my $nmap_out = join("", <NMAP>);
 			close(NMAP);
+
 			my $exitcode = $?;
 			# if the pipe close doesn't wait until the child is gone (which it may do...)
 			# then wait and collect explicitely
@@ -5158,21 +5327,21 @@ hrSWRunType hrSWRunPerfCPU hrSWRunPerfMem))
 				logMsg("ERROR, NMAP ($nmap) returned exitcode ".($exitcode >> 8). " (raw $exitcode)");
 				info("$nmap returned exitcode ".($exitcode >> 8). " (raw $exitcode)");
 			}
-			if ($msg =~ /Ports: $port\/open/)
+			if ($nmap_out =~ /Ports: $port\/open/)
 			{
 				$ret = 1;
-				info("NMAP reported success for port $port: $msg");
-				logMsg("INFO, NMAP reported success for port $port: $msg") if ($C->{debug} or $C->{info});
+				info("NMAP reported success for port $port: $nmap_out");
+				logMsg("INFO, NMAP reported success for port $port: $nmap_out") if ($C->{debug} or $C->{info});
 			}
 			else
 			{
 				$ret = 0;
-				info("NMAP reported failure for port $port: $msg");
-				logMsg("INFO, NMAP reported failure for port $port: $msg") if ($C->{debug} or $C->{info});
+				info("NMAP reported failure for port $port: $nmap_out");
+				logMsg("INFO, NMAP reported failure for port $port: $nmap_out") if ($C->{debug} or $C->{info});
 			}
 		}
 		# now the snmp services - but only if snmp is on
-		elsif ( $ST->{$service}{Service_Type} eq "service"
+		elsif ( $servicetype eq "service"
 						and getbool($NT->{$node}{collect}))
 		{
 			# only do the SNMP checking if and when you are supposed to!
@@ -5185,8 +5354,8 @@ hrSWRunType hrSWRunPerfCPU hrSWRunPerfMem))
 								and !getbool($NI->{system}{snmpdown})
 								and !getbool($NI->{system}{nodedown}) ) )
 			{
-				my $wantedprocname = $ST->{$service}{Service_Name};
-				my $parametercheck = $ST->{$service}{Service_Parameters};
+				my $wantedprocname = $servicename;
+				my $parametercheck = $thisservice->{Service_Parameters};
 
 				if (!$wantedprocname and !$parametercheck)
 				{
@@ -5225,7 +5394,7 @@ hrSWRunType hrSWRunPerfCPU hrSWRunPerfMem))
 					$cpu = 0;
 					$memory = 0;
 					$gotMemCpu = 1;
-					logMsg("INFO, service $ST->{$service}{Name} is down, "
+					logMsg("INFO, service $name is down, "
 								 .(@matchingpids? "only non-running processes"
 									 : "no matching processes"));
 				}
@@ -5243,7 +5412,7 @@ hrSWRunType hrSWRunPerfCPU hrSWRunPerfMem))
 #					dbg("cpu: ".join(" + ",map { $services{$_}->{hrSWRunPerfCPU} } (@livingpids)) ." = $cpu");
 #					dbg("memory: ".join(" + ",map { $services{$_}->{hrSWRunPerfMem} } (@livingpids)) ." = $memory");
 
-					info("INFO, service $ST->{$service}{Name} is up, ".scalar(@livingpids)." running process(es)");
+					info("INFO, service $name is up, ".scalar(@livingpids)." running process(es)");
 				}
 			}
 			else {
@@ -5252,56 +5421,57 @@ hrSWRunType hrSWRunPerfCPU hrSWRunPerfMem))
 			}
 		}
 		# now the sapi 'scripts' (similar to expect scripts)
-		elsif ( $ST->{$service}{Service_Type} eq "script" )
+		elsif ( $servicetype eq "script" )
 		{
-				### lets do the user defined scripts
-				my $scripttext;
-				if (!open(F, "$C->{script_root}/$service"))
-				{
-						dbg("ERROR, can't open script file for $service: $!");
-				}
-				else
-				{
-						$scripttext=join("",<F>);
-						close(F);
-
-						my $timeout = ($ST->{$service}->{Max_Runtime} > 0)?
-								$ST->{$service}->{Max_Runtime} : 3;
-
-						($ret,$msg) = sapi($NI->{system}{host},
-															 $ST->{$service}{Port},
-															 $scripttext,
-															 $timeout);
-						dbg("Results of $service is $ret, msg is $msg");
-				}
+			# OMK-3237, use sensible and non-clashing config source: 
+			# now service_name sets the script file name, temporarily falling back to $service
+			my $scriptfn = "$C->{script_root}/". $servicename || $service;
+			if (!open(F, $scriptfn))
+			{
+				dbg("ERROR, can't open script file for $service: $!");
+			}
+			else
+			{
+				my $scripttext=join("",<F>);
+				close(F);
+				
+				my $timeout = ($thisservice->{Max_Runtime} > 0)?
+						$thisservice->{Max_Runtime} : 3;
+				
+				($ret,my $sapi_out) = sapi($NI->{system}{host},
+																	 $thisservice->{Port},
+																	 $scripttext,
+																	 $timeout);
+				# the sapi thing can pass back raw protocol data...
+				dbg("Results of service $name ($servicetype, $servicename) is $ret, msg is '$sapi_out'");
+			}
 		}
 		# 'real' scripts, or more precisely external programs
 		# which also covers nagios plugins - https://nagios-plugins.org/doc/guidelines.html
-		elsif ( $ST->{$service}{Service_Type} =~ /^(program|nagios-plugin)$/ )
+		elsif ( $servicetype =~ /^(program|nagios-plugin)$/ )
 		{
 			$ret = 0;
-			my $svc = $ST->{$service};
-			if (!$svc->{Program} or !-x $svc->{Program})
+			if (!$thisservice->{Program} or !-x $thisservice->{Program})
 			{
 				info("ERROR, service $service defined with no working Program to run!");
 				logMsg("ERROR service $service defined with no working Program to run!");
 				next;
 			}
-
+			
 			# exit codes and output handling differ
-			my $flavour_nagios = ($svc->{Service_Type} eq "nagios-plugin");
+			my $flavour_nagios = ($servicetype eq "nagios-plugin");
 
 			# check the arguments (if given), substitute node.XYZ values
 			my $finalargs;
-			if ($svc->{Args})
+			if ($thisservice->{Args})
 			{
-				$finalargs = $svc->{Args};
+				$finalargs = $thisservice->{Args};
 				# don't touch anything AFTER a node.xyz, and only subst if node.xyz is the first/only thing,
 				# or if there's a nonword char before node.xyz.
 				$finalargs =~ s/(^|\W)(node\.([a-zA-Z0-9_-]+))/$1$NI->{system}{$3}/g;
-				dbg("external program args were $svc->{Args}, now $finalargs");
+				dbg("external program args were $thisservice->{Args}, now $finalargs");
 			}
-
+			
 			my $programexit = 0;
 			# save and restore any previously running alarm,
 			# but don't bother subtracting the time spent here
@@ -5311,23 +5481,25 @@ hrSWRunType hrSWRunPerfCPU hrSWRunPerfMem))
 			eval
 			{
 				my @responses;
-				my $svcruntime = defined($svc->{Max_Runtime}) && $svc->{Max_Runtime} > 0?
-						$svc->{Max_Runtime} : 0;
+				my $svcruntime = defined($thisservice->{Max_Runtime}) && $thisservice->{Max_Runtime} > 0?
+						$thisservice->{Max_Runtime} : 0;
 
 				local $SIG{ALRM} = sub { die "alarm\n"; };
 				alarm($svcruntime) if ($svcruntime); # setup execution timeout
 
 				# run given program with given arguments and possibly read from it
-				# program is disconnected from stdin; stderr goes into a tmpfile and is collected separately for diagnostics
+				# program is disconnected from stdin; stderr goes into a tmpfile 
+				# and is collected separately for diagnostics
+
 				my $stderrsink = POSIX::tmpnam(); # good enough, no atomic open required
-				dbg("running external program '$svc->{Program} $finalargs', "
-						.(getbool($svc->{Collect_Output})? "collecting":"ignoring")." output");
-				$pid = open(PRG,"$svc->{Program} $finalargs </dev/null 2>$stderrsink |");
+				dbg("running external program '$thisservice->{Program} $finalargs', "
+						.(getbool($thisservice->{Collect_Output})? "collecting":"ignoring")." output");
+				$pid = open(PRG,"$thisservice->{Program} $finalargs </dev/null 2>$stderrsink |");
 				if (!$pid)
 				{
 					alarm(0) if ($svcruntime); # cancel any timeout
-					info("ERROR, cannot start service program $svc->{Program}: $!");
-					logMsg("ERROR: cannot start service program $svc->{Program}: $!");
+					info("ERROR, cannot start service program $thisservice->{Program}: $!");
+					logMsg("ERROR: cannot start service program $thisservice->{Program}: $!");
 				}
 				else
 				{
@@ -5335,22 +5507,22 @@ hrSWRunType hrSWRunPerfCPU hrSWRunPerfMem))
 					close PRG;
 					$programexit = $?;
 					alarm(0) if ($svcruntime); # cancel any timeout
-
+					
 					dbg("service exit code is ". ($programexit>>8));
-
+					
 					# consume and warn about any stderr-output
 					if (-f $stderrsink && -s $stderrsink)
 					{
 						open(UNWANTED, $stderrsink);
 						my $badstuff = join("", <UNWANTED>);
 						chomp($badstuff);
-						logMsg("WARNING: Service program $svc->{Program} returned unexpected error output: \"$badstuff\"");
-						info("Service program $svc->{Program} returned unexpected error output: \"$badstuff\"");
+						logMsg("WARNING: Service program $thisservice->{Program} returned unexpected error output: \"$badstuff\"");
+						info("Service program $thisservice->{Program} returned unexpected error output: \"$badstuff\"");
 						close(UNWANTED);
 					}
 					unlink($stderrsink);
-
-					if (getbool($svc->{Collect_Output}))
+					
+					if (getbool($thisservice->{Collect_Output}))
 					{
 						# nagios has two modes of output *sigh*, |-as-newline separator and real newlines
 						# https://nagios-plugins.org/doc/guidelines.html#PLUGOUTPUT
@@ -5453,11 +5625,11 @@ hrSWRunType hrSWRunPerfCPU hrSWRunPerfMem))
 
 			if ($@ and $@ eq "alarm\n")
 			{
-				kill($pid);							# get rid of the service tester, it ran over time...
-				info("ERROR, service program $svc->{Program} exceeded Max_Runtime of $svc->{Max_Runtime}s, terminated.");
-				logMsg("ERROR: service program $svc->{Program} exceeded Max_Runtime of $svc->{Max_Runtime}s, terminated.");
+				kill('TERM', $pid);							# get rid of the service tester, it ran over time...
+				info("ERROR, service program $thisservice->{Program} exceeded Max_Runtime of $thisservice->{Max_Runtime}s, terminated.");
+				logMsg("ERROR: service program $thisservice->{Program} exceeded Max_Runtime of $thisservice->{Max_Runtime}s, terminated.");
 				$ret=0;
-				kill("SIGKILL",$pid);
+				kill("KILL",$pid);
 			}
 			else
 			{
@@ -5482,7 +5654,7 @@ hrSWRunType hrSWRunPerfCPU hrSWRunPerfMem))
 				}
 				else
 				{
-					logMsg("WARNING: service program $svc->{Program} terminated abnormally!");
+					logMsg("WARNING: service program $thisservice->{Program} terminated abnormally!");
 					$ret = 0;
 				}
 			}
@@ -5499,15 +5671,14 @@ hrSWRunType hrSWRunPerfCPU hrSWRunPerfMem))
 		# let external programs set the responsetime if so desired
 		$responsetime = $timer->elapTime if (!defined $responsetime);
 		$status{$service}->{responsetime} = $responsetime;
-		$status{$service}->{name} = $ST->{$service}{Name}; # same as $service
+		$status{$service}->{name} = $name; # normally the same as $service
 
 		# external programs return 0..100 directly, rest has 0..1
-		my $serviceValue = ( $ST->{$service}{Service_Type} =~ /^(program|nagios-plugin)$/ )?
+		my $serviceValue = ( $servicetype =~ /^(program|nagios-plugin)$/ )?
 				$ret : $ret*100;
 		$status{$service}->{status} = $serviceValue;
 
-		#logMsg("Updating $node Service, $ST->{$service}{Name}, $ret, gotMemCpu=$gotMemCpu");
-		$V->{system}{"${service}_title"} = "Service $ST->{$service}{Name}";
+		$V->{system}{"${service}_title"} = "Service $name";
 		$V->{system}{"${service}_value"} = $serviceValue == 100 ? 'running' : $serviceValue > 0? "degraded" : 'down';
 		$V->{system}{"${service}_color"} =  $serviceValue == 100 ? 'white' : $serviceValue > 0? "orange" : 'red';
 
@@ -5522,49 +5693,53 @@ hrSWRunType hrSWRunPerfCPU hrSWRunPerfMem))
 		# let's raise or clear service events based on the status
 		if ( $snmpdown ) # only set IFF this is an snmp-based service AND snmp is broken/down.
 		{
-			dbg("$ST->{$service}{Service_Type} $ST->{$service}{Name} is not checked, snmp is down");
+			dbg("service $service ($servicename) not checked: snmp is down");
 			$V->{system}{"${service}_value"} = 'unknown';
 			$V->{system}{"${service}_color"} = 'gray';
 			$serviceValue = '';
 		}
 		elsif ( $serviceValue == 100 ) # service is fully up
 		{
-			dbg("$ST->{$service}{Service_Type} $ST->{$service}{Name} is available ($serviceValue)");
+			dbg("service $service ($servicename) is available ($serviceValue)");
 
 			# all perfect, so we need to clear both degraded and down events
-			checkEvent(sys=>$S, event=>"Service Down", level=>"Normal", element => $ST->{$service}{Name},
+			checkEvent(sys=>$S, event=>"Service Down", level=>"Normal", 
+								 element => $name,
 								 details=> ($status{$service}->{status_text}||"") );
 
-			checkEvent(sys=>$S, event=>"Service Degraded", level=>"Warning", element => $ST->{$service}{Name},
+			checkEvent(sys=>$S, event=>"Service Degraded", level=>"Warning", 
+								 element => $name,
 								 details=> ($status{$service}->{status_text}||"") );
 		}
 		elsif ($serviceValue > 0)		# service is up but degraded
 		{
-			dbg("$ST->{$service}{Service_Type} $ST->{$service}{Name} is degraded ($serviceValue)");
+			dbg("service $service ($servicename) is degraded ($serviceValue)");
 
 			# is this change towards the better or the worse?
 			# we clear the down (if one exists) as it's not totally dead anymore...
-			checkEvent(sys=>$S, event=>"Service Down", level=>"Fatal", element => $ST->{$service}{Name},
+			checkEvent(sys=>$S, event=>"Service Down", level=>"Fatal", 
+								 element => $name,
 								 details=> ($status{$service}->{status_text}||"") );
 			# ...and create a degraded
 			notify(sys => $S, event => "Service Degraded",
 						 level => "Warning",
-						 element => $ST->{$service}{Name},
+						 element => $name,
 						 details=> ($status{$service}->{status_text}||""),
 						 context => { type => "service" } );
 		}
 		else 			# Service is down
 		{
-			dbg("$ST->{$service}{Service_Type} $ST->{$service}{Name} is down");
+			dbg("service $service ($servicename) is down");
 
 			# clear the degraded event
 			# but don't just eventDelete, so that no state engines downstream of nmis get confused!
-			checkEvent(sys=>$S, event=>"Service Degraded", level=>"Warning", element => $ST->{$service}{Name},
+			checkEvent(sys=>$S, event=>"Service Degraded", level=>"Warning", 
+								 element => $name,
 								 details=> ($status{$service}->{status_text}||"") );
 
 			# and now create a down event
 			notify(sys=>$S, event=>"Service Down", level => "Fatal",
-						 element=>$ST->{$service}{Name},
+						 element => $name,
 						 details=> ($status{$service}->{status_text}||""),
 						 context => { type => "service" } );
 		}
@@ -5639,13 +5814,17 @@ hrSWRunType hrSWRunPerfCPU hrSWRunPerfMem))
 		# now update the per-service status file
 		$status{$service}->{service} ||= $service; # service and node are part of the fn, but possibly mangled...
 		$status{$service}->{node} ||= $node;
-		$status{$service}->{name} ||= $ST->{$service}->{Name}; # that can be all kinds of stuff, depending on the service type
+		$status{$service}->{name} ||= $name; # generally the same as $service
+
 		# save our server name with the service status, for distributed setups
 		$status{$service}->{server} = $C->{server_name};
-		# AND ensure the service has a uuid, a recreatable V5 one from config'd namespace+server+service+node's uuid
-		$status{$service}->{uuid} = NMIS::UUID::getComponentUUID($C->{server_name}, $service, $NI->{system}->{uuid});
+		
+		# AND ensure the service has a uuid, a recreatable V5 one from config'd 
+		# namespace+server+service+node's uuid
+		$status{$service}->{uuid} = NMIS::UUID::getComponentUUID($C->{server_name}, 
+																														 $service, $NI->{system}->{uuid});
 
-		$status{$service}->{description} ||= $ST->{$service}->{Description}; # but that's free-form
+		$status{$service}->{description} ||= $thisservice->{Description}; # but that's free-form
 		$status{$service}->{last_run} ||= time;
 
 		my $error = saveServiceStatus(service => $status{$service});
@@ -8197,33 +8376,35 @@ sub printCrontab
 PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 
 ######################################################
-# NMIS8 Config
+# Run (selective) Statistics Collection often
+* * * * * $usercol $C->{'<nmis_base>'}/bin/nmis.pl type=collect mthread=true
+
 ######################################################
-# Run Full Statistics Collection
-*/5 * * * * $usercol $C->{'<nmis_base>'}/bin/nmis.pl type=collect mthread=true
-# ######################################################
-# Optionally run a more frequent Services-only Collection
+# If you don't run the collect every minute, you might want Services-only Collection
 # */3 * * * * $usercol $C->{'<nmis_base>'}/bin/nmis.pl type=services mthread=true
+
 ######################################################
-# Run Summary Update every 2 minutes
-*/2 * * * * $usercol $C->{'<nmis_base>'}/bin/nmis.pl type=summary
-#####################################################
-# Run the interfaces 4 times an hour with Thresholding on!!!
-# if threshold_poll_cycle is set to false, then enable cron based thresholding
-#*/5 * * * * $usercol nice $C->{'<nmis_base>'}/bin/nmis.pl type=threshold
+# Run Summary Update every 5 minutes
+*/5 * * * * $usercol $C->{'<nmis_base>'}/bin/nmis.pl type=summary
+
+
 ######################################################
 # Run the update once a day
 30 20 * * * $usercol nice $C->{'<nmis_base>'}/bin/nmis.pl type=update mthread=true
+
 ######################################################
-# Log Rotation is now handled with /etc/logrotate.d/nmis, which
-# the installer offers to setup using install/logrotate*.conf
-#
+# Run the thresholding four times an hour
+# only necessary if threshold_poll_cycle is set to false
+#*/15 * * * * $usercol nice $C->{'<nmis_base>'}/bin/nmis.pl type=threshold
+
 # backup configuration, models and crontabs once a day, and keep 30 backups
 22 8 * * * $usercol $C->{'<nmis_base>'}/admin/config_backup.pl $C->{'<nmis_backups>'} 30
-##################################################
+
+######################################################
 # purge old files every few days
 2 2 */3 * * $usercol $C->{'<nmis_base>'}/bin/nmis.pl type=purge
-########################################
+
+######################################################
 # Save the Reports, Daily Monthly Weekly
 9 0 * * * $usercol $C->{'<nmis_base>'}/bin/run-reports.pl day all
 9 1 * * 0  $usercol $C->{'<nmis_base>'}/bin/run-reports.pl week all
@@ -8845,7 +9026,7 @@ sub doThreshold
 		if ( $name ) {
 			logMsg("Poll Time: $name, $polltime");
 		}
-		else {	
+		else {
 			logMsg("Poll Time: $polltime");
 		}
 	}

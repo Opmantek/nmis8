@@ -49,7 +49,7 @@ my $C = loadConfTable(conf=>$arg{conf},debug=>$arg{debug});
 
 my $LNT = loadLocalNodeTable();
 
-print qq|"name","host","group","version","active","collect","last updated","icmp working","wmi working","snmp working","nodeModel","nodeVendor","nodeType","roleType","netType","sysObjectID","sysObjectName","sysDescr","intCount","intCollect"\n|;
+print qq|"name","host","group","version","active","collect","last updated","icmp working","wmi working","snmp working","nodeModel","nodeVendor","nodeType","roleType","netType","sysObjectID","sysName","sysObjectName","sysDescr","intCount","intCollect"\n|;
 
 foreach my $node (sort keys %{$LNT}) {
 
@@ -73,15 +73,15 @@ foreach my $node (sort keys %{$LNT}) {
 	my $sysDescr = $NI->{system}{sysDescr};
 	$sysDescr =~ s/[\x0A\x0D]/\\n/g;
 
-	my $lastUpdate = returnDateStamp($NI->{system}{lastUpdateSec});
+	my $lastUpdate = returnDateStamp($NI->{system}{last_poll});
 
 	my $pingable = getbool($LNT->{$node}->{ping})? getbool($NI->{system}{nodedown})? "false": "true" : "N/A";
 	my $snmpable = defined($NI->{system}->{snmpdown})? getbool($NI->{system}->{snmpdown})? "false" : "true" : "N/A";
 	my $wmiworks = defined($NI->{system}->{wmidown})? getbool($NI->{system}->{wmidown})? "false" : "true" : "N/A";
 
-	$lastUpdate = "unknown" if not defined $NI->{system}{lastUpdateSec};
+	$lastUpdate = "unknown" if not defined $NI->{system}{last_poll};
 	$pingable = "unknown" if not defined $NI->{system}{nodedown};
 	$snmpable = "unknown" if not defined $NI->{system}{snmpdown};
 
-	print qq|"$LNT->{$node}{name}","$LNT->{$node}{host}","$LNT->{$node}{group}","$LNT->{$node}{version}","$LNT->{$node}{active}","$LNT->{$node}{collect}","$lastUpdate","$pingable","$wmiworks","$snmpable","$NI->{system}{nodeModel}","$NI->{system}{nodeVendor}","$NI->{system}{nodeType}","$LNT->{$node}{roleType}","$LNT->{$node}{netType}","$NI->{system}{sysObjectID}","$NI->{system}{sysObjectName}","$sysDescr","$intCount","$intCollect"\n|;
+	print qq|"$LNT->{$node}{name}","$LNT->{$node}{host}","$LNT->{$node}{group}","$LNT->{$node}{version}","$LNT->{$node}{active}","$LNT->{$node}{collect}","$lastUpdate","$pingable","$wmiworks","$snmpable","$NI->{system}{nodeModel}","$NI->{system}{nodeVendor}","$NI->{system}{nodeType}","$LNT->{$node}{roleType}","$LNT->{$node}{netType}","$NI->{system}{sysObjectID}","$NI->{system}{sysName}","$NI->{system}{sysObjectName}","$sysDescr","$intCount","$intCollect"\n|;
 }

@@ -258,6 +258,10 @@ perl-Excel-Writer-XLSX
 		push @rhpackages, "perl-CGI";
 	}
 
+	# stretch ships with these packages
+	push @debpackages, (qw(libproc-queue-perl libstatistics-lite-perl))
+			if ($osflavour eq "debian" and $osmajor >= 9);
+	
 	my $pkgmgr = $osflavour eq "redhat"? "YUM": ($osflavour eq "debian" or $osflavour eq "ubuntu")? "APT": undef;
 	my $pkglist = $osflavour eq "redhat"? \@rhpackages : ($osflavour eq "debian" or $osflavour eq "ubuntu")? \@debpackages: undef;
 
@@ -792,8 +796,9 @@ else
 	for my $cff ("License.nmis", "Access.nmis", "Config.nmis", "BusinessServices.nmis", "ServiceStatus.nmis",
 							 "Contacts.nmis", "Enterprise.nmis", "Escalations.nmis",
 							 "ifTypes.nmis", "Links.nmis", "Locations.nmis", "Logs.nmis",
-							 "Customers.nmis", "Events.nmis",
-							 "Model-Policy.nmis", "Modules.nmis", "Nodes.nmis", "Outage.nmis", "Portal.nmis",
+							 "Customers.nmis", "Events.nmis", "Polling-Policy.nmis",
+							 "Model-Policy.nmis", "Modules.nmis", "Nodes.nmis", 
+							 "Outage.nmis", "Portal.nmis",
 							 "PrivMap.nmis", "Services.nmis", "Users.nmis", "users.dat")
 	{
 		if (-f "$site/install/$cff" && !-e "$site/conf/$cff")
@@ -1059,8 +1064,8 @@ if (!$isnewinstall)
 {
 	printBanner("Checking Common-database file for updates");
 
-	# two cases: something not found -> migration tool to update, missing stuff, FIRST.
-	# then if there are any issues with actual actual differences, full migration tool run
+	# two cases: something new -> updateconfig.pl to fill that in
+	# then if there are an issues with actual actual differences, full migration tool run
 	my $diffs = `$site/admin/diffconfigs.pl $site/models/Common-database.nmis $site/models-install/Common-database.nmis 2>/dev/null`;
 	my $res = $? >> 8;
 
@@ -1071,9 +1076,8 @@ if (!$isnewinstall)
 	}
 	elsif ($diffs =~ m!^-\s+<NOT PRESENT!m)
 	{
-		# perform a missingonly update
 		echolog("Found new entries, adding them.");
-		execPrint("$site/admin/migrate_rrd_locations.pl newlayout=$site/models-install/Common-database.nmis missingonly=true leavelocked=true");
+		execPrint("$site/admin/updateconfig.pl $site/models-install/Common-database.nmis $site/models/Common-database.nmis");
 		print "\n\n";
 	}
 
@@ -1821,7 +1825,7 @@ sub enable_custom_repo
 	elsif ($reponame eq "gf")
 	{
 		echolog("\nEnabling Ghettoforge repository\n");
-		execPrint("yum -y install 'http://mirror.symnds.com/distributions/gf/el/$majorlevel/gf/x86_64/gf-release-$majorlevel-10.gf.el$majorlevel.noarch.rpm'");
+		execPrint("yum -y install 'http://mirror.ghettoforge.org/distributions/gf/gf-release-latest.gf.el$majorlevel.noarch.rpm'");
 	}
 	else
 	{

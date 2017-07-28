@@ -39,6 +39,7 @@ use Time::ParseDate; # fixme: actually NOT used by func
 use Time::Local;
 use POSIX qw();			 # we want just strftime
 use Cwd qw();
+use List::Util 1.33;						# older versions have no usable any()
 use version 0.77;
 
 use JSON::XS;
@@ -2210,11 +2211,12 @@ sub hexval  {
 
 ### 2012-09-21 keiths, fixing up so NAN is not black.
 sub colorPercentHi {
-	use List::Util qw[min max];
 	my $val = shift;
 	if ( $val =~ /^(\d+|\d+\.\d+)$/ ) {
 		$val = 100 - int($val);
-		return '#' . hexval( int(min($val*2*2.55,255)) ) . hexval( int(min( (100-$val)*2*2.55,255)) ) .'00' ;
+		return '#' 
+				. hexval( int(List::Util::min($val*2*2.55,255)) ) 
+				. hexval( int(List::Util::min( (100-$val)*2*2.55,255)) ) .'00' ;
 	}
 	else {
 		return '#AAAAAA';
@@ -2223,11 +2225,12 @@ sub colorPercentHi {
 
 ### 2012-09-21 keiths, fixing up so NAN is not black.
 sub colorPercentLo {
-	use List::Util qw[min max];
 	my $val = shift;
 	if ( $val =~ /^(\d+|\d+\.\d+)$/ ) {
 		$val = int($val);
-		return '#' . hexval( int(min($val*2*2.55,255)) ) . hexval( int(min( (100-$val)*2*2.55,255)) ) .'00' ;
+		return '#' 
+				. hexval( int(List::Util::min($val*2*2.55,255)) ) 
+				. hexval( int(List::Util::min( (100-$val)*2*2.55,255)) ) .'00' ;
 	}
 	else {
 		return '#AAAAAA';
@@ -2696,7 +2699,7 @@ sub update_operations_stamp
 # with type given, collects the processes that run that cmd AND have the same config
 # without type, collects ALL procs running perl and called nmis-something-... or nmis.pl,
 # NOT just the ones with this config!
-# returns: hashref of pid -> info about the process, namely $0/cmdline and starttime
+# returns: hashref of pid -> info about the process, namely $0/cmdline and starttime, possibly node
 sub find_nmis_processes
 {
 	my (%args) = @_;
