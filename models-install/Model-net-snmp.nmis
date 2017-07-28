@@ -52,7 +52,11 @@
       },
       'software' => {
         'common-model' => 'software'
+      },
+      'Server_Connections' => {
+        'common-model' => 'Server_Connections'
       }
+      
     }
   },
 
@@ -450,7 +454,7 @@
     },
   },
   'systemHealth' => {
-    'sections' => 'diskIOTable,software',
+    'sections' => 'diskIOTable,Server_Connections,software',
     'sys' => {
       'diskIOTable' => {        
         'indexed' => 'diskIOIndex',        
