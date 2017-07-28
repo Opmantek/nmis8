@@ -368,7 +368,7 @@ sub	runThreads
 	# what to work on? one named node, or the nodes that are members of a given group or all nodes
 	# iff active and the polling policy agrees, that is...
 	@cand_nodes = $node_select? $node_select
-			: $runGroup? grep($_->{group} eq $runGroup, keys %$NT) : keys %$NT;
+			: $runGroup? grep($_->{group} eq $runGroup, keys %$NT) : sort keys %$NT;
 
 
 	# get the polling policies and translate into seconds (for rrd file options)
@@ -390,13 +390,19 @@ sub	runThreads
 		}
 	}
 
+	# find all other nmis processes of the same type
+	my $otherprocesses = func::find_nmis_processes(type => $type, config => $C)
+			if ($type eq "update" or $type eq "collect"); # relevant only for these
+	my %problematic;
+
 	if ($type eq "update")
 	{
 		@todo_nodes = grep(getbool($NT->{$_}->{active}), @cand_nodes);
 	}
 	else
 	{
-		# find out what nodes are due as per polling policy - also honor force
+		# find out what nodes are due as per polling policy - also honor force,
+		# and any in-progress polling that hasn't finished yet...
 		my $now = time;
 		for my $maybe (@cand_nodes)
 		{
@@ -412,13 +418,28 @@ sub	runThreads
 			my $lastsnmp = $ninfo->{system}->{last_poll_snmp};
 			my $lastwmi = $ninfo->{system}->{last_poll_wmi};
 
+			# that's it for completed polls - for in-progress uncompleted we need other time logic,
+			# overriding these markers from the active process' start time
+			my @isinprogress = grep($otherprocesses->{$_}->{node} &&
+															$otherprocesses->{$_}->{node} eq $maybe,
+															keys %$otherprocesses);
+			map { $problematic{$maybe} = $_; } (@isinprogress);
+
+			if (!getbool($nvp{force}) and @isinprogress)
+			{
+				# there should be at most one, we ignore any unexpected others
+				my $otherstart = $otherprocesses->{ $isinprogress[0] }->{start};
+				dbg("Node $maybe: collect in progress, using process start $otherstart instead of last_poll markers");
+				$lastsnmp = $lastwmi = $otherstart;
+				$lastpolicy = $polname;	# and no policy change triggering either...
+			}
+
 			# handle the case of a changed polling policy: move all rrd files
 			# out of the way, and poll now
 			# note that this does NOT work with non-standard common-database structures
 			if (defined($lastpolicy) && $lastpolicy ne $polname)
 			{
 				logMsg("Node $maybe is changing polling policy, from \"$lastpolicy\" to \"$polname\", due for polling at $now");
-
 				my $lcnode = lc($maybe);
 				my $curdir = $C->{'database_root'}."/nodes/$lcnode";
 				my $backupdir = "$curdir.policy-$lastpolicy.".time();
@@ -527,30 +548,13 @@ sub	runThreads
 		# unrelated but also for collect and update only
 		@active_plugins = &load_plugins;
 
-		# find all other nmis processes of the same type
-		my $others = func::find_nmis_processes(type => $type, config => $C);
-
-		# determine which of the other processes are of relevance: only the ones
-		# that affect nodes due for work at this time
-		my %problematic;
-		for my $pid (keys %$others)
-		{
-			$problematic{$pid} = 1
-					if (defined($others->{$pid}->{node})
-							&& grep($_ eq $others->{$pid}->{node}, @todo_nodes)); # ugly
-		}
-
-
 		# if this is a collect and if told to ignore running processes (ignore_running=1/t),
 		# then only warn about processes and don't shoot them.
-		# the same is done if this is an interactive run with info or debug given
-		if (($type eq "collect" and ( getbool($nvp{ignore_running})
-																	or $C->{debug} or $C->{info} ))
-				or ($type eq "update" and ($C->{debug} or $C->{info})))
+		if ($type eq "collect" and getbool($nvp{ignore_running}))
 		{
-			for my $pid (keys %problematic)
+			for my $pid (keys %$otherprocesses)
 			{
-				logMsg("INFO ignoring old process $pid that is still running: $type, $others->{$pid}->{node}, started at ".returnDateStamp($others->{$pid}->{start}));
+				logMsg("INFO ignoring old $type process $pid that is still running: $otherprocesses->{$pid}->{node}, started at ".returnDateStamp($otherprocesses->{$pid}->{start}));
 			}
 		}
 		else
@@ -560,10 +564,15 @@ sub	runThreads
 			my $thisevent_control = $eventconfig->{$event} || { Log => "true", Notify => "true", Status => "true"};
 
 			# if not told otherwise, shoot the others politely
-			for my $pid (keys %problematic)
+			my $needgrace;
+			for my $node (@todo_nodes)
 			{
-				print STDERR "Error: killing old NMIS $type process $pid which has not finished!\n";
-				logMsg("ERROR killing old NMIS $type process $pid ($others->{$pid}->{node}) which has not finished!");
+				my $pid = $problematic{$node};
+				next if (!$pid);
+
+				$needgrace = 1;
+				print STDERR "Error: killing old NMIS $type process $pid ($otherprocesses->{$pid}->{node}) which has not finished!\n";
+				logMsg("ERROR killing old NMIS $type process $pid ($otherprocesses->{$pid}->{node}) which has not finished!");
 				kill("TERM",$pid);
 
 				# and raise an event to inform the operator - unless told NOT to
@@ -573,16 +582,16 @@ sub	runThreads
 						 and getbool($thisevent_control->{Log})))
 				{
 					# logging this event as the node name so it shows up as a problem with the node
-					logEvent(node => $others->{$pid}->{node},
+					logEvent(node => $otherprocesses->{$pid}->{node},
 									 event => $event,
 									 level => "Warning",
-									 element => $others->{$pid}->{node},
-									 details => "Killed process $pid, $type of $others->{$pid}->{node}, started at "
-									 .returnDateStamp($others->{$pid}->{start}));
+									 element => $otherprocesses->{$pid}->{node},
+									 details => "Killed process $pid, $type of $otherprocesses->{$pid}->{node}, started at "
+									 .returnDateStamp($otherprocesses->{$pid}->{start}));
 				}
 			}
 
-			if (keys %problematic) # for the others to shut down cleanly
+			if ($needgrace) # give the others a moment to shut down cleanly
 			{
 				my $grace = 2;
 				logMsg("INFO sleeping for $grace seconds to let old NMIS processes clean up");
@@ -860,8 +869,8 @@ sub doUpdate
 	# create the update lock now.
 	my $lockHandle = createPollLock(type => "update", conf => $C->{conf}, node => $name);
 
-	# lets change our name, so a ps will report who we are - iff not debugging.
-	$0 = "nmis-".$C->{conf}."-update-$name" if (!$C->{debug});
+	# lets change our name, so a ps will report who we are
+	$0 = "nmis-".$C->{conf}."-update-$name";
 
 	my $S = Sys->new; # create system object
 	# loads old node info (unless force is active), and the DEFAULT(!) model (always!),
@@ -1087,8 +1096,8 @@ sub doServices
 	info("================================");
 	info("Starting services, node $name");
 
-	# lets change our name, so a ps will report who we are, iff not debugging
-	$0 = "nmis-".$C->{conf}."-services-$name" if (!$C->{debug});
+	# lets change our name, so a ps will report who we are
+	$0 = "nmis-".$C->{conf}."-services-$name";
 
 	my $S = Sys->new;
 	$S->init(name => $name);
@@ -1134,8 +1143,8 @@ sub doCollect
 	# create the poll lock now.
 	my $lockHandle = createPollLock(type => "collect", conf => $C->{conf}, node => $name);
 
-	# lets change our name, so a ps will report who we are - iff not debugging
-	$0 = "nmis-".$C->{conf}."-collect-$name" if (!$C->{debug});
+	# lets change our name, so a ps will report who we are
+	$0 = "nmis-".$C->{conf}."-collect-$name";
 
 	my $S = Sys->new; # create system object, does next to nothing
 	# init will usually load node info data, model etc, returns 1 if _all_ is ok
