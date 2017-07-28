@@ -395,7 +395,7 @@ sub	runThreads
 			if ($type eq "update" or $type eq "collect"); # relevant only for these
 	my %problematic;
 
-	if ($type eq "update")
+	if ($type eq "update" or $type eq "services")
 	{
 		@todo_nodes = grep(getbool($NT->{$_}->{active}), @cand_nodes);
 	}
@@ -5117,8 +5117,8 @@ sub runServices
 	if ($snmp_allowed
 			and getbool($NT->{$node}{active})
 			and getbool($NT->{$node}{collect})
-			and grep(exists($ST->{$_}) && $ST->{$_}->{Service_Type} eq "service",
-							 split(/,/, $NT->{$NI->{system}{name}}->{services})) )
+			and grep(ref($ST->{$_}) eq "HASH" && $ST->{$_}->{Service_Type} eq "service",
+							 split(/,/, $NT->{ $NI->{system}{name} }->{services})) )
 	{
 		info("node has SNMP services to check");
 
@@ -5200,11 +5200,18 @@ hrSWRunType hrSWRunPerfCPU hrSWRunPerfMem))
 	# specific services to be tested are saved in a list - these are rrd-collected, too.
 	# note that this also covers the snmp-based services
 	my $didRunServices = 0;
-	for my $service ( split /,/ , $NT->{$NI->{system}{name}}{services} )
+	for my $service ( split /,/ , $NT->{ $NI->{system}{name} }->{services} )
 	{
+		my $thisservice = $ST->{$service};
 		# check for invalid service table data
-		next if ($service eq '' or $service =~ /n\/a/i or $ST->{$service}{Service_Type} =~ /n\/a/i);
-
+		next if (!$service 
+						 or $service =~ m!^n/a$!i 
+						 or ref($thisservice) ne "HASH" 
+						 or $thisservice->{Service_Type} =~ m!^n/a$!i);
+		
+		my ($name, $servicename, $servicetype) 
+				= @{$thisservice}{"Name","Service_Name","Service_Type"};
+		
 		# are we supposed to run this service now?
 		# load the service status and check the last run time
 		my %previous = loadServiceStatus(node => $node, service => $service);
@@ -5213,8 +5220,9 @@ hrSWRunType hrSWRunPerfCPU hrSWRunPerfMem))
 										&& $previous{$C->{server_name}}->{$service}->{$node})?
 				$previous{$C->{server_name}}->{$service}->{$node}->{last_run} : 0;
 
-		my $serviceinterval = $ST->{$service}->{Poll_Interval} || 300; # 5min
-		my $msg = "Service $service on $node (interval \"$serviceinterval\") last ran at ".returnDateStamp($lastrun).", ";
+		my $serviceinterval = $thisservice->{Poll_Interval} || 300;
+		my $msg = "Service $name on $node (interval \"$serviceinterval\") last ran at "
+				. returnDateStamp($lastrun).", ";
 		if ($serviceinterval =~ /^\s*(\d+(\.\d+)?)([mhd])$/)
 		{
 			my ($rawvalue, $unit) = ($1, $3);
@@ -5241,14 +5249,13 @@ hrSWRunType hrSWRunPerfCPU hrSWRunPerfMem))
 		}
 		# make sure that the rrd heartbeat is suitable for the service interval!
 		my $serviceheartbeat = ($serviceinterval * 3) || 300*3;
-
 		$didRunServices = 1;
 
 		# make sure this gets reinitialized for every service!
   	my $gotMemCpu = 0;
 		my %Val;
 
-		info("Checking service_type=$ST->{$service}{Service_Type} name=$ST->{$service}{Name} service_name=$ST->{$service}{Service_Name}");
+		info("Checking service name=$name type=$servicetype service_name=$servicename");
 
 		# clear global hash each time around as this is used to pass results to rrd update
 		my $ret = 0;
@@ -5260,12 +5267,14 @@ hrSWRunType hrSWRunPerfCPU hrSWRunPerfMem))
 
 		# DNS: lookup whatever Service_name contains (fqdn or ip address),
 		# nameserver being the host in question
-		if ( $ST->{$service}{Service_Type} eq "dns" ) {
+		if ( $servicetype eq "dns" ) 
+		{
 			use Net::DNS;
-			my $lookfor = $ST->{$service}{Service_Name};
+			my $lookfor = $servicename;
+
 			if (!$lookfor) {
-				dbg("Service_Name for $NI->{system}{host} must be a FQDN or IP address");
-				logMsg("ERROR, ($NI->{system}{name}) Service_name for service=$service must contain an FQDN or IP address");
+				dbg("Service_Name for service $service must be a FQDN or IP address");
+				logMsg("ERROR, ($NI->{system}{name}) Service_name for service=$service must be a FQDN or IP address");
 				next;
 			}
 			my $res = Net::DNS::Resolver->new;
@@ -5289,9 +5298,9 @@ hrSWRunType hrSWRunPerfCPU hrSWRunPerfMem))
 
 		# now the 'port' service checks, which rely on nmap
 		# - tcp would be easy enough to do with a plain connect, but udp accessible-or-closed needs extra smarts
-		elsif ( $ST->{$service}{Service_Type} eq "port" )
+		elsif ( $servicetype eq "port" )
 		{
-			my ( $scan, $port) = split ':' , $ST->{$service}{Port};
+			my ( $scan, $port) = split ':' , $thisservice->{Port};
 
 			my $nmap = ( $scan =~ /^udp$/i ? "nmap -sU --host_timeout 3000 -p $port -oG - $NI->{system}{host}"
 									 : "nmap -sT --host_timeout 3000 -p $port -oG - $NI->{system}{host}" );
@@ -5332,7 +5341,7 @@ hrSWRunType hrSWRunPerfCPU hrSWRunPerfMem))
 			}
 		}
 		# now the snmp services - but only if snmp is on
-		elsif ( $ST->{$service}{Service_Type} eq "service"
+		elsif ( $servicetype eq "service"
 						and getbool($NT->{$node}{collect}))
 		{
 			# only do the SNMP checking if and when you are supposed to!
@@ -5345,8 +5354,8 @@ hrSWRunType hrSWRunPerfCPU hrSWRunPerfMem))
 								and !getbool($NI->{system}{snmpdown})
 								and !getbool($NI->{system}{nodedown}) ) )
 			{
-				my $wantedprocname = $ST->{$service}{Service_Name};
-				my $parametercheck = $ST->{$service}{Service_Parameters};
+				my $wantedprocname = $servicename;
+				my $parametercheck = $thisservice->{Service_Parameters};
 
 				if (!$wantedprocname and !$parametercheck)
 				{
@@ -5385,7 +5394,7 @@ hrSWRunType hrSWRunPerfCPU hrSWRunPerfMem))
 					$cpu = 0;
 					$memory = 0;
 					$gotMemCpu = 1;
-					logMsg("INFO, service $ST->{$service}{Name} is down, "
+					logMsg("INFO, service $name is down, "
 								 .(@matchingpids? "only non-running processes"
 									 : "no matching processes"));
 				}
@@ -5403,7 +5412,7 @@ hrSWRunType hrSWRunPerfCPU hrSWRunPerfMem))
 #					dbg("cpu: ".join(" + ",map { $services{$_}->{hrSWRunPerfCPU} } (@livingpids)) ." = $cpu");
 #					dbg("memory: ".join(" + ",map { $services{$_}->{hrSWRunPerfMem} } (@livingpids)) ." = $memory");
 
-					info("INFO, service $ST->{$service}{Name} is up, ".scalar(@livingpids)." running process(es)");
+					info("INFO, service $name is up, ".scalar(@livingpids)." running process(es)");
 				}
 			}
 			else {
@@ -5412,57 +5421,57 @@ hrSWRunType hrSWRunPerfCPU hrSWRunPerfMem))
 			}
 		}
 		# now the sapi 'scripts' (similar to expect scripts)
-		elsif ( $ST->{$service}{Service_Type} eq "script" )
+		elsif ( $servicetype eq "script" )
 		{
-				### lets do the user defined scripts
-				my $scripttext;
-				if (!open(F, "$C->{script_root}/$service"))
-				{
-						dbg("ERROR, can't open script file for $service: $!");
-				}
-				else
-				{
-						$scripttext=join("",<F>);
-						close(F);
-
-						my $timeout = ($ST->{$service}->{Max_Runtime} > 0)?
-								$ST->{$service}->{Max_Runtime} : 3;
-
-						($ret,my $sapi_out) = sapi($NI->{system}{host},
-																			 $ST->{$service}{Port},
-																			 $scripttext,
-																			 $timeout);
-						# the sapi thing can pass back raw protocol data...
-						dbg("Results of $service is $ret, msg is '$sapi_out'");
-				}
+			# OMK-3237, use sensible and non-clashing config source: 
+			# now service_name sets the script file name, temporarily falling back to $service
+			my $scriptfn = "$C->{script_root}/". $servicename || $service;
+			if (!open(F, $scriptfn))
+			{
+				dbg("ERROR, can't open script file for $service: $!");
+			}
+			else
+			{
+				my $scripttext=join("",<F>);
+				close(F);
+				
+				my $timeout = ($thisservice->{Max_Runtime} > 0)?
+						$thisservice->{Max_Runtime} : 3;
+				
+				($ret,my $sapi_out) = sapi($NI->{system}{host},
+																	 $thisservice->{Port},
+																	 $scripttext,
+																	 $timeout);
+				# the sapi thing can pass back raw protocol data...
+				dbg("Results of service $name ($servicetype, $servicename) is $ret, msg is '$sapi_out'");
+			}
 		}
 		# 'real' scripts, or more precisely external programs
 		# which also covers nagios plugins - https://nagios-plugins.org/doc/guidelines.html
-		elsif ( $ST->{$service}{Service_Type} =~ /^(program|nagios-plugin)$/ )
+		elsif ( $servicetype =~ /^(program|nagios-plugin)$/ )
 		{
 			$ret = 0;
-			my $svc = $ST->{$service};
-			if (!$svc->{Program} or !-x $svc->{Program})
+			if (!$thisservice->{Program} or !-x $thisservice->{Program})
 			{
 				info("ERROR, service $service defined with no working Program to run!");
 				logMsg("ERROR service $service defined with no working Program to run!");
 				next;
 			}
-
+			
 			# exit codes and output handling differ
-			my $flavour_nagios = ($svc->{Service_Type} eq "nagios-plugin");
+			my $flavour_nagios = ($servicetype eq "nagios-plugin");
 
 			# check the arguments (if given), substitute node.XYZ values
 			my $finalargs;
-			if ($svc->{Args})
+			if ($thisservice->{Args})
 			{
-				$finalargs = $svc->{Args};
+				$finalargs = $thisservice->{Args};
 				# don't touch anything AFTER a node.xyz, and only subst if node.xyz is the first/only thing,
 				# or if there's a nonword char before node.xyz.
 				$finalargs =~ s/(^|\W)(node\.([a-zA-Z0-9_-]+))/$1$NI->{system}{$3}/g;
-				dbg("external program args were $svc->{Args}, now $finalargs");
+				dbg("external program args were $thisservice->{Args}, now $finalargs");
 			}
-
+			
 			my $programexit = 0;
 			# save and restore any previously running alarm,
 			# but don't bother subtracting the time spent here
@@ -5472,23 +5481,25 @@ hrSWRunType hrSWRunPerfCPU hrSWRunPerfMem))
 			eval
 			{
 				my @responses;
-				my $svcruntime = defined($svc->{Max_Runtime}) && $svc->{Max_Runtime} > 0?
-						$svc->{Max_Runtime} : 0;
+				my $svcruntime = defined($thisservice->{Max_Runtime}) && $thisservice->{Max_Runtime} > 0?
+						$thisservice->{Max_Runtime} : 0;
 
 				local $SIG{ALRM} = sub { die "alarm\n"; };
 				alarm($svcruntime) if ($svcruntime); # setup execution timeout
 
 				# run given program with given arguments and possibly read from it
-				# program is disconnected from stdin; stderr goes into a tmpfile and is collected separately for diagnostics
+				# program is disconnected from stdin; stderr goes into a tmpfile 
+				# and is collected separately for diagnostics
+
 				my $stderrsink = POSIX::tmpnam(); # good enough, no atomic open required
-				dbg("running external program '$svc->{Program} $finalargs', "
-						.(getbool($svc->{Collect_Output})? "collecting":"ignoring")." output");
-				$pid = open(PRG,"$svc->{Program} $finalargs </dev/null 2>$stderrsink |");
+				dbg("running external program '$thisservice->{Program} $finalargs', "
+						.(getbool($thisservice->{Collect_Output})? "collecting":"ignoring")." output");
+				$pid = open(PRG,"$thisservice->{Program} $finalargs </dev/null 2>$stderrsink |");
 				if (!$pid)
 				{
 					alarm(0) if ($svcruntime); # cancel any timeout
-					info("ERROR, cannot start service program $svc->{Program}: $!");
-					logMsg("ERROR: cannot start service program $svc->{Program}: $!");
+					info("ERROR, cannot start service program $thisservice->{Program}: $!");
+					logMsg("ERROR: cannot start service program $thisservice->{Program}: $!");
 				}
 				else
 				{
@@ -5496,22 +5507,22 @@ hrSWRunType hrSWRunPerfCPU hrSWRunPerfMem))
 					close PRG;
 					$programexit = $?;
 					alarm(0) if ($svcruntime); # cancel any timeout
-
+					
 					dbg("service exit code is ". ($programexit>>8));
-
+					
 					# consume and warn about any stderr-output
 					if (-f $stderrsink && -s $stderrsink)
 					{
 						open(UNWANTED, $stderrsink);
 						my $badstuff = join("", <UNWANTED>);
 						chomp($badstuff);
-						logMsg("WARNING: Service program $svc->{Program} returned unexpected error output: \"$badstuff\"");
-						info("Service program $svc->{Program} returned unexpected error output: \"$badstuff\"");
+						logMsg("WARNING: Service program $thisservice->{Program} returned unexpected error output: \"$badstuff\"");
+						info("Service program $thisservice->{Program} returned unexpected error output: \"$badstuff\"");
 						close(UNWANTED);
 					}
 					unlink($stderrsink);
-
-					if (getbool($svc->{Collect_Output}))
+					
+					if (getbool($thisservice->{Collect_Output}))
 					{
 						# nagios has two modes of output *sigh*, |-as-newline separator and real newlines
 						# https://nagios-plugins.org/doc/guidelines.html#PLUGOUTPUT
@@ -5615,8 +5626,8 @@ hrSWRunType hrSWRunPerfCPU hrSWRunPerfMem))
 			if ($@ and $@ eq "alarm\n")
 			{
 				kill('TERM', $pid);							# get rid of the service tester, it ran over time...
-				info("ERROR, service program $svc->{Program} exceeded Max_Runtime of $svc->{Max_Runtime}s, terminated.");
-				logMsg("ERROR: service program $svc->{Program} exceeded Max_Runtime of $svc->{Max_Runtime}s, terminated.");
+				info("ERROR, service program $thisservice->{Program} exceeded Max_Runtime of $thisservice->{Max_Runtime}s, terminated.");
+				logMsg("ERROR: service program $thisservice->{Program} exceeded Max_Runtime of $thisservice->{Max_Runtime}s, terminated.");
 				$ret=0;
 				kill("KILL",$pid);
 			}
@@ -5643,7 +5654,7 @@ hrSWRunType hrSWRunPerfCPU hrSWRunPerfMem))
 				}
 				else
 				{
-					logMsg("WARNING: service program $svc->{Program} terminated abnormally!");
+					logMsg("WARNING: service program $thisservice->{Program} terminated abnormally!");
 					$ret = 0;
 				}
 			}
@@ -5660,15 +5671,14 @@ hrSWRunType hrSWRunPerfCPU hrSWRunPerfMem))
 		# let external programs set the responsetime if so desired
 		$responsetime = $timer->elapTime if (!defined $responsetime);
 		$status{$service}->{responsetime} = $responsetime;
-		$status{$service}->{name} = $ST->{$service}{Name}; # same as $service
+		$status{$service}->{name} = $name; # normally the same as $service
 
 		# external programs return 0..100 directly, rest has 0..1
-		my $serviceValue = ( $ST->{$service}{Service_Type} =~ /^(program|nagios-plugin)$/ )?
+		my $serviceValue = ( $servicetype =~ /^(program|nagios-plugin)$/ )?
 				$ret : $ret*100;
 		$status{$service}->{status} = $serviceValue;
 
-		#logMsg("Updating $node Service, $ST->{$service}{Name}, $ret, gotMemCpu=$gotMemCpu");
-		$V->{system}{"${service}_title"} = "Service $ST->{$service}{Name}";
+		$V->{system}{"${service}_title"} = "Service $name";
 		$V->{system}{"${service}_value"} = $serviceValue == 100 ? 'running' : $serviceValue > 0? "degraded" : 'down';
 		$V->{system}{"${service}_color"} =  $serviceValue == 100 ? 'white' : $serviceValue > 0? "orange" : 'red';
 
@@ -5683,49 +5693,53 @@ hrSWRunType hrSWRunPerfCPU hrSWRunPerfMem))
 		# let's raise or clear service events based on the status
 		if ( $snmpdown ) # only set IFF this is an snmp-based service AND snmp is broken/down.
 		{
-			dbg("$ST->{$service}{Service_Type} $ST->{$service}{Name} is not checked, snmp is down");
+			dbg("service $service ($servicename) not checked: snmp is down");
 			$V->{system}{"${service}_value"} = 'unknown';
 			$V->{system}{"${service}_color"} = 'gray';
 			$serviceValue = '';
 		}
 		elsif ( $serviceValue == 100 ) # service is fully up
 		{
-			dbg("$ST->{$service}{Service_Type} $ST->{$service}{Name} is available ($serviceValue)");
+			dbg("service $service ($servicename) is available ($serviceValue)");
 
 			# all perfect, so we need to clear both degraded and down events
-			checkEvent(sys=>$S, event=>"Service Down", level=>"Normal", element => $ST->{$service}{Name},
+			checkEvent(sys=>$S, event=>"Service Down", level=>"Normal", 
+								 element => $name,
 								 details=> ($status{$service}->{status_text}||"") );
 
-			checkEvent(sys=>$S, event=>"Service Degraded", level=>"Warning", element => $ST->{$service}{Name},
+			checkEvent(sys=>$S, event=>"Service Degraded", level=>"Warning", 
+								 element => $name,
 								 details=> ($status{$service}->{status_text}||"") );
 		}
 		elsif ($serviceValue > 0)		# service is up but degraded
 		{
-			dbg("$ST->{$service}{Service_Type} $ST->{$service}{Name} is degraded ($serviceValue)");
+			dbg("service $service ($servicename) is degraded ($serviceValue)");
 
 			# is this change towards the better or the worse?
 			# we clear the down (if one exists) as it's not totally dead anymore...
-			checkEvent(sys=>$S, event=>"Service Down", level=>"Fatal", element => $ST->{$service}{Name},
+			checkEvent(sys=>$S, event=>"Service Down", level=>"Fatal", 
+								 element => $name,
 								 details=> ($status{$service}->{status_text}||"") );
 			# ...and create a degraded
 			notify(sys => $S, event => "Service Degraded",
 						 level => "Warning",
-						 element => $ST->{$service}{Name},
+						 element => $name,
 						 details=> ($status{$service}->{status_text}||""),
 						 context => { type => "service" } );
 		}
 		else 			# Service is down
 		{
-			dbg("$ST->{$service}{Service_Type} $ST->{$service}{Name} is down");
+			dbg("service $service ($servicename) is down");
 
 			# clear the degraded event
 			# but don't just eventDelete, so that no state engines downstream of nmis get confused!
-			checkEvent(sys=>$S, event=>"Service Degraded", level=>"Warning", element => $ST->{$service}{Name},
+			checkEvent(sys=>$S, event=>"Service Degraded", level=>"Warning", 
+								 element => $name,
 								 details=> ($status{$service}->{status_text}||"") );
 
 			# and now create a down event
 			notify(sys=>$S, event=>"Service Down", level => "Fatal",
-						 element=>$ST->{$service}{Name},
+						 element => $name,
 						 details=> ($status{$service}->{status_text}||""),
 						 context => { type => "service" } );
 		}
@@ -5800,13 +5814,17 @@ hrSWRunType hrSWRunPerfCPU hrSWRunPerfMem))
 		# now update the per-service status file
 		$status{$service}->{service} ||= $service; # service and node are part of the fn, but possibly mangled...
 		$status{$service}->{node} ||= $node;
-		$status{$service}->{name} ||= $ST->{$service}->{Name}; # that can be all kinds of stuff, depending on the service type
+		$status{$service}->{name} ||= $name; # generally the same as $service
+
 		# save our server name with the service status, for distributed setups
 		$status{$service}->{server} = $C->{server_name};
-		# AND ensure the service has a uuid, a recreatable V5 one from config'd namespace+server+service+node's uuid
-		$status{$service}->{uuid} = NMIS::UUID::getComponentUUID($C->{server_name}, $service, $NI->{system}->{uuid});
+		
+		# AND ensure the service has a uuid, a recreatable V5 one from config'd 
+		# namespace+server+service+node's uuid
+		$status{$service}->{uuid} = NMIS::UUID::getComponentUUID($C->{server_name}, 
+																														 $service, $NI->{system}->{uuid});
 
-		$status{$service}->{description} ||= $ST->{$service}->{Description}; # but that's free-form
+		$status{$service}->{description} ||= $thisservice->{Description}; # but that's free-form
 		$status{$service}->{last_run} ||= time;
 
 		my $error = saveServiceStatus(service => $status{$service});
