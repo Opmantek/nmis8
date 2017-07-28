@@ -150,7 +150,6 @@
       'alcomarf' => '/nodes/$node/health/alcoma-rf-linkrate-$index.rrd',
       'mikrotik' => '/nodes/$node/health/mikrotik.rrd',
       'mtxrWlAp' => '/nodes/$node/interface/mtxrWlAp-$index.rrd',
-      'mtxrWlStat' => '/nodes/$node/interface/_removed_mtxrWlAp-$index.rrd',
       'mtxrWlRtab' => '/nodes/$node/interface/mtxrWlRtab-$index.rrd',
       'radio' => '/nodes/$node/health/radio.rrd',
       'Radio' => '/nodes/$node/health/radio-$index.rrd',

@@ -35,7 +35,7 @@
 #
 # nmis collection is disabled while this operation is performed, and a record
 # of operations is kept for rolling back in case of problems.
-our $VERSION = "8.6.1G";
+our $VERSION = "8.6.2a";
 
 use strict;
 use File::Copy;
@@ -50,16 +50,14 @@ use lib "$FindBin::Bin/../lib";
 use NMIS;
 use func 1.2.1;
 
-my $usage = "Usage: ".basename($0)." newlayout=/path/to/new/Common-database.nmis [simulate=true] [info=true] [missingonly=true]\n
+my $usage = "Usage: ".basename($0)." newlayout=/path/to/new/Common-database.nmis [simulate=true] [info=true]\n
 newlayout: Common-database.nmis file to use for new locations, merged into current one.
 simulate: only show what would be done, don't make any changes
 info: produce more informational output
-missingonly: no renaming, just add missing entries to Common-database.
 \n\n";
 
 my %args=getArguements(@ARGV);
 my $simulate = getbool($args{simulate});
-my $missingonly = getbool($args{missingonly});
 my $leavelocked = getbool($args{leavelocked});
 
 my $base = Cwd::abs_path("$FindBin::RealBin/..");
@@ -105,64 +103,13 @@ print STDERR "Version $VERSION of ".basename($0)." starting\nReading local node 
 my $LNT = loadLocalNodeTable();
 my (%rrdfiles,$countfiles);
 
-# verify that the current common-database doesn't have anything custom that
-# the new shipped version does not have
+
 my $curlayoutfile = $C->{'<nmis_models>'}."/Common-database.nmis";
 my $curlayout = readFiletoHash(file => $curlayoutfile);
 if (ref($curlayout) ne "HASH" or ref($curlayout->{database}) ne "HASH")
 {
-	print STDERR "Cannot fine a current database layout file (Common-database.nmis), cannot proceed with migration!\n";
+	print STDERR "Cannot find a current database layout file (Common-database.nmis), cannot proceed with migration!\n";
 	exit 1;
-}
-
-print STDERR "Checking compatibility of current and new database layout files...\n";
-for my $oldtypekey (sort keys %{$curlayout->{database}->{type}})
-{
-	if (!$newlayout->{database}->{type}->{$oldtypekey})
-	{
-		print STDERR "\n\nError: Your current database layout file contains custom entries!\n
-There is an entry for the RRD type \"$oldtypekey\", which is not present
-in the new database layout. This is likely caused by local custom models.
-This script cannot perform any database migration until all custom types
-are merged into $newdbf, and will abort now.\n\n";
-		exit 1;
-	}
-}
-
-if ($missingonly)
-{
-	print STDERR "Checking for missing entries in current database layout\n";
-	my $needtosave;
-	
-	for my $newtype (keys %{$newlayout->{database}->{type}})
-	{
-		next if exists $curlayout->{database}->{type}->{$newtype};
-		print STDERR "Adding $newtype\n";
-		if (!$simulate)
-		{		
-			$curlayout->{database}->{type}->{$newtype} = 
-					$newlayout->{database}->{type}->{$newtype};
-			$needtosave = 1;
-		}
-	}
-	if ($needtosave)
-	{
-		push @rollback, "mv $curlayoutfile.pre-update $curlayoutfile";
-		rename($curlayoutfile,"$curlayoutfile.pre-update") 
-				or die "Could not rename $curlayoutfile: $!\n";
-		writeHashtoFile(file => $curlayoutfile, data => $curlayout);
-
-		# save the rollback file anyway
-		&saverollback;
-		print STDERR "Saving rollback information in $rollbackf\n";
-		print STDERR "Update complete.\n";
-	}
-	else
-	{
-		print STDERR "No missing entries found.\n";
-	}
-	unlink($lockoutfile) if (!$leavelocked);
-	exit 0;
 }
 
 print STDERR "Identifying RRD files to rename\n";
@@ -223,7 +170,12 @@ die "Error: func.pm's table cache corrupt or nonexistent!\n"
 				or ref($cacheobj->{$cachekey}->{data}->{database}) ne "HASH"
 				or ref($cacheobj->{$cachekey}->{data}->{database}->{type}) ne "HASH");
 
-$cacheobj->{$cachekey}->{data}->{database}->{type} = $newlayout->{database}->{type};
+# merge the old and new stuff, new wins but orphaned old is NOT deleted!
+for my $newentry (keys %{$newlayout->{database}->{type}})
+{
+	$cacheobj->{$cachekey}->{data}->{database}->{type}->{$newentry} 
+	= $newlayout->{database}->{type}->{$newentry};
+}
 
 # oldfile -> newfile
 my %todos;
@@ -332,7 +284,11 @@ if (!$simulate)
 	push @rollback, "mv $curlayoutfile.pre-migrate $curlayoutfile";
 	rename($curlayoutfile,"$curlayoutfile.pre-migrate") or die "Could not rename $curlayoutfile: $!\n";
 
-	$curlayout->{database}->{type} = $newlayout->{database}->{type};
+	# merge the old and new stuff, new wins but orphaned old is NOT deleted!
+	for my $newentry (keys %{$newlayout->{database}->{type}})
+	{
+		$curlayout->{database}->{type}->{$newentry} = $newlayout->{database}->{type}->{$newentry};
+	}
 	writeHashtoFile(file => $curlayoutfile, data => $curlayout);
 
 	# save the rollback file anyway
