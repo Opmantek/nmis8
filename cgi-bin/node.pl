@@ -354,19 +354,20 @@ sub typeGraph {
 				Tr(
 				# Start date field
 				td({class=>'header',align=>'center',colspan=>'1'},"Start",
-					textfield(-name=>"date_start",-override=>1,-value=>"$date_start",size=>'23')),
+					textfield(-name=>"date_start",-override=>1,-value=>"$date_start",size=>'23',tabindex=>"1")),
 				# Node select menu
 				td({class=>'header',align=>'center',colspan=>'1'},eval {
 						return hidden(-name=>'node', -default=>$Q->{node},-override=>'1')
 							if $Q->{graphtype} eq 'metrics' or $Q->{graphtype}  eq 'nmis';
 						return "Node ",popup_menu(-name=>'node', -override=>'1',
-							-values=>[@nodelist],
-							-default=>"$Q->{node}",
-							-onChange=>'JavaScript:this.form.submit()');
+																			tabindex=>"3",
+																			-values=>[@nodelist],
+																			-default=>"$Q->{node}",
+																			-onChange=>'JavaScript:this.form.submit()');
 					}),
 				# Graphtype select menu
 				td({class=>'header',align=>'center',colspan=>'1'},"Type ",
-					popup_menu(-name=>'graphtype', -override=>'1',
+					popup_menu(-name=>'graphtype', -override=>'1', tabindex=>"4",
 						-values=>[sort keys %{$GTT}],
 						-default=>"$Q->{graphtype}",
 						-onChange=>'JavaScript:this.form.submit()')),
@@ -377,72 +378,72 @@ sub typeGraph {
 				Tr(
 				# End date field
 				td({class=>'header',align=>'center',colspan=>'1'},"End&nbsp;",
-					textfield(-name=>"date_end",-override=>1,-value=>"$date_end",size=>'23')),
+					textfield(-name=>"date_end",-override=>1,-value=>"$date_end",size=>'23',tabindex=>"2")),
 				# Group or Interface select menu
 				td({class=>'header',align=>'center',colspan=>'1'}, eval {
 						return hidden(-name=>'intf', -default=>$Q->{intf},-override=>'1') if $Q->{graphtype} eq 'nmis';
 						if ( $Q->{graphtype} eq "metrics") {
-							return 	"Group ",popup_menu(-name=>'group', -override=>'1',-size=>'1',
+							return 	"Group ",popup_menu(-name=>'group', -override=>'1',-size=>'1', tabindex=>"5",
 										-values=>[grep $AU->InGroup($_), 'network',sort keys %{$GT}],
 										-default=>"$group",
 										-onChange=>'JavaScript:this.form.submit()'),
 										hidden(-name=>'intf', -default=>$Q->{intf},-override=>'1');
 						}
 						elsif ($Q->{graphtype} eq "hrsmpcpu") {
-							return 	"CPU ",popup_menu(-name=>'intf', -override=>'1',-size=>'1',
+							return 	"CPU ",popup_menu(-name=>'intf', -override=>'1',-size=>'1', tabindex=>"5",
 										-values=>['',sort $S->getTypeInstances(graphtype => "hrsmpcpu")],
 										-default=>"$index",
 										-onChange=>'JavaScript:this.form.submit()');
 						} elsif ($Q->{graphtype} =~ /service|service-cpumem|service-response/) {
-							return 	"Service ",popup_menu(-name=>'intf', -override=>'1',-size=>'1',
+							return 	"Service ",popup_menu(-name=>'intf', -override=>'1',-size=>'1', tabindex=>"5",
 										-values=>['',sort $S->getTypeInstances(section => "service")],
 										-default=>"$index",
 										-onChange=>'JavaScript:this.form.submit()');
 						} elsif ($Q->{graphtype} eq "hrdisk") {
 							my @disks = $S->getTypeInstances(graphtype =>  "hrdisk");
-							return 	"Disk ",popup_menu(-name=>'intf', -override=>'1',-size=>'1',
+							return 	"Disk ",popup_menu(-name=>'intf', -override=>'1',-size=>'1', tabindex=>"5",
 										-values=>['',sort @disks],
 										-default=>"$index",
 										-labels=>{ map{($_ => $NI->{storage}{$_}{hrStorageDescr})} sort @disks },
 										-onChange=>'JavaScript:this.form.submit()');
 						} elsif ($GTT->{$graphtype} eq "env_temp") {
 							my @sensors = $S->getTypeInstances(graphtype => "env_temp");
-							return 	"Sensor ",popup_menu(-name=>'intf', -override=>'1',-size=>'1',
+							return 	"Sensor ",popup_menu(-name=>'intf', -override=>'1',-size=>'1', tabindex=>"5",
 										-values=>['',sort @sensors],
 										-default=>"$index",
 										-labels=>{ map{($_ => $NI->{env_temp}{$_}{tempDescr})} sort @sensors },
 										-onChange=>'JavaScript:this.form.submit()');
 						} elsif ($GTT->{$graphtype} eq "akcp_temp") {
 							my @sensors = $S->getTypeInstances(graphtype => "akcp_temp");
-							return 	"Sensor ",popup_menu(-name=>'intf', -override=>'1',-size=>'1',
+							return 	"Sensor ",popup_menu(-name=>'intf', -override=>'1',-size=>'1', tabindex=>"5",
 										-values=>['',sort @sensors],
 										-default=>"$index",
 										-labels=>{ map{($_ => $NI->{akcp_temp}{$_}{hhmsSensorTempDescr})} sort @sensors },
 										-onChange=>'JavaScript:this.form.submit()');
 						} elsif ($GTT->{$graphtype} eq "akcp_hum") {
 							my @sensors = $S->getTypeInstances(graphtype => "akcp_hum");
-							return 	"Sensor ",popup_menu(-name=>'intf', -override=>'1',-size=>'1',
+							return 	"Sensor ",popup_menu(-name=>'intf', -override=>'1',-size=>'1', tabindex=>"5",
 										-values=>['',sort @sensors],
 										-default=>"$index",
 										-labels=>{ map{($_ => $NI->{akcp_hum}{$_}{hhmsSensorHumDescr})} sort @sensors },
 										-onChange=>'JavaScript:this.form.submit()');
 						} elsif ($GTT->{$graphtype} eq "cssgroup") {
 							my @cssgroup = $S->getTypeInstances(graphtype => "cssgroup");
-							return 	"Group ",popup_menu(-name=>'intf', -override=>'1',-size=>'1',
+							return 	"Group ",popup_menu(-name=>'intf', -override=>'1',-size=>'1', tabindex=>"5",
 										-values=>['',sort @cssgroup],
 										-default=>"$index",
 										-labels=>{ map{($_ => $NI->{cssgroup}{$_}{CSSGroupDesc})} sort @cssgroup },
 										-onChange=>'JavaScript:this.form.submit()');
 						} elsif ($GTT->{$graphtype} eq "csscontent") {
 							my @csscont = $S->getTypeInstances(graphtype => "csscontent");
-							return 	"Sensor ",popup_menu(-name=>'intf', -override=>'1',-size=>'1',
+							return 	"Sensor ",popup_menu(-name=>'intf', -override=>'1',-size=>'1', tabindex=>"5",
 										-values=>['',sort @csscont],
 										-default=>"$index",
 										-labels=>{ map{($_ => $NI->{csscontent}{$_}{CSSContentDesc})} sort @csscont },
 										-onChange=>'JavaScript:this.form.submit()');
 						}
 						elsif ($systemHealth) {
-							return 	"$systemHealthTitle ",popup_menu(-name=>'intf', -override=>'1',-size=>'1',
+							return 	"$systemHealthTitle ",popup_menu(-name=>'intf', -override=>'1',-size=>'1', tabindex=>"5",
 										-values=>['',sort keys %{$NI->{$systemHealthSection}}],
 										-default=>"$index",
 										-labels=>{ @systemHealthLabels },
@@ -458,7 +459,7 @@ sub typeGraph {
 							if (not grep { $_ eq $index } @wantedifs ) {
 										push(@wantedifs, $index);
 							}
-							return 	"Interface ",popup_menu(-name=>'intf', -override=>'1',-size=>'1',
+							return 	"Interface ",popup_menu(-name=>'intf', -override=>'1',-size=>'1', tabindex=>"5",
 										-values=>['',  @wantedifs],
 										-default=>"$index",
 										-labels=>{ map{($_ => $IF->{$_}{ifDescr})} @wantedifs },
@@ -472,15 +473,15 @@ sub typeGraph {
 						foreach my $gtp (keys %graph_button_table) {
 							foreach my $gt (keys %{$GTT}) {
 								if ($gtp eq $gt) {
-									push @out,a({class=>'button',href=>url(-absolute=>1)."?$cg&act=network_graph_view&graphtype=$gtp"},$graph_button_table{$gtp});
+									push @out,a({class=>'button', tabindex=>"-1", href=>url(-absolute=>1)."?$cg&act=network_graph_view&graphtype=$gtp"},$graph_button_table{$gtp});
 								}
 							}
 						}
 						if (not($graphtype =~ /cbqos|calls/ and $Q->{item} eq '')) {
-							push @out,a({class=>'button',href=>url(-absolute=>1)."?$cg&act=network_export&graphtype=$Q->{graphtype}"},"Export");
-							push @out,a({class=>'button',href=>url(-absolute=>1)."?$cg&act=network_stats&graphtype=$Q->{graphtype}"},"Stats");
+							push @out,a({class=>'button', tabindex=>"-1", href=>url(-absolute=>1)."?$cg&act=network_export&graphtype=$Q->{graphtype}"},"Export");
+							push @out,a({class=>'button', tabindex=>"-1", href=>url(-absolute=>1)."?$cg&act=network_stats&graphtype=$Q->{graphtype}"},"Stats");
 						}
-						push @out,a({class=>'button',href=>url(-absolute=>1)."?$cg&act=network_graph_view&graphtype=nmis"},"NMIS");
+						push @out,a({class=>'button', tabindex=>"-1", href=>url(-absolute=>1)."?$cg&act=network_graph_view&graphtype=nmis"},"NMIS");
 						return @out;
 					})) ))));
 
@@ -585,7 +586,7 @@ sub typeGraph {
 			if( getbool($C->{display_opcharts}) ) {
 				push @output, Tr(td({class=>'info Plain',align=>'center',colspan=>'4'}, $chartDiv));
 			} else {
-				push @output, Tr(td({class=>'info Plain',align=>'center',colspan=>'4'},image_button(-name=>'graphimg',-src=>"$graphLink",-align=>'MIDDLE')));
+				push @output, Tr(td({class=>'info Plain',align=>'center',colspan=>'4'},image_button(-name=>'graphimg',-src=>"$graphLink",-align=>'MIDDLE', -tabindex=>"-1")));
 				push @output, Tr(td({class=>'info Plain',align=>'center',colspan=>'4'},"Clickable graphs: Left -> Back; Right -> Forward; Top Middle -> Zoom In; Bottom Middle-> Zoom Out, in time"));
 			}
 		}
