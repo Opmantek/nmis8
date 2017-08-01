@@ -829,8 +829,8 @@ else
 
 		# patch config changes that affect existing entries, which update_config_defaults
 		# doesn't handle
-		# which includes enabling uuid
-		execPrint("$site/admin/patch_config.pl -b $site/conf/Config.nmis /system/non_stateful_events='Node Configuration Change, Node Reset, NMIS runtime exceeded' /globals/uuid_add_with_node=true /system/node_summary_field_list,=uuid /system/json_node_fields,=uuid");
+		# which includes enabling uuid and showing the polling_policy
+		execPrint("$site/admin/patch_config.pl -b $site/conf/Config.nmis /system/non_stateful_events='Node Configuration Change, Node Reset, NMIS runtime exceeded' /globals/uuid_add_with_node=true /system/node_summary_field_list,=uuid /system/json_node_fields,=uuid /system/network_viewNode_field_list,=polling_policy");
 		echolog("\n");
 
 		if (input_yn("OK to remove syslog and JSON logging from default event escalation?"))
@@ -843,7 +843,7 @@ else
 		{
 			execPrint("$site/admin/patch_config.pl -b -n $site/conf/Config.nmis /system/fastping_timeout=5000 /system/ping_timeout=5000");
 		}
-
+		
 		# move config/cache files to new locations where necessary
 		if (-f "$site/conf/WindowState.nmis")
 		{
