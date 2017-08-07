@@ -308,7 +308,6 @@ sub	runThreads
 	}
 	dbg("all relevant tables loaded");
 
-	my $debug_global = $C->{debug};
 	my $debug = $C->{debug};
 
 	# used for plotting major events on world map in 'Current Events' display
@@ -324,7 +323,7 @@ sub	runThreads
 		}
 	}
 
-	runDaemons(); # start daemon processes
+	runDaemons(); # (re)start daemon processes
 
 
 	# the signal handler handles termination more-or-less gracefully,
@@ -8376,12 +8375,8 @@ sub printCrontab
 PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 
 ######################################################
-# Run (selective) Statistics Collection often
-* * * * * $usercol $C->{'<nmis_base>'}/bin/nmis.pl type=collect mthread=true
-
-######################################################
-# If you don't run the collect every minute, you might want Services-only Collection
-# */3 * * * * $usercol $C->{'<nmis_base>'}/bin/nmis.pl type=services mthread=true
+# Run (selective) Statistics and Service Status Collection often
+* * * * * $usercol $C->{'<nmis_base>'}/bin/nmis.pl type=collect mthread=true ; $C->{'<nmis_base>'}/bin/nmis.pl type=services mthread=true
 
 ######################################################
 # Run Summary Update every 5 minutes
