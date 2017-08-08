@@ -3283,12 +3283,12 @@ sub viewTop10 {
 			my $NI = $S->ndinfo;
 			my $IF = $S->ifinfo;
 			# reachable, available, health, response
-			%reportTable = (%reportTable,%{getSummaryStats(sys=>$S,type=>"health",start=>$start,end=>$end,index=>$reportnode)});
+			%reportTable = (%reportTable,%{ getSummaryStats(sys=>$S,type=>"health",start=>$start,end=>$end,index=>$reportnode) // {}});
 			# cpu only for routers, switch cpu and memory in practice not an indicator of performance.
 			# avgBusy1min, avgBusy5min, ProcMemUsed, ProcMemFree, IOMemUsed, IOMemFree
 			if ($NI->{graphtype}{nodehealth} =~ /cpu/
 					and getbool($NI->{system}{collect})) {
-				%cpuTable = (%cpuTable,%{getSummaryStats(sys=>$S,type=>"nodehealth",start=>$start,end=>$end,index=>$reportnode)});
+				%cpuTable = (%cpuTable,%{ getSummaryStats(sys=>$S,type=>"nodehealth",start=>$start,end=>$end,index=>$reportnode) // {} });
 				print STDERR "Result: ". Dumper \%cpuTable;
 			}
 
