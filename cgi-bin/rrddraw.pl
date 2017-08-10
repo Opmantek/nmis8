@@ -50,7 +50,9 @@ my $Q = $q->Vars;
 
 my $C;
 if (!($C = loadConfTable(conf=>$Q->{conf},debug=>$Q->{debug}))) { exit 1; };
-$C->{auth_require} = 0; # bypass auth
+
+# bypass auth iff called from command line
+$C->{auth_require} = 0 if (@ARGV);
 
 # NMIS Authentication module
 use Auth;
