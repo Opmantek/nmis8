@@ -1907,19 +1907,21 @@ sub writeConfData {
 
 
 # creates the dir in question, and all missing intermediate
-# directories in the path.
-sub createDir {
-	my $dir = shift;
+# directories in the path; then fixes the ownership and permissions
+# up to nmis base
+sub createDir
+{
+	my ($dir) = @_;
 	my $C = loadConfTable();
-	if ( not -d $dir ) {
-		my $permission = "0770"; # default
-		if ( $C->{'os_execperm'} ne "" ) {
-			$permission = $C->{'os_execperm'} ;
-		}
+
+	if ( not -d $dir )
+	{
+		my $permission = $C->{'os_execperm'} || "0770";
 
 		my $umask = umask(0);
 		mkpath($dir,{verbose => 0, mode => oct($permission)});
 		umask($umask);
+		setFileProtParents($dir);
 	}
 }
 
@@ -2214,8 +2216,8 @@ sub colorPercentHi {
 	my $val = shift;
 	if ( $val =~ /^(\d+|\d+\.\d+)$/ ) {
 		$val = 100 - int($val);
-		return '#' 
-				. hexval( int(List::Util::min($val*2*2.55,255)) ) 
+		return '#'
+				. hexval( int(List::Util::min($val*2*2.55,255)) )
 				. hexval( int(List::Util::min( (100-$val)*2*2.55,255)) ) .'00' ;
 	}
 	else {
@@ -2228,8 +2230,8 @@ sub colorPercentLo {
 	my $val = shift;
 	if ( $val =~ /^(\d+|\d+\.\d+)$/ ) {
 		$val = int($val);
-		return '#' 
-				. hexval( int(List::Util::min($val*2*2.55,255)) ) 
+		return '#'
+				. hexval( int(List::Util::min($val*2*2.55,255)) )
 				. hexval( int(List::Util::min( (100-$val)*2*2.55,255)) ) .'00' ;
 	}
 	else {
