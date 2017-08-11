@@ -165,7 +165,8 @@ sub processRRDFile {
 			dbg("$rrd backup'ed up to $rrd.bak");
 		}
 		else {
-			print "SKIPPING: $rrd could not be backup'ed\n";
+			print "SKIPPING: \n";
+			die "FATAL: $rrd could not be backup'ed. Stopping now!\n";
 		}
 	}
 	else {
