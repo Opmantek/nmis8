@@ -1127,10 +1127,11 @@ sub doCollect
 	info("Starting collect, node $name, want SNMP: ".($wantsnmp?"yes":"no")
 			 .", want WMI: ".($wantwmi?"yes":"no"));
 
-	# Check for both update and collect LOCKs
-	if ( existsPollLock(type => "update", conf => $C->{conf}, node => $name) ) {
-		print STDERR "Error: running collect but update lock exists for $name which has not finished!\n";
-		logMsg("WARNING running collect but update lock exists for $name which has not finished!");
+	# Check for both update and collect locks, but complain only for collect lock
+	# with polling frequently, an existing update lock is very very likely
+	if ( existsPollLock(type => "update", conf => $C->{conf}, node => $name) ) 
+	{
+		logMsg("INFO skipping collect for node $name because of active update lock");
 		return;
 	}
 	if ( existsPollLock(type => "collect", conf => $C->{conf}, node => $name) )
