@@ -30,7 +30,7 @@
 # To make sense of Cisco VLAN Bridge information.
 
 package ciscoMacTable;
-our $VERSION = "1.1.0";
+our $VERSION = "1.2.0";
 
 use strict;
 
@@ -94,9 +94,20 @@ sub update_plugin
 		# Get the connected devices if the VLAN is operational
 		if ( $entry->{vtpVlanState} eq "operational" ) 
 		{
-			my $snmp = snmp->new(name => $node);
+			my %nodeconfig = %{$NC->{node}}; # copy required because we modify it...
+			
+			# community string: <normal>@<vlanindex>
+			# https://www.cisco.com/c/en/us/support/docs/ip/simple-network-management-protocol-snmp/40367-camsnmp40367.html
+			my $magic = $nodeconfig{community}.'@'.$entry->{vtpVlanIndex};
+			$nodeconfig{community} = $magic;
 
-			if (!$snmp->open(config => $NC->{node}, host_addr => $NI->{system}->{host_addr}))
+			$nodeconfig{host_addr} = $NI->{system}->{host_addr};
+
+			# nmisng::snmp doesn't fall back to global config
+			my $max_repetitions = $nodeconfig{max_repetitions} || $C->{snmp_max_repetitions};
+
+			my $snmp = snmp->new(name => $node);
+			if (!$snmp->open(config => \%nodeconfig ))
 			{
 				logMsg("Could not open SNMP session to node $node: ".$snmp->error);
 			}
