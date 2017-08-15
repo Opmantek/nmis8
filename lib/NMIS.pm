@@ -2365,9 +2365,9 @@ sub resolve_dns_name
 	return @results;
 }
 
-# wrapper around resolve_dns_name, 
+# wrapper around resolve_dns_name,
 # returns the _first_ available ip _v4_ address or undef
-sub resolveDNStoAddr 
+sub resolveDNStoAddr
 {
 	my ($name) = @_;
 
@@ -2376,7 +2376,7 @@ sub resolveDNStoAddr
 
 	return $v4[0];
 }
-	
+
 # create http for a clickable graph
 sub htmlGraph {
 	my %args = @_;
@@ -2546,7 +2546,14 @@ sub createHrButtons
 	# and let's combine these in a 'diagnostic' menu as well
 	push @out, "<td class='header litehead'><ul class='jd_menu hr_menu'><li>Diagnostic &#x25BE<ul>";
 
-	push @out, CGI::li(CGI::a({class=>'wht',href=>"telnet://$NI->{system}{host}",target=>'_blank'},"telnet"))
+	# drill-in for the node's collect/update time
+	push @out, CGI::li(CGI::a({class=>"wht",
+														 href=> "$C->{'<cgi_url_base>'}/node.pl?conf=$confname&act=network_graph_view&widget=false&node=$urlsafenode&graphtype=polltime",
+																 target=>"_blank"},
+														"Collect/Update Runtime"));
+
+	push @out, CGI::li(CGI::a({class=>'wht',
+														 href=>"telnet://$NI->{system}{host}",target=>'_blank'},"telnet"))
 			if (getbool($C->{view_telnet}));
 
 	if (getbool($C->{view_ssh})) {
