@@ -52,6 +52,18 @@
       }
     }
   },
+  'database' => {
+    'type' => {
+      'OPS_Status' => '/nodes/$node/health/OPS_Status-$index.rrd',
+    }
+  },
+  #'heading' => {
+  #  'graphtype' => {
+  #    'hwCpuMem' => 'Board CPU and Memory Usage',
+  #    'hwTempPwr' => 'Board Temperature and Power',
+  #    'hwGponStats' => 'GPON OLT Ethernet Statistics'
+  #  }
+  #},
   'system' => {
     'nodegraph' => 'health,response',
     'nodeType' => 'switch',
