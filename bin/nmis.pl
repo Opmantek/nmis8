@@ -66,6 +66,12 @@ use DBfunc;
 
 $Data::Dumper::Indent = 1;
 
+if ( @ARGV == 1 && $ARGV[0] eq "--version" )
+{
+	print "version=$NMIS::VERSION\n";
+	exit 0;
+}
+
 # Variables for command line munging
 my %nvp = getArguements(@ARGV);
 
