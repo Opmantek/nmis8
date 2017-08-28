@@ -326,61 +326,59 @@
 
     'rrd' => {
       'BTI_7000_GE_Bytes' => {
+        'control' => 'CVAR=index;$CVAR =~ /^\d+\.\d+\.\d+\.3$/',
         'indexed' => 'true',
         'graphtype' => 'bti-ge-bytes',
         'snmp' => {
           'CrntPMTFRCRXValue' => {
             'oid' => '1.3.6.1.4.1.18070.2.2.1.6.20.1.29',
-            'title' => 'GE RX Frame Count'
+            'option' => 'counter,0:U'
           },
           'CrntPMTFRCTXValue' => {
             'oid' => '1.3.6.1.4.1.18070.2.2.1.6.20.1.33',
-            'title' => 'GE TX Frame Count'
+            'option' => 'counter,0:U'
           },
         }
       },
 
       'BTI_7000_GE_Optical' => {
+        'control' => 'CVAR=index;$CVAR =~ /^\d+\.\d+\.\d+\.3$/',
         'indexed' => 'true',
         'graphtype' => 'bti-ge-optical',
         'snmp' => {
           'CrntPMOPRValue' => {
             'oid' => '1.3.6.1.4.1.18070.2.2.1.6.20.1.5',
-            'title' => 'GE RX Optical Power'
           },
           'CrntPMOPTValue' => {
             'oid' => '1.3.6.1.4.1.18070.2.2.1.6.20.1.8',
-            'title' => 'GE TX Optical Power'
           },
         }
       },
 
       'BTI_7000_STM_Optical' => {
+        'control' => 'CVAR=index;$CVAR =~ /^\d+\.\d+\.\d+\.\d+\.3$/',
         'graphtype' => 'bti-stm-optical',
         'indexed' => 'true',
         'snmp' => {
           'CrntPMOPRValue' => {
             'oid' => '1.3.6.1.4.1.18070.2.2.1.6.14.1.6',
-            'title' => 'STM RX Optical Power'
           },
           'CrntPMOPTValue' => {
             'oid' => '1.3.6.1.4.1.18070.2.2.1.6.14.1.9',
-            'title' => 'STM TX Optical Power'
           },
         }
       },
 
       'BTI_7000_FC_Optical' => {
+        'control' => 'CVAR=index;$CVAR =~ /^\d+\.\d+\.\d+\.3$/',
         'graphtype' => 'bti-fc-optical',      	
         'indexed' => 'true',
         'snmp' => {
           'CrntPMOPRValue' => {
             'oid' => '1.3.6.1.4.1.18070.2.2.1.6.23.1.5',
-            'title' => 'GE RX Optical Power'
           },
           'CrntPMOPTValue' => {
             'oid' => '1.3.6.1.4.1.18070.2.2.1.6.23.1.8',
-            'title' => 'GE TX Optical Power'
           },
         }
       },
