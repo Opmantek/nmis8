@@ -261,7 +261,7 @@ perl-Excel-Writer-XLSX
 	# stretch ships with these packages
 	push @debpackages, (qw(libproc-queue-perl libstatistics-lite-perl))
 			if ($osflavour eq "debian" and $osmajor >= 9);
-	
+
 	my $pkgmgr = $osflavour eq "redhat"? "YUM": ($osflavour eq "debian" or $osflavour eq "ubuntu")? "APT": undef;
 	my $pkglist = $osflavour eq "redhat"? \@rhpackages : ($osflavour eq "debian" or $osflavour eq "ubuntu")? \@debpackages: undef;
 
@@ -270,8 +270,9 @@ perl-Excel-Writer-XLSX
 
 	# curl is present in most basic redhat install
 	# wget is present on debian/ubuntu via priority:important
-	my $testres = system("curl -s -m 10 -o /dev/null https://opmantek.com/robots.txt 2>/dev/null") >> 8;
-	$testres = system("wget -q -T 10 -O /dev/null https://opmantek.com/robots.txt 2>/dev/null") >> 8
+	# however, ca-certificates may be out of date/incomplete at this time
+	my $testres = system("curl --insecure -s -m 10 -o /dev/null https://opmantek.com/robots.txt 2>/dev/null") >> 8;
+	$testres = system("wget --no-check-certificate -q -T 10 -O /dev/null https://opmantek.com/robots.txt 2>/dev/null") >> 8
 			if ($testres);
 	$can_use_web = !$testres;
 
@@ -797,7 +798,7 @@ else
 							 "Contacts.nmis", "Enterprise.nmis", "Escalations.nmis",
 							 "ifTypes.nmis", "Links.nmis", "Locations.nmis", "Logs.nmis",
 							 "Customers.nmis", "Events.nmis", "Polling-Policy.nmis",
-							 "Model-Policy.nmis", "Modules.nmis", "Nodes.nmis", 
+							 "Model-Policy.nmis", "Modules.nmis", "Nodes.nmis",
 							 "Outage.nmis", "Portal.nmis",
 							 "PrivMap.nmis", "Services.nmis", "Users.nmis", "users.dat")
 	{
@@ -843,7 +844,7 @@ else
 		{
 			execPrint("$site/admin/patch_config.pl -b -n $site/conf/Config.nmis /system/fastping_timeout=5000 /system/ping_timeout=5000");
 		}
-		
+
 		# move config/cache files to new locations where necessary
 		if (-f "$site/conf/WindowState.nmis")
 		{
@@ -1649,7 +1650,7 @@ sub input_ok
 sub input_yn
 {
 	my ($query) = @_;
-	
+
 	while (1)
 	{
 		print $query;
