@@ -1638,33 +1638,42 @@ to be installed (or upgraded) before NMIS will work fully:\n\n| . join(" ", @cri
 }
 
 
-# print question, return true if y (or in unattended mode). default is yes.
-sub input_yn
-{
-	my ($query) = @_;
-
-	print $query;
-	if ($noninteractive)
-	{
-		print " (auto-default YES)\n\n";
-		return 1;
-	}
-	else
-	{
-		print "\nType 'y' or hit <Enter> to accept, any other key for 'no': ";
-		my $input = <STDIN>;
-		chomp $input;
-		logInstall("User input for \"$query\": \"$input\"");
-
-		return ($input =~ /^\s*(y|yes)?\s*$/i)? 1:0;
-	}
-}
-
 # prints prompt, waits for confirmation
 sub input_ok
 {
 	print "\nHit <Enter> to continue:\n";
 	my $x = <STDIN> if (!$noninteractive);
+}
+
+# print question, return true if y (or in unattended mode). default is yes.
+sub input_yn
+{
+	my ($query) = @_;
+	
+	while (1)
+	{
+		print $query;
+		if ($noninteractive)
+		{
+			print " (auto-default YES)\n\n";
+			return 1;
+		}
+		else
+		{
+			print "\nType 'y' or <Enter> to accept, or 'n' to decline: ";
+			my $input = <STDIN>;
+			chomp $input;
+			logInstall("User input for \"$query\": \"$input\"");
+
+			if ($input !~ /^\s*[yn]?\s*$/i)
+			{
+				print "Invalid input \"$input\"\n\n";
+				next;
+			}
+
+			return ($input =~ /^\s*y?\s*$/i)? 1:0;
+		}
+	}
 }
 
 # question, default answer, whether we want confirmation or not
