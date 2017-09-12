@@ -36,6 +36,7 @@ var menu_url_base = '/menu8';
 var widget_refresh_glob = 180;
 var opCharts = false;
 var config = 'Config';
+var windowObjectReference = {};
 
 // recreate vars that are expected
 
@@ -553,6 +554,14 @@ function	createDialog(opt) {
 
 			// drop refresh timer
 			$.doTimeout( id );
+
+			// We find if this widget had opened a window using viewwnd()
+			// if it has we delete its window reference.
+			var hasWindowTitle = objData.options.title.replace(/\W+/g,'_');
+			var hasWindow = windowObjectReference[hasWindowTitle];
+			if(hasWindow){
+				delete windowObjectReference[hasWindowTitle];
+			}
 
 			// leave our widget attribs on the DOM  , so we can reopen, just as it was when we were closed.
 			// set a flag so this dormant state can be found.
@@ -1225,12 +1234,54 @@ function checkBoxes(checkbox,name) {
 
 /*=================================================================*/
 
-function viewwndw(wndw,url,width,height)
+// Opens a new window and stores a referance to this window in a top level object
+// wndw: (string) window name, used to ID the window for refreshing and keeping track
+// url: (string) url for the window to open
+// width: (int) width of the window
+// height: (int) height of the window
+// initLocation: (string) to referance if this function was invoked by the server or client
+// returns a window object
+function viewwndw(wndw,url,width,height,initLocation)
+{
+	// Make a clean window name
+	var windowName = wndw.replace(/\W+/g,'_');
+	// Get a widow with using the windows name as a key
+	var newWindow = windowObjectReference[windowName];
+ 
+	//We are checking if there is currently a window
+	if(newWindow !== undefined){
+		// if we have a window and its open we should refresh it
+		 if(!newWindow.closed)
+		 {
+			 newWindow = createNewWindow(windowName, url, width, height);
+		 
+		 // If the window is closed and this function is being called by the client
+		 }else if(newWindow.closed && initLocation !== 'server')
+		 {
+			 newWindow = createNewWindow(windowName, url, width, height);
+		 }
+	 }
+	 else
+	 {	//Create a new window and put it into an object using the windows name as a key;
+		 newWindow = createNewWindow(windowName, url, width, height);
+		 windowObjectReference[windowName] = newWindow;
+	 }
+};
+// Creates a new windows object
+// wndw: (string) window name, used to ID the window for refreshing and keeping track
+// url: (string) url for the window to open
+// width: (int) width of the window
+// height: (int) height of the window
+// returns a window object
+function createNewWindow(wndw,url,width,height)
 {
 	var attrib = "scrollbars=yes,resizable=yes,width=" + width + ",height=" + height;
-	ViewWindow = window.open(url,wndw.replace(/\W+/g,'_'),attrib);
-	ViewWindow.focus();
+	var  viewWindow = window.open(url,wndw,attrib);
+	viewWindow.focus();
+	return viewWindow;
 };
+
+ 
 function viewdoc(url,width,height)
 {
 	viewwndw("ViewWindow",url,width,height)
