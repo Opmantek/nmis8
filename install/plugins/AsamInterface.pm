@@ -481,7 +481,7 @@ sub asamSlotCorrection {
 	my $asamModel = shift;
 	
 	if ( $asamModel =~ /7302/ and $slot >= 9 ) {
-		$slot = $slot + 3;
+		$slot = $slot + 1;
 	}
 	elsif ( $asamModel =~ /ARAM-D/ ) {
 		$slot = $slot + 3

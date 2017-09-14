@@ -367,8 +367,9 @@
             'title' => 'Oper Status'
           },
           'ifDescr' => {
-            'oid' => 'ifDescr',
-            'title' => 'Name (ifDescr)'
+            'comment' => 'The Fortinet 80D does not populate the ifDescr object, but ifName is OK',
+            'oid' => 'ifName',
+            'title' => 'Name (ifName)'
           },
 					'ifPhysAddress' => {
             'oid' => 'ifPhysAddress',
@@ -433,7 +434,7 @@
             'option' => 'gauge,0:100'
           },
           'ifDescr' => {
-            'oid' => 'ifDescr'
+            'oid' => 'ifName'
           },
           'ifInOctets' => {
             'oid' => 'ifInOctets',
