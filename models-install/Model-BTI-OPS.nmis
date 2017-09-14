@@ -44,9 +44,9 @@
       'heading' => {
         'common-model' => 'heading'
       },
-      # 'stats' => {
-      #   'common-model' => 'stats'
-      # },
+      'stats' => {
+        'common-model' => 'stats'
+      },
       'event' => {
         'common-model' => 'event'
       }
@@ -323,3 +323,4 @@
     },
   },
 );
+
