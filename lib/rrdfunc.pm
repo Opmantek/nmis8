@@ -99,10 +99,12 @@ sub getRRDasHash
 		$S->init;
 	}
 
+	# ks: getTypeName and getFileName not working for all graphtypes, sending it to the new getDBName gets the good result.
 	# fixme: longterm/lowprio, maybe add a type parameter that's not translated, and have the caller take care of it?
-	my $section = $S->getTypeName(graphtype=>$graphtype, index=> (defined $index? $index : $item));
-	my $db = getFileName(sys=>$S, type=>(defined $section? $section : $graphtype), index=>$index, item=>$item);
-
+	#my $section = $S->getTypeName(graphtype=>$graphtype, index=> (defined $index? $index : $item));
+	#my $db = getFileName(sys=>$S, type=>(defined $section? $section : $graphtype), index=>$index, item=>$item);
+	my $db = $S->getDBName(graphtype=>$graphtype, index=>$index, item=>$item);
+	
 	my ($begin,$step,$name,$data) = RRDs::fetch($db, $args{mode},"--start",$args{start},"--end",$args{end});
 	my %s;
 	my @h;
@@ -188,10 +190,12 @@ sub getRRDStats
 		$S->init;
 	}
 
+	# ks: getTypeName and getFileName not working for all graphtypes, sending it to the new getDBName gets the good result.
 	# fixme: longterm/lowprio, maybe add a type parameter that's not translated, and have the caller take care of it?
-	my $section = $S->getTypeName(graphtype=>$graphtype, index=> (defined $index? $index : $item));
-	my $db = getFileName(sys=>$S, type=>(defined $section? $section : $graphtype), index=>$index, item=>$item);
-
+	#my $section = $S->getTypeName(graphtype=>$graphtype, index=> (defined $index? $index : $item));
+	#my $db = getFileName(sys=>$S, type=>(defined $section? $section : $graphtype), index=>$index, item=>$item);
+	my $db = $S->getDBName(graphtype=>$graphtype, index=>$index, item=>$item);
+	
 	if ( ! defined $args{mode} ) { $args{mode} = "AVERAGE"; }
 	if ( -r $db ) {
 		my ($begin,$step,$name,$data) = RRDs::fetch($db,$args{mode},"--start",$args{start},"--end",$args{end});
