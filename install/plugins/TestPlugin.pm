@@ -12,7 +12,8 @@ sub after_update_plugin
 	my ($nodes, $S, $C) = @args{qw(nodes sys config)};
 
 	logMsg("The test plugin was run in the after_update phase");
-	logMsg("Nodes that this update handled: ".join(", ",@$nodes)) if (ref($nodes) eq "ARRAY");
+	# this was hanging on the telmex servers
+	#logMsg("Nodes that this update handled: ".join(", ",@$nodes)) if (ref($nodes) eq "ARRAY");
 
 	return (0,undef);
 }
@@ -24,7 +25,8 @@ sub after_collect_plugin
 
 
 	logMsg("The test plugin was run in the after_collect phase");
-	logMsg("Nodes that this collect handled: ".join(", ",@$nodes)) if (ref($nodes) eq "ARRAY");
+	# this was hanging on the telmex servers
+	#logMsg("Nodes that this collect handled: ".join(", ",@$nodes)) if (ref($nodes) eq "ARRAY");
 
 	return (0,undef);
 }

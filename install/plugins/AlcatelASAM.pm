@@ -105,6 +105,10 @@ sub update_plugin
 		logMsg("ERROR: Unknown ASAM Version $node asamSoftwareVersion=$asamSoftwareVersion");
 	}
 
+	$NI->{system}{asamVersion} = $version;
+	$V->{system}{"asamVersion_value"} = $version;
+	$V->{system}{"asamVersion_title"} = "ASAM Version";
+	
 	my $changesweremade = 0;
 
 	my ($session, $error) = Net::SNMP->session(
@@ -440,9 +444,11 @@ sub getIfDescr {
 		$slot = $slot - 2;
 		++$circuit;	
 		
-		$slot = asamSlotCorrection($slot,$asamModel);
+		my $slotCor = asamSlotCorrection($slot,$asamModel);
 
-		return "$prefix-$rack-$shelf-$slot-$circuit";
+		dbg("ASAM getIfDescr: ifIndex=$args{ifIndex} slot=$slot $slotCor=$slotCor asamVersion=$args{version} asamModel=$asamModel");
+
+		return "$prefix-$rack-$shelf-$slotCor-$circuit";
 	}
 	else {
 		my $slot_mask 		= 0x7E000000;
@@ -461,9 +467,11 @@ sub getIfDescr {
 		
 		$prefix = "XDSL" if $level == 16;
 		
-		$slot = asamSlotCorrection($slot,$asamModel);
+		my $slotCor = asamSlotCorrection($slot,$asamModel);
 
-		return "$prefix-1-1-$slot-$circuit";		
+		dbg("ASAM getIfDescr: ifIndex=$args{ifIndex} slot=$slot slotCor=$slotCor asamVersion=$args{version} asamModel=$asamModel");
+
+		return "$prefix-1-1-$slotCor-$circuit";		
 	}
 }
 
@@ -472,7 +480,7 @@ sub asamSlotCorrection {
 	my $asamModel = shift;
 	
 	if ( $asamModel =~ /7302/ and $slot >= 9 ) {
-		$slot = $slot + 3;
+		$slot = $slot + 1;
 	}
 	elsif ( $asamModel =~ /ARAM-D/ ) {
 		$slot = $slot + 3

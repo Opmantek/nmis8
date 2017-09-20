@@ -1488,7 +1488,7 @@ sub viewNode {
 		print "$nodelink is managed by server $NT->{$node}{server}";
 		print <<EO_HTML;
 	<script>
-		viewwndw('$node','$url',$wd,$ht);
+		viewwndw('$node','$url',$wd,$ht,'server');
 	</script>
 EO_HTML
   	return;

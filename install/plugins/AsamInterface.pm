@@ -184,7 +184,7 @@ sub update_plugin
 			#my $customerid = $snmp->get($oid);		
 			my $customerid;
 			if ( $session ) {
-				print "DEBUG: running the SNMP NOW\n";
+				#print "DEBUG: running the SNMP NOW\n";
 				my @oids = ( $oid );			
 				$customerid = $session->get_request(
 					-varbindlist => \@oids
@@ -481,7 +481,7 @@ sub asamSlotCorrection {
 	my $asamModel = shift;
 	
 	if ( $asamModel =~ /7302/ and $slot >= 9 ) {
-		$slot = $slot + 3;
+		$slot = $slot + 1;
 	}
 	elsif ( $asamModel =~ /ARAM-D/ ) {
 		$slot = $slot + 3

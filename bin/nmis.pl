@@ -576,7 +576,9 @@ sub	runThreads
 				next if (!$pid);
 
 				$needgrace = 1;
-				print STDERR "Error: killing old NMIS $type process $pid ($otherprocesses->{$pid}->{node}) which has not finished!\n";
+				print STDERR "Error: killing old NMIS $type process $pid ($otherprocesses->{$pid}->{node}) which has not finished!\n"
+						if (getbool($C->{verbose_nmis_process_events}));
+				
 				logMsg("ERROR killing old NMIS $type process $pid ($otherprocesses->{$pid}->{node}) which has not finished!");
 				kill("TERM",$pid);
 
@@ -841,7 +843,9 @@ sub catch_zap
 	{
 		# do NOT lock the logfile
 		logMsg("INFO Process $$ ($0) was killed by signal $rs", 1);
-		die "Process $$ ($0) was killed by signal $rs\n";
+		die "Process $$ ($0) was killed by signal $rs\n" 
+				if (getbool($C->{verbose_nmis_process_events}));
+		exit 0;
 	}
 }
 
