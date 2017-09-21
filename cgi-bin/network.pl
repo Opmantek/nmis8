@@ -53,8 +53,8 @@ $Q = $q->Vars; # values in hash
 # load NMIS configuration table
 if (!($C = loadConfTable(conf=>$Q->{conf},debug=>$Q->{debug}))) { exit 1; };
 
-# if options, then called from command line
-if ( $#ARGV > 0 ) { $C->{auth_require} = 0; } # bypass auth
+# if arguments present, then called from command line
+if ( @ARGV ) { $C->{auth_require} = 0; } # bypass auth
 
 # NMIS Authentication module
 use Auth;
