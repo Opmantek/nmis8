@@ -3709,7 +3709,7 @@ sub checkEvent
 		elsif ( $event =~ /Proactive/ )
 		{
 			my ($value,$reset) = @args{"value","reset"};
-			if (defined $value) and defined $reset)
+			if (defined $value and defined $reset)
 			{
 				# but only if we have cleared the threshold by 10%
 				# for thresholds where high = good (default 1.1)
