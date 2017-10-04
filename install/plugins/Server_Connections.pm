@@ -1,11 +1,9 @@
-# a small update plugin for converting the mac addresses in dot1q dot1qTpFdbs
-# into a more human-friendly form
+# this plugin does some transformation for server_connections
 package Server_Connections;
-our $VERSION = "1.1.0";
+our $VERSION = "1.0.0";
 
 use strict;
 use func;												# for the conf table extras
-use snmp 1.1.0;									# for snmp-related access
 
 sub update_plugin
 {

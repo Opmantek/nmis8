@@ -57,6 +57,9 @@ if (!($C = loadConfTable(conf=>$Q->{conf},debug=>$Q->{debug}))) { exit 1; };
 # Before going any further, check to see if we must handle
 # an authentication login or logout request
 
+# if arguments present, then called from command line
+if ( @ARGV ) { $C->{auth_require} = 0; }
+
 # NMIS Authentication module
 use Auth;
 my $user;
@@ -65,6 +68,8 @@ my $privlevel;
 # variables used for the security mods
 my $headeropts = {type=>'text/html',expires=>'now'};
 my $AU = Auth->new(conf => $C);  # Auth::new will reap init values from NMIS::config
+
+
 
 if ($AU->Require) {
 	exit 0 unless $AU->loginout(type=>$Q->{auth_type},username=>$Q->{auth_username},
