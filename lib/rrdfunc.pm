@@ -80,6 +80,8 @@ sub getUpdateStats
 # returns: hash of time->dsname=value, list(ref) of dsnames (plus 'time', 'date'), and meta data hash
 # metadata hash: actual begin and end as per rrd, and step
 #
+# args: sys, graphtype, mode (all required),
+# index or item (synthesised from one another),
 # optional: hours_from and hours_to (default: no restriction)
 sub getRRDasHash
 {
@@ -98,10 +100,8 @@ sub getRRDasHash
 		$S = Sys::->new(); # get base Model containing database info
 		$S->init;
 	}
-
-	# fixme: longterm/lowprio, maybe add a type parameter that's not translated, and have the caller take care of it?
-	my $section = $S->getTypeName(graphtype=>$graphtype, index=> (defined $index? $index : $item));
-	my $db = getFileName(sys=>$S, type=>(defined $section? $section : $graphtype), index=>$index, item=>$item);
+	# let sys reason through graphtype/sections, and index vs item
+	my $db = $S->getDBName(graphtype=>$graphtype, index=>$index, item=>$item);
 
 	my ($begin,$step,$name,$data) = RRDs::fetch($db, $args{mode},"--start",$args{start},"--end",$args{end});
 	my %s;
@@ -158,7 +158,11 @@ sub getRRDasHash
 
 # retrieves rrd data and computes a number of descriptive stats
 # this uses the sys object to translate from graphtype to section (Sys::getTypeName)
-# args: hour_from hour_to define the daily period [from,to].
+#
+# args: sys, graphtype (required),
+# index or item (synthesisted from each other),
+# hour_from hour_to define the daily period [from,to].
+#
 # if from > to then the meaning is inverted and data OUTSIDE the [to,from] interval is returned
 # for midnight use either 0 or 24, depending on whether you want the inside or outside interval
 #
@@ -188,9 +192,8 @@ sub getRRDStats
 		$S->init;
 	}
 
-	# fixme: longterm/lowprio, maybe add a type parameter that's not translated, and have the caller take care of it?
-	my $section = $S->getTypeName(graphtype=>$graphtype, index=> (defined $index? $index : $item));
-	my $db = getFileName(sys=>$S, type=>(defined $section? $section : $graphtype), index=>$index, item=>$item);
+	# let sys reason through graphtype/sections, and index vs item
+	my $db = $S->getDBName(graphtype=>$graphtype, index=>$index, item=>$item);
 
 	if ( ! defined $args{mode} ) { $args{mode} = "AVERAGE"; }
 	if ( -r $db ) {

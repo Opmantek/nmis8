@@ -118,7 +118,7 @@
       'jnxOperations' => '/nodes/$node/health/jnxOperations-$index.rrd',
       'jnxDestinationClassUsage' => '/nodes/$node/health/jnxDCUstats-$index.rrd',
       'jnxSourceClassUsage' => '/nodes/$node/health/jnxSCUstats-$index.rrd',
-      'Juniper_CoS' => '/nodes/$node/health/Juniper_CoSstats-$cosDescription.rrd',
+      'Juniper_CoS' => '/nodes/$node/interface/Juniper_CoSstats-$index.rrd',
       'bgpPeer' => '/nodes/$node/health/bgpPeer-$index.rrd',
       'ppxAtm' => '/nodes/$node/interface/ppxAtm-$index.rrd',
       'env_temp' => '/nodes/$node/misc/env-temp-$index.rrd',

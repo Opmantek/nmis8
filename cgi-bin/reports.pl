@@ -71,7 +71,8 @@ if (!($C = loadConfTable(conf=>$Q->{conf},debug=>$Q->{debug}))) { exit 1; };
 
 # if no options, assume called from web interface ....
 my $outputfile;
-if ( $#ARGV > 0 ) {
+if ( @ARGV ) 
+{
 	my %nvp = getArguements(@ARGV);
 
 	$Q->{act} = $nvp{report} ? "report_dynamic_$nvp{report}" : "report_dynamic_health";
