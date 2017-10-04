@@ -216,6 +216,7 @@
       'Radio' => 'Radio Information',
       'signal' => "Signal Level",
       'mikrotikCpu' => 'CPU Usage',
+			'jnxCoS-oneway' => 'Juniper CoS',
     }
   }
 );
