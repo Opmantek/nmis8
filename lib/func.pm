@@ -108,7 +108,6 @@ use Exporter;
 		writeHashtoFile
 		readFiletoHash
 
-		htmlElementValues
 		logMsg
 		logAuth2
 		logAuth
@@ -149,7 +148,6 @@ my $nmis_models;
 my $nmis_logs;
 my $nmis_log;
 my $nmis_mibs;
-my @htmlElements;
 
 # preset kernel name
 my $kernel = $^O;
@@ -1364,29 +1362,6 @@ sub dbgPolling {
 	}
 }
 
-# do nothing..
-sub htmlElementValues{};
-
-#	my %args = @_;
-#	my $element = $args{element};
-#	my $value = $args{value};
-#	my $script = $args{script};
-#
-#	if ($script ne '') {
-#		push @htmlElements,$script;
-#	} elsif ($element ne '') {
-#		push @htmlElements,"document.getElementById(\"$element\").innerHTML=\"$value\"";
-#	} else {
-#		print "<script>\n";
-#		print "setTime('".timegm(localtime())."');"; # get localtime and set clock in nmiscgi.pl
-#		foreach (@htmlElements) {
-#			print "$_ \n";
-#		}
-#		print "</script>";
-#		@htmlElements = ();
-#	}
-#
-#}
 
 
 # this function logs to nmis_log in a safe, locked fashion
