@@ -40,6 +40,14 @@
 		 #      	 },
 		 #      },
 		 #     
+		 600 => {
+			 IF => { 'node.group' => '/Core/', 'node.nodeModel' => 'JuniperRouter',  },
+			 systemHealth => { 
+				Juniper_CoS => 'true',
+                jnxDestinationClassUsage => 'true',
+                jnxSourceClassUsage => 'true',
+			 },
+		 },
      
      999 => {    # the fallback/defaults, without filter
        systemHealth => { 
