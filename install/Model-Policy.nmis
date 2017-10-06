@@ -24,30 +24,26 @@
      # },
 
      # more examples:
-		 #     20 => {
-		 #      	 IF => { 'node.name' => ['nodeA','nodeB'] },
-		 #      	 systemHealth => { 
-		 #            jnxDestinationClassUsage => 'true',
-		 #            jnxSourceClassUsage => 'true',
-		 #      	 },
-		 #      },
-		 #     
-		 #      30 => {
-		 #      	 IF => { 'node.name' => ['nodeA','nodeB'] },
-		 #      	 systemHealth => { 
-		 #            jnxDestinationClassUsage => 'true',
-		 #            jnxSourceClassUsage => 'true',
-		 #      	 },
-		 #      },
-		 #     
-		 600 => {
-			 IF => { 'node.group' => '/Core/', 'node.nodeModel' => 'JuniperRouter',  },
-			 systemHealth => { 
-				Juniper_CoS => 'true',
-                jnxDestinationClassUsage => 'true',
-                jnxSourceClassUsage => 'true',
-			 },
-		 },
+#     20 => {
+#      	 IF => { 'node.name' => ['nodeA','nodeB'] },
+#      	 systemHealth => { 
+#            jnxDestinationClassUsage => 'true',
+#            jnxSourceClassUsage => 'true',
+#      	 },
+#      },
+#     
+
+		 
+#		 600 => {
+#			 IF => { 'node.group' => '/foobar/', 
+#			 'node.nodeModel' => 'JuniperRouter',  },
+#			 
+#			 systemHealth => { 
+#				Juniper_CoS => 'true',
+#                jnxDestinationClassUsage => 'true',
+#                jnxSourceClassUsage => 'true',
+#			 },
+#		 },
      
      999 => {    # the fallback/defaults, without filter
        systemHealth => { 
@@ -61,7 +57,7 @@
          entityMib => 'true',
          fanStatus => 'true',
          tempStatus => 'true',
-         'env-temp' => 'true',
+         env-temp => 'true',
          fanStatus => 'true',
          psuStatus => 'true',
          tempStatus => 'true',
