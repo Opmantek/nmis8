@@ -24,22 +24,26 @@
      # },
 
      # more examples:
-		 #     20 => {
-		 #      	 IF => { 'node.name' => ['nodeA','nodeB'] },
-		 #      	 systemHealth => { 
-		 #            jnxDestinationClassUsage => 'true',
-		 #            jnxSourceClassUsage => 'true',
-		 #      	 },
-		 #      },
-		 #     
-		 #      30 => {
-		 #      	 IF => { 'node.name' => ['nodeA','nodeB'] },
-		 #      	 systemHealth => { 
-		 #            jnxDestinationClassUsage => 'true',
-		 #            jnxSourceClassUsage => 'true',
-		 #      	 },
-		 #      },
-		 #     
+#     20 => {
+#      	 IF => { 'node.name' => ['nodeA','nodeB'] },
+#      	 systemHealth => { 
+#            jnxDestinationClassUsage => 'true',
+#            jnxSourceClassUsage => 'true',
+#      	 },
+#      },
+#     
+
+		 
+#		 600 => {
+#			 IF => { 'node.group' => '/Core/', 
+#			 'node.nodeModel' => 'JuniperRouter',  },
+#			 
+#			 systemHealth => { 
+#				Juniper_CoS => 'true',
+#                jnxDestinationClassUsage => 'true',
+#                jnxSourceClassUsage => 'true',
+#			 },
+#		 },
      
      999 => {    # the fallback/defaults, without filter
        systemHealth => { 
@@ -54,6 +58,7 @@
          fanStatus => 'true',
          tempStatus => 'true',
          'env-temp' => 'true',
+         #Do not remove the '' due to interpretation of temp
          fanStatus => 'true',
          psuStatus => 'true',
          tempStatus => 'true',
@@ -97,6 +102,7 @@
          ciscoAsset => [ 6, "Device Inventory using the Cisco Asset Entity MIB" ],
 
          'env-temp' => [ 8, "Cisco Environment Temperature" ],
+         #Do not remove the '' due to interpretation of temp
          fanStatus => [ 8, "Cisco Fan Status" ],
          psuStatus => [ 8, "Cisco Power Supply Status" ],
          tempStatus => [ 8, "Cisco Temperature Status" ], 
