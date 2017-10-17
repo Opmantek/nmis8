@@ -214,7 +214,7 @@ sub viewOutage {
 	if ($#out > 0) {
 		print @out;
 	} else {
-		print Tr(td({class=>'info',colspan=>'5'},'No outage current',eval { return " of Node $node" if $node ne '';}));
+		print Tr(td({class=>'info',colspan=>'6'},'No outage current',eval { return " of Node $node" if $node ne '';}));
 	}
 
 	print end_table;
