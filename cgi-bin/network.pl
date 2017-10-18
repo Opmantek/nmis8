@@ -1564,7 +1564,7 @@ EO_HTML
 		# substitute any known parameters
 		$url =~ s/\$host/$NT->{$node}{host}/g;
 		$url =~ s/\$name/$NT->{$node}{name}/g;
-		$url =~ s/\$node/$NT->{$node}{name}/g;
+		$url =~ s/\$node_name/$NT->{$node}{name}/g;
 
 		$context = qq| <a href="$url" target="context_$node" style="color:white;">$NT->{$node}{node_context_name}</a>|;
 	}
@@ -1576,7 +1576,7 @@ EO_HTML
 		# substitute any known parameters
 		$url =~ s/\$host/$NT->{$node}{host}/g;
 		$url =~ s/\$name/$NT->{$node}{name}/g;
-		$url =~ s/\$node/$NT->{$node}{name}/g;
+		$url =~ s/\$node_name/$NT->{$node}{name}/g;
 
 		$remote = qq| <a href="$url" target="remote_$node" style="color:white;">$NT->{$node}{remote_connection_name}</a>|;
 	}
