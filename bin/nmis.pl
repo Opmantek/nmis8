@@ -578,7 +578,7 @@ sub	runThreads
 				$needgrace = 1;
 				print STDERR "Error: killing old NMIS $type process $pid ($otherprocesses->{$pid}->{node}) which has not finished!\n"
 						if (getbool($C->{verbose_nmis_process_events}));
-				
+
 				logMsg("ERROR killing old NMIS $type process $pid ($otherprocesses->{$pid}->{node}) which has not finished!");
 				kill("TERM",$pid);
 
@@ -843,7 +843,7 @@ sub catch_zap
 	{
 		# do NOT lock the logfile
 		logMsg("INFO Process $$ ($0) was killed by signal $rs", 1);
-		die "Process $$ ($0) was killed by signal $rs\n" 
+		die "Process $$ ($0) was killed by signal $rs\n"
 				if (getbool($C->{verbose_nmis_process_events}));
 		exit 0;
 	}
@@ -1139,7 +1139,7 @@ sub doCollect
 
 	# Check for both update and collect locks, but complain only for collect lock
 	# with polling frequently, an existing update lock is very very likely
-	if ( existsPollLock(type => "update", conf => $C->{conf}, node => $name) ) 
+	if ( existsPollLock(type => "update", conf => $C->{conf}, node => $name) )
 	{
 		logMsg("INFO skipping collect for node $name because of active update lock");
 		return;
@@ -3526,15 +3526,19 @@ sub processAlerts
 		{
 			method => "Alert",
 			type => $alert->{type},
-			property => $alert->{test},
+			property => $alert->{test}, # fixme inconsistent! thresholds use the threshold name here...
 			event => $alert->{event},
-			index => undef, #$args{index},
+			index => $alert->{index},
 			level => $tresult,
 			status => $statusResult,
 			element => $alert->{ds},
 			value => $alert->{value},
-			updated => time()
-		}
+			updated => time(),
+			# contect for finding the originator in the model
+			source => $alert->{source}, # snmp or wmi
+			section => $alert->{section},
+			name => $alert->{alert},
+		};
 	}
 }
 
@@ -5214,14 +5218,14 @@ hrSWRunType hrSWRunPerfCPU hrSWRunPerfMem))
 	{
 		my $thisservice = $ST->{$service};
 		# check for invalid service table data
-		next if (!$service 
-						 or $service =~ m!^n/a$!i 
-						 or ref($thisservice) ne "HASH" 
+		next if (!$service
+						 or $service =~ m!^n/a$!i
+						 or ref($thisservice) ne "HASH"
 						 or $thisservice->{Service_Type} =~ m!^n/a$!i);
-		
-		my ($name, $servicename, $servicetype) 
+
+		my ($name, $servicename, $servicetype)
 				= @{$thisservice}{"Name","Service_Name","Service_Type"};
-		
+
 		# are we supposed to run this service now?
 		# load the service status and check the last run time
 		my %previous = loadServiceStatus(node => $node, service => $service);
@@ -5277,7 +5281,7 @@ hrSWRunType hrSWRunPerfCPU hrSWRunPerfMem))
 
 		# DNS: lookup whatever Service_name contains (fqdn or ip address),
 		# nameserver being the host in question
-		if ( $servicetype eq "dns" ) 
+		if ( $servicetype eq "dns" )
 		{
 			use Net::DNS;
 			my $lookfor = $servicename;
@@ -5433,7 +5437,7 @@ hrSWRunType hrSWRunPerfCPU hrSWRunPerfMem))
 		# now the sapi 'scripts' (similar to expect scripts)
 		elsif ( $servicetype eq "script" )
 		{
-			# OMK-3237, use sensible and non-clashing config source: 
+			# OMK-3237, use sensible and non-clashing config source:
 			# now service_name sets the script file name, temporarily falling back to $service
 			my $scriptfn = "$C->{script_root}/". $servicename || $service;
 			if (!open(F, $scriptfn))
@@ -5444,10 +5448,10 @@ hrSWRunType hrSWRunPerfCPU hrSWRunPerfMem))
 			{
 				my $scripttext=join("",<F>);
 				close(F);
-				
+
 				my $timeout = ($thisservice->{Max_Runtime} > 0)?
 						$thisservice->{Max_Runtime} : 3;
-				
+
 				($ret,my $sapi_out) = sapi($NI->{system}{host},
 																	 $thisservice->{Port},
 																	 $scripttext,
@@ -5467,7 +5471,7 @@ hrSWRunType hrSWRunPerfCPU hrSWRunPerfMem))
 				logMsg("ERROR service $service defined with no working Program to run!");
 				next;
 			}
-			
+
 			# exit codes and output handling differ
 			my $flavour_nagios = ($servicetype eq "nagios-plugin");
 
@@ -5481,7 +5485,7 @@ hrSWRunType hrSWRunPerfCPU hrSWRunPerfMem))
 				$finalargs =~ s/(^|\W)(node\.([a-zA-Z0-9_-]+))/$1$NI->{system}{$3}/g;
 				dbg("external program args were $thisservice->{Args}, now $finalargs");
 			}
-			
+
 			my $programexit = 0;
 			# save and restore any previously running alarm,
 			# but don't bother subtracting the time spent here
@@ -5498,7 +5502,7 @@ hrSWRunType hrSWRunPerfCPU hrSWRunPerfMem))
 				alarm($svcruntime) if ($svcruntime); # setup execution timeout
 
 				# run given program with given arguments and possibly read from it
-				# program is disconnected from stdin; stderr goes into a tmpfile 
+				# program is disconnected from stdin; stderr goes into a tmpfile
 				# and is collected separately for diagnostics
 
 				my $stderrsink = POSIX::tmpnam(); # good enough, no atomic open required
@@ -5517,9 +5521,9 @@ hrSWRunType hrSWRunPerfCPU hrSWRunPerfMem))
 					close PRG;
 					$programexit = $?;
 					alarm(0) if ($svcruntime); # cancel any timeout
-					
+
 					dbg("service exit code is ". ($programexit>>8));
-					
+
 					# consume and warn about any stderr-output
 					if (-f $stderrsink && -s $stderrsink)
 					{
@@ -5531,7 +5535,7 @@ hrSWRunType hrSWRunPerfCPU hrSWRunPerfMem))
 						close(UNWANTED);
 					}
 					unlink($stderrsink);
-					
+
 					if (getbool($thisservice->{Collect_Output}))
 					{
 						# nagios has two modes of output *sigh*, |-as-newline separator and real newlines
@@ -5713,11 +5717,11 @@ hrSWRunType hrSWRunPerfCPU hrSWRunPerfMem))
 			dbg("service $service ($servicename) is available ($serviceValue)");
 
 			# all perfect, so we need to clear both degraded and down events
-			checkEvent(sys=>$S, event=>"Service Down", level=>"Normal", 
+			checkEvent(sys=>$S, event=>"Service Down", level=>"Normal",
 								 element => $name,
 								 details=> ($status{$service}->{status_text}||"") );
 
-			checkEvent(sys=>$S, event=>"Service Degraded", level=>"Warning", 
+			checkEvent(sys=>$S, event=>"Service Degraded", level=>"Warning",
 								 element => $name,
 								 details=> ($status{$service}->{status_text}||"") );
 		}
@@ -5727,7 +5731,7 @@ hrSWRunType hrSWRunPerfCPU hrSWRunPerfMem))
 
 			# is this change towards the better or the worse?
 			# we clear the down (if one exists) as it's not totally dead anymore...
-			checkEvent(sys=>$S, event=>"Service Down", level=>"Fatal", 
+			checkEvent(sys=>$S, event=>"Service Down", level=>"Fatal",
 								 element => $name,
 								 details=> ($status{$service}->{status_text}||"") );
 			# ...and create a degraded
@@ -5743,7 +5747,7 @@ hrSWRunType hrSWRunPerfCPU hrSWRunPerfMem))
 
 			# clear the degraded event
 			# but don't just eventDelete, so that no state engines downstream of nmis get confused!
-			checkEvent(sys=>$S, event=>"Service Degraded", level=>"Warning", 
+			checkEvent(sys=>$S, event=>"Service Degraded", level=>"Warning",
 								 element => $name,
 								 details=> ($status{$service}->{status_text}||"") );
 
@@ -5828,10 +5832,10 @@ hrSWRunType hrSWRunPerfCPU hrSWRunPerfMem))
 
 		# save our server name with the service status, for distributed setups
 		$status{$service}->{server} = $C->{server_name};
-		
-		# AND ensure the service has a uuid, a recreatable V5 one from config'd 
+
+		# AND ensure the service has a uuid, a recreatable V5 one from config'd
 		# namespace+server+service+node's uuid
-		$status{$service}->{uuid} = NMIS::UUID::getComponentUUID($C->{server_name}, 
+		$status{$service}->{uuid} = NMIS::UUID::getComponentUUID($C->{server_name},
 																														 $service, $NI->{system}->{uuid});
 
 		$status{$service}->{description} ||= $thisservice->{Description}; # but that's free-form
@@ -8727,8 +8731,9 @@ sub doSummaryBuild
 							# check if threshold level available, thresholdname must be equal to type
 							if (exists $M->{threshold}{name}{$tp})
 							{
-								($stshlth{$NI->{system}{nodeType}}{$nd}{$nm}{$i}{level},undef,undef) =
-										getThresholdLevel(sys=>$S,thrname=>$tp,stats=>$sts,index=>$i);
+								# fixme: errors are ignored...
+								my $goodies = getThresholdLevel(sys=>$S,thrname=>$tp,stats=>$sts,index=>$i);
+								$stshlth{$NI->{system}{nodeType}}{$nd}{$nm}{$i}{level} = $goodies->{level};
 							}
 							# save values
 							foreach my $stsname (@{$M->{summary}{statstype}{$tp}{sumname}{$nm}{stsname}}) {
@@ -8751,8 +8756,9 @@ sub doSummaryBuild
 						# check if threshold level available, thresholdname must be equal to type
 						if (exists $M->{threshold}{name}{$tp})
 						{
-							($stshlth{$NI->{system}{nodeType}}{$nd}{"${tp}_level"},undef,undef) =
-									getThresholdLevel(sys=>$S,thrname=>$tp,stats=>$sts,index=>'');
+							# fixme errors are ignored
+							my $goodies = getThresholdLevel(sys=>$S,thrname=>$tp,stats=>$sts,index=>'');
+							$stshlth{$NI->{system}{nodeType}}{$nd}{"${tp}_level"} = $goodies->{level};
 						}
 						foreach my $nm (keys %{$M->{summary}{statstype}{$tp}{sumname}})
 						{
@@ -8985,6 +8991,7 @@ sub doThreshold
 			my $thisevent_control = $events_config->{$eventKey} || { Log => "true", Notify => "true", Status => "true"};
 
 			# if this is an alert and it is older than 1 full poll cycle, delete it from status.
+			# fixme: this logic is broken with variable polling
 			if ( $S->{info}{status}{$statusKey}{updated} < time - 500) {
 				delete $S->{info}{status}{$statusKey};
 			}
@@ -9153,11 +9160,12 @@ sub runThrHld
 			}
 		}
 
-		my ($level,$value,$thrvalue,$reset) = getThresholdLevel(sys=>$S,
-																														thrname=>$nm,
-																														stats=>$stats,
-																														index=>$index,
-																														item=>$item);
+		my $goodies = getThresholdLevel(sys=>$S,
+																		thrname=>$nm,
+																		stats=>$stats,
+																		index=>$index,
+																		item=>$item);
+
 		# get 'Proactive ....' string of Model
 		my $event = $S->parseString(string=>$M->{threshold}{name}{$nm}{event}, index=>$index);
 
@@ -9186,20 +9194,30 @@ sub runThrHld
 		}
 
 		thresholdProcess(sys=>$S,
-										 type=>$type, # crucial for event context
+										 type=>$type, # crucial for context
 										 event=>$event,
-										 level=>$level,
+										 level => $goodies->{level},
 										 element=>$element, # crucial for context
 										 details=>$details,
-										 value=>$value,
-										 thrvalue=>$thrvalue,
-										 reset=>$reset,
+										 value => $goodies->{level_value},
+										 thrvalue => $goodies->{level_threshold},
+										 reset=> $goodies->{reset},
 										 thrname=>$nm, # crucial for context
 										 index=>$index,	 # crucial for context
-										 class=>$class); # crucial for context
+										 class=>$class, # crucial for context
+										 level_select => $goodies->{level_select},
+				);
 	}
 }
 
+# args: sys, thrname, stats, index, item; pretty much all required
+# returns hashref with keys:
+# level (=textual level),
+# level_value (= numeric value)
+# level_threshold (=comparison value that caused this level to be chosen),
+# level_select (=default or key of the threshold level set that was chosen),
+# reset (=?),
+# error (n/a if things work).
 sub getThresholdLevel
 {
 	my %args = @_;
@@ -9212,43 +9230,60 @@ sub getThresholdLevel
 	my $index = $args{index};
 	my $item = $args{item};
 
-	my $val;
-	my $level;
-	my $thrvalue;
+	my $val;											# hash of level cutoffs to compare against
+	my $level;										# text
+	my $thrvalue;									# numeric value
+	my $level_select;
 
 	dbg("Start threshold=$thrname, index=$index item=$item");
 
-	# find subsection with threshold values in Model
+	# look for applicable level selection set in model
+	return  { error => "no threshold=$thrname entry found in Model=$NI->{system}{nodeModel}" }
+	if (ref($M->{threshold}{name}{$thrname}) ne "HASH"
+			or ref($M->{threshold}{name}{$thrname}{select}) ne "HASH"
+			or !keys %{$M->{threshold}{name}{$thrname}{select}}); # at least ONE level must be there
+
+	# which level selector works for this thing? check in order of the level_select keys
 	my $T = $M->{threshold}{name}{$thrname}{select};
-	foreach my $thr (sort {$a <=> $b} keys %{$T}) {
+	foreach my $thr (sort {$a <=> $b} keys %{$T})
+	{
 		next if $thr eq 'default'; # skip now the default values
-		if (($S->parseString(string=>"($T->{$thr}{control})?1:0",index=>$index,item=>$item))){
+		if (($S->parseString(string=>"($T->{$thr}{control})?1:0",index=>$index,item=>$item)))
+		{
 			$val = $T->{$thr}{value};
+			$level_select = $thr;
 			dbg("found threshold=$thrname entry=$thr");
 			last;
 		}
 	}
-	# if not found and there are default values available get this now
-	if ($val eq "" and $T->{default}{value} ne "") {
+	# if nothing found and there are default values available, use these
+	if (!defined($val) and $T->{default}{value} ne "")
+	{
 		$val = $T->{default}{value};
-			dbg("found threshold=$thrname entry=default");
+		$level_select = "default";
+		dbg("found threshold=$thrname entry=default");
 	}
-	if ($val eq "") {
-		logMsg("ERROR, no threshold=$thrname entry found in Model=$NI->{system}{nodeModel}");
-		return;
+	# still no luck? eror out
+	if (!defined($val))
+	{
+		logMsg("ERROR, $thrname in Model=$NI->{system}{nodeModel} has no select!");
+		return  { error => "$thrname in Model=$NI->{system}{nodeModel} has no select!" };
 	}
 
-	my $value; # value of doSummary()
+	my $value; # numeric value of doSummary()
 	my $reset = 0;
 	# item is the attribute name of summary stats of Model
 	$value = $stats->{$M->{threshold}{name}{$thrname}{item}} if $index eq "";
 	$value = $stats->{$index}{$M->{threshold}{name}{$thrname}{item}} if $index ne "";
 	dbg("threshold=$thrname, item=$M->{threshold}{name}{$thrname}{item}, value=$value");
 
-	# check unknow value
+	# check unknown/nonnumeric value, treat it as normal
 	if ($value =~ /NaN/i) {
-		dbg("INFO, illegal value $value, skipped");
-		return ("Normal",$value,$reset);
+		dbg("INFO, illegal value $value, skipped.");
+		return { level => "Normal",
+						 reset => $reset,
+						 level_select => $level_select,
+						 level_value => $value };
 	}
 
 	### all zeros policy to disable thresholding - match and return 'normal'
@@ -9262,7 +9297,9 @@ sub getThresholdLevel
 			and defined $val->{major}
 			and defined $val->{critical}
 			and defined $val->{fatal}) {
-		return ("Normal",$value,$reset);
+		return { level => "Normal", level_value => $value,
+						 level_select => $level_select,
+						 reset => $reset };
 	}
 
 	# Thresholds for higher being good and lower bad
@@ -9293,12 +9330,24 @@ sub getThresholdLevel
 		elsif ( $value >= $val->{critical} and $value < $val->{fatal} ) { $level = "Critical"; $thrvalue = $val->{critical}; }
 		elsif ( $value >= $val->{fatal} ) { $level = "Fatal"; $thrvalue = $val->{fatal}; }
 	}
-	if ( $level eq "") {
+
+	# fixme: why is level normal returned if the threshold config is broken??
+	if (!defined $level)
+	{
 		logMsg("ERROR no policy found, threshold=$thrname, value=$value, node=$S->{name}, model=$NI->{system}{nodeModel} section threshold");
-		$level = "Normal";
+
+		return { error => "no policy found, threshold=$thrname, value=$value, node=$S->{name}, model=$NI->{system}{nodeModel} section threshold",
+						 level => "Normal",
+						 level_value => $value,
+						 level_select => $level_select,
+						 reset => $reset };
 	}
 	dbg("result threshold=$thrname, level=$level, value=$value, thrvalue=$thrvalue, reset=$reset");
-	return ($level,$value,$thrvalue,$reset);
+	return { level => $level,
+					 level_value => $value,
+					 level_threshold => $thrvalue,
+					 reset => $reset,
+					 level_select => $level_select };
 }
 
 sub thresholdProcess
@@ -9346,17 +9395,19 @@ sub thresholdProcess
 
 		$statusKey = "$args{thrname}--$index--$args{class}" if defined $args{class} and $args{class};
 
+		# save the threshold in the status thingy
 		$S->{info}{status}{$statusKey} = {
 			method => "Threshold",
-			type => $args{type},
-			property => $args{thrname},
+			type => $args{type},			# context
+			property => $args{thrname}, # context, but  fixme: why called property?
 			event => $args{event},
 			index => $args{index},
 			level => $args{level},
+			level_select => $args{level_select}, # for context: which level select set was used
 			status => $statusResult,
 			element => $args{element},
 			value => $args{value},
-			updated => time()
+			updated => time(),
 		}
 	}
 }
