@@ -1557,6 +1557,19 @@ EO_HTML
 	}
 	#http://nmisdev64.dev.opmantek.com/cgi-nmis8/nodeconf.pl?conf=Config.xxxx&act=
 
+	# this will handle the Name and URL for additional node information
+	my $context;
+	if ( defined $NT->{$node}{node_context_name} and $NT->{$node}{node_context_name} ne "" ) {
+		my $url = $NT->{$node}{node_context_url} if $NT->{$node}{node_context_url};
+		# substitute any known parameters
+		$url =~ s/\$host/$NT->{$node}{host}/g;
+		$url =~ s/\$name/$NT->{$node}{name}/g;
+		$url =~ s/\$node/$NT->{$node}{name}/g;
+
+		$context = qq| <a href="$url" target="context_$node" style="color:white;">$NT->{$node}{node_context_name}</a>|;
+	}
+
+	# this will handle the Name and URL for remote management connection
 	my $remote;
 	if ( defined $NT->{$node}{remote_connection_name} and $NT->{$node}{remote_connection_name} ne "" ) {
 		my $url = $NT->{$node}{remote_connection_url} if $NT->{$node}{remote_connection_url};
@@ -1576,6 +1589,7 @@ EO_HTML
 	$nodeDetails .= " - $editnode" if $editnode;
 	$nodeDetails .= " - $editconf" if $editconf;
 	$nodeDetails .= " - $remote" if $remote;
+	$nodeDetails .= " - $context" if $context;
 
 	print Tr(th({class=>'title', colspan=>'2'},$nodeDetails));
 	print start_Tr;
