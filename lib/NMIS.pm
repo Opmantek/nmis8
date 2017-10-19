@@ -1005,11 +1005,8 @@ sub getLevelLogEvent {
 	return ($level,$log,$syslog);
 }
 
-
-
-
-
-
+# extract summary data for a given period from rrd files,
+# via non-graph rrd graph declarations
 sub getSummaryStats
 {
 	my %args = @_;
@@ -1076,11 +1073,8 @@ sub getSummaryStats
 
 	push @option, ("--start", "$start", "--end", "$end") ;
 
-	# escape any : chars which might be in the database name, e.g handling C: in the RPN
-	$db =~ s/:/\\:/g;
-
 	{
-		no strict;
+		no strict;									# *shudder* this is wrong, so wrong
 		$database = $db; # global
 		$speed = $IF->{$index}{ifSpeed} if $index ne "";
 		$inSpeed = $IF->{$index}{ifSpeed} if $index ne "";
@@ -1089,9 +1083,10 @@ sub getSummaryStats
 		$outSpeed = $IF->{$index}{ifSpeedOut} if $index ne "" and $IF->{$index}{ifSpeedOut};
 
 		# read from Model and translate variable ($database etc.) rrd options
+		# note that all inputs need colon-escaping, not just the database
 		foreach my $str (@{$M->{stats}{type}{$type}}) {
 			my $s = $str;
-			$s =~ s{\$(\w+)}{if(defined${$1}){${$1};}else{"ERROR, no variable \$$1 ";}}egx;
+			$s =~ s{\$(\w+)}{if(defined${$1}){postcolonial(${$1});}else{"ERROR, no variable \$$1 ";}}egx;
 			if ($s =~ /ERROR/) {
 				logMsg("ERROR ($S->{name}) model=$NI->{system}{nodeModel} type=$type ($str) in expanding variables, $s");
 				return; # error
@@ -1128,6 +1123,15 @@ sub getSummaryStats
 		}
 	}
 	return;
+}
+
+# whatever it is that goes into rrdgraph arguments, colons are Not Good
+sub postcolonial
+{
+	my ($unsafe) = @_;
+	# but escaping already escaped colons isn't that much better
+	$unsafe =~ s/(?<!\\):/\\:/g;
+	return $unsafe;
 }
 
 ### 2011-12-29 keiths, added for consistent nodesummary generation
@@ -2391,7 +2395,7 @@ sub htmlGraph {
 		$target = $group;
 	}
 
-	my $id = "$target-$intf-$graphtype";
+	my $id = uri_escape("$target-$intf-$graphtype"); # intf and node are unsafe
 	my $C = loadConfTable();
 
 	my $width = $args{width}; # graph size
@@ -2401,18 +2405,19 @@ sub htmlGraph {
 
 	my $urlsafenode = uri_escape($node);
 	my $urlsafegroup = uri_escape($group);
+	my $urlsafeintf = uri_escape($intf);
 
 	my $time = time();
-	my $clickurl = "$C->{'node'}?conf=$C->{conf}&act=network_graph_view&graphtype=$graphtype&group=$urlsafegroup&intf=$intf&server=$server&node=$urlsafenode";
+	my $clickurl = "$C->{'node'}?conf=$C->{conf}&act=network_graph_view&graphtype=$graphtype&group=$urlsafegroup&intf=$urlsafeintf&server=$server&node=$urlsafenode";
 
 
 	if( getbool($C->{display_opcharts}) ) {
-		my $graphLink = "$C->{'rrddraw'}?conf=$C->{conf}&act=draw_graph_view&group=$urlsafegroup&graphtype=$graphtype&node=$urlsafenode&intf=$intf&server=$server".
+		my $graphLink = "$C->{'rrddraw'}?conf=$C->{conf}&act=draw_graph_view&group=$urlsafegroup&graphtype=$graphtype&node=$urlsafenode&intf=$urlsafeintf&server=$server".
 				"&start=&end=&width=$width&height=$height&time=$time";
 		my $retval = qq|<div class="chartDiv" id="${id}DivId" data-chart-url="$graphLink" data-title-onclick='viewwndw("$target","$clickurl",$win_width,$win_height)' data-chart-height="$height" data-chart-width="$width"><div class="chartSpan" id="${id}SpanId"></div></div>|;
 	}
 	else {
-		my $src = "$C->{'rrddraw'}?conf=$C->{conf}&act=draw_graph_view&group=$urlsafegroup&graphtype=$graphtype&node=$urlsafenode&intf=$intf&server=$server".
+		my $src = "$C->{'rrddraw'}?conf=$C->{conf}&act=draw_graph_view&group=$urlsafegroup&graphtype=$graphtype&node=$urlsafenode&intf=$urlsafeintf&server=$server".
 			"&start=&end=&width=$width&height=$height&time=$time";
 		### 2012-03-28 keiths, changed graphs to come up in their own Window with the target of node, handy for comparing graphs.
 		return 	qq|<a target="Graph-$target" onClick="viewwndw(\'$target\',\'$clickurl\',$win_width,$win_height)">
