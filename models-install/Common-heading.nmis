@@ -162,6 +162,7 @@
       'jnxTemp' => "Temperature",
       'abits-oneway-scu' => "Source Class Usage BitsPerSec", 
       'abits-oneway-dcu' => "Destination Class Usage BitsPerSec", 
+      'jnxCoS-oneway' => "Class of Service Usage in Bits Per Second",
       'ppxAtmCells' => "PPX ATM Cells",
       'ppxAtmUtil' => "PPX ATM Utilisation",
       'fan-status' => 'Fan Status',

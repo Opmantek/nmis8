@@ -36,7 +36,7 @@
 		 
 #		 600 => {
 #			 IF => { 'node.group' => '/Core/', 
-#			 'node.nodeModel' => 'JuniperRouter',  },
+#			 'node.nodeModel' => '/JuniperRouter/',  }, # note needs to be regex for nodeModel
 #			 
 #			 systemHealth => { 
 #				Juniper_CoS => 'true',
