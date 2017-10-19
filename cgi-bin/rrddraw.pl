@@ -280,14 +280,26 @@ sub rrdDraw
 		$GLINE = getbool($C->{graph_split}) ? "AREA" : "LINE1" ;
 		$weight = 0.983;
 
-		foreach my $str (@opt)
+		for my $idx (0..$#opt)
 		{
+			my $str = $opt[$idx];
+
 			# escape any ':' chars which might be in the database name (e.g C:\\) or the other
 			# inputs (e.g. indx == service name). this must be done for ALL substitutables,
 			# but no thanks to no strict we don't exactly know who they are, nor can we safely change
 			# their values without side-effects...so we do it on the go, and only where not already pre-escaped.
-			$str =~ s{\$(\w+)}{if(defined${$1}){NMIS::postcolonial(${$1});}else{"ERROR, no variable \'\$$1\' ";}}egx;
-			if ($str =~ /ERROR/) {
+
+			# EXCEPT in --title, where we can't have colon escaping. grrrrrr!
+			if  ($idx > 0 && $opt[$idx-1] eq "--title")
+			{
+				$str =~ s{\$(\w+)}{if(defined${$1}){${$1};}else{"ERROR, no variable \'\$$1\' ";}}egx;
+			}
+			else
+			{
+				$str =~ s{\$(\w+)}{if(defined${$1}){NMIS::postcolonial(${$1});}else{"ERROR, no variable \'\$$1\' ";}}egx;
+			}
+
+		 	if ($str =~ /ERROR/) {
 				logMsg("ERROR in expanding variables, $str");
 				return;
 			}
