@@ -3531,13 +3531,14 @@ sub processAlerts
 			index => $alert->{index},
 			level => $tresult,
 			status => $statusResult,
-			element => $alert->{ds},
+			element => $alert->{ds},	# for simple alerts (==type test) this is the sole useful context
 			value => $alert->{value},
 			updated => time(),
 			# contect for finding the originator in the model
 			source => $alert->{source}, # snmp or wmi
 			section => $alert->{section},
-			name => $alert->{alert},
+			# name does not exist for simple alerts, let's synthesize it from ds
+			name => $alert->{alert} || $alert->{ds},	
 		};
 	}
 }
