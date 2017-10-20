@@ -45,13 +45,15 @@ sub flatten
 	{
 		for my $k (keys %$deep)
 		{
+			my $visk = $k;
+			$visk =~ s!/!\\/!g;				# escape any '/' that key might contain
 			if (ref($deep->{$k}))
 			{
-				%flattened = (%flattened, flatten($deep->{$k}, "$prefix$k"));
+				%flattened = (%flattened, flatten($deep->{$k}, "$prefix$visk"));
 			}
 			else
 			{
-				$flattened{"$prefix$k"} = $deep->{$k};
+				$flattened{"$prefix$visk"} = $deep->{$k};
 			}
 		}
 	}
