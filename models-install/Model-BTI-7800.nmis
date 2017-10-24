@@ -66,6 +66,7 @@
 	# this is effectively disabled right now
         'test' => 'CVAR1=ifOperStatusMetric;$CVAR1 == 10000000',
         'type' => 'test',
+				'title' => "Interface Operational Status",
         'unit' => '',
       }
     },

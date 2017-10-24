@@ -45,7 +45,8 @@
         },
         'element' => 'MemPoolName',
         'event' => 'High Memory Utilisation',
-        'unit' => '',
+				'title' => "Memory Utilisation",
+        'unit' => '%',
         'value' => 'CVAR1=MemPoolUtil5M;int($CVAR1)'
       }
     },
