@@ -8631,7 +8631,7 @@ command line options are:
   [conf=<file name>]     Optional alternate configuation file in conf directory
   [node=<node name>]     Run operations on a single node;
   [group=<group name>]   Run operations on all nodes in the named group;
-  [force=true|false]     Makes an update operation run from scratch, without optimisations
+  [force=true|false]     Makes operations run from scratch, ignoring interval policies
   [debug=true|false|0-9] default=false - Show debugging information
   [rmefile=<file name>]  RME file to import.
   [mthread=true|false]   default=$C->{nmis_mthread} - Enable Multithreading or not;
