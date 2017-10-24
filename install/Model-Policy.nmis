@@ -27,8 +27,10 @@
 #     20 => {
 #      	 IF => { 'node.name' => ['nodeA','nodeB'] },
 #      	 systemHealth => { 
-#            jnxDestinationClassUsage => 'true',
-#            jnxSourceClassUsage => 'true',
+#            Juniper_CoS => 'true',  # Turn on the Juniper CoS section
+
+#            jnxDestinationClassUsage => 'false',  #as these two are in this model but much like the default we don't want them we need to explicitly turn them off.
+#            jnxSourceClassUsage => 'false',
 #      	 },
 #      },
 #     
@@ -39,7 +41,7 @@
 #			 'node.nodeModel' => '/JuniperRouter/',  }, # note needs to be regex for nodeModel
 #			 
 #			 systemHealth => { 
-#				Juniper_CoS => 'true',
+#				Juniper_CoS => 'false',  # we just want DCU and SCU so we need to explicitly turn this off.
 #                jnxDestinationClassUsage => 'true',
 #                jnxSourceClassUsage => 'true',
 #			 },
