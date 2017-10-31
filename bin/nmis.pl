@@ -289,7 +289,7 @@ sub	runThreads
 
 	# create uuids for all nodes that might still need them
 	# this changes the local nodes table!
-	if (my $changed_nodes = createNodeUUID())
+	if (my $changed_nodes = NMIS::UUID::createNodeUUID())
 	{
 		$NT = loadLocalNodeTable();
 		dbg("table Local Node reloaded after uuid updates",2);

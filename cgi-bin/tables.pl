@@ -640,7 +640,7 @@ sub doeditTable
 		}
 
 		# ensure a uuid is present
-		$thisentry->{uuid} ||= getUUID($key);
+		$thisentry->{uuid} ||= NMIS::UUID::getUUID($key);
 		$V->{uuid} ||= $thisentry->{uuid};
 
 		# keep the new_name from being written to the config file

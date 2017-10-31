@@ -56,7 +56,7 @@ if ( opendir(MDL,$C->{'<nmis_models>'}) ) {
 }
 closedir(MDL);
 
-my $uuid = getUUID();
+my $uuid = NMIS::UUID::getUUID();
 
 %hash = (
 	Nodes =>
