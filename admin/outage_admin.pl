@@ -75,12 +75,12 @@ outage.description: free-form textual description.
 outage.change_id: change management ticket identifier, used for event tagging
 
 outage.frequency: one of 'once', 'daily', 'weekly' or 'monthly'
-outage.start, outage.end: date and time of outage start and end, 
+outage.start, outage.end: date and time of outage start and end,
  format depends on frequency
   daily: "HH:MM" or "HH:MM:SS". 24:00 is allowed for end.
   weekly: "MDAY HH:MM" or "MDAY HH:MM:SS", MDAY one of 'Mon', 'Tue' etc.
   monthly: "D HH:MM:SS", "-D HH:MM:SS", "D HH:MM", "-D HH:MM"
-   D is the numeric day of the month, 1..31.  -D counts from the end of the month, 
+   D is the numeric day of the month, 1..31.  -D counts from the end of the month,
    -1 is the last day of the month, -2 the second to last etc.
   once: ISO8601 date time recommended,
    e.g. 2017-10-31T03:04:26+0000
@@ -127,13 +127,13 @@ if ($args{act} eq "list")
 	}
 	# header only if tty
 	print join("\t", "ID", "Change ID", "Description",
-						 "Frequency", "Start", "End")."\n" 
+						 "Frequency", "Start", "End")."\n"
 								 if (-t \*STDOUT);
-			
-	for my $orec (@{$res->{outages}}) 
+
+	for my $orec (@{$res->{outages}})
 	{
-		print join("\t", $orec->{id}, 
-							 $orec->{change_id}, 
+		print join("\t", $orec->{id},
+							 $orec->{change_id},
 							 $orec->{description},
 							 $orec->{frequency},
 							 $orec->{start},
@@ -171,12 +171,12 @@ elsif ($args{act} eq "show")
 }
 elsif ($args{act} eq "update")
 {
-	# update: id required 
+	# update: id required
 	my $outid = $args{id};
 
 	die "Cannot update outage without id argument!\n\n$usage\n"
 			if (!$outid);
-	
+
 	# look it up, amend with given values
 	my $res = NMIS::find_outages(filter => { id => $outid });
 	die "Failed to lookup outage: $res->{error}" if (!$res->{success});
@@ -203,16 +203,31 @@ elsif ($args{act} eq "update")
 }
 elsif ($args{act} eq "create")
 {
-	# create: id shouldn't be given
-
 	# create w/o args? show help
 	die $create_help if (!grep(/^outage\./, keys %args));
 
+	my ($addables,%createme);
+	for my $name (grep(/^outage\./, keys %args))
+	{
+		my $dotted = $name; $dotted =~ s/^outage\.//;
+		$createme{$dotted} = (defined($args{$name}) && $args{$name} ne "")?
+				$args{$name} : undef;
+		++$addables;
+
+		my $error = translate_dotfields(\%createme);
+		die "translation of arguments failed: $error\n" if ($error);
+	}
+	die "No arguments for creating an outage!\n" if (!$addables);
+
+	my $res = NMIS::update_outage(%createme);
+	die "Failed to create: $res->{error}\n" if (!$res->{success});
+
+	print "Created outage \"$res->{id}\"\n";
 }
 elsif ($args{act} eq "check")
 {
 	# fixme create!
- 
+
 }
 else
 {
