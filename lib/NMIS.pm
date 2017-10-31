@@ -34,8 +34,8 @@ use lib "$NMIS::uselib::rrdtool_lib";
 
 use strict;
 use RRDs;
-use Time::ParseDate;
 use Time::Local;
+use DateTime;
 use Net::hostent;
 use Socket 2.001;								# for getnameinfo() used by resolveDNStoAddr
 use func;
@@ -49,6 +49,7 @@ use JSON::XS 2.01;
 use File::Basename;
 use File::Copy;
 use CGI qw();												# very ugly but createhrbuttons needs it :(
+use NMIS::UUID;
 
 #! Imports the LOCK_ *constants (eg. LOCK_UN, LOCK_EX)
 use Fcntl qw(:DEFAULT :flock);
@@ -91,7 +92,6 @@ use Exporter;
 
 		loadNodeConfTable has_nodeconf get_nodeconf update_nodeconf
 
-		loadOutageTable
 		loadInterfaceTypes
 		loadCfgTable
 		findCfgEntry
@@ -135,8 +135,7 @@ use Exporter;
 		convertConfFiles
 		statusNumber
 		logMessage
-		outageCheck
-		outageRemove
+
 		sendTrap
 		eventToSMTPPri
 		dutyTime
@@ -1134,17 +1133,14 @@ sub postcolonial
 	return $unsafe;
 }
 
-### 2011-12-29 keiths, added for consistent nodesummary generation
 sub getNodeSummary {
 	my %args = @_;
 	my $C = $args{C};
 	my $group = $args{group};
 
 	my $NT = loadLocalNodeTable();
-	my $OT = loadOutageTable();
 	my %nt;
 
-	### 2015-01-13 keiths, making the field list configurable, these are extra properties, there will be some mandatory ones.
 	my $node_summary_field_list = "customer,businessService";
 	if ( defined $C->{node_summary_field_list} and $C->{node_summary_field_list} ne "" ) {
 		$node_summary_field_list = $C->{node_summary_field_list};
@@ -1200,6 +1196,8 @@ sub getNodeSummary {
 			$nt{$nd}{nodestatus} = "reachable";
 		}
 
+		# fixme rework
+		my $OT = undef;
 		my ($otgStatus,$otgHash) = outageCheck(node=>$nd,time=>time());
 		my $outageText;
 		if ( $otgStatus eq "current" or $otgStatus eq "pending") {
@@ -2171,20 +2169,258 @@ sub loadEnterpriseTable {
 }
 
 
-sub loadOutageTable {
-	my $OT = loadTable(dir=>'conf',name=>'Outage'); # get in cache
+
+# outage api
+
+# outage data/argument structure:
+#
+# id (unique key, automatically generated on create, must be used for update and delete)
+# frequency ('once', 'daily', 'weekly', 'monthly')
+# start, end (a date/date+time/partial format that's suitable for the given frequency),
+# change_id (required but free-form text, used to tag events),
+# description (optional, free-form descriptive text),
+# options (hash substructure that selects optional behaviours for this outage)
+#   nostats (default undef, if set to 1 only 'U' values are written to rrds during the outage)
+# selector (hash substructure that defines what devices this outage covers)
+#  two category keys, 'node' and 'config'
+#  under these there can be any number of key => value filter expressions
+#  all filter expressions must match for the selector to match
+#
+#  selector key X needs to be a CONFIG! property of the node if under node,
+#   (plus nodeModel from the node info), or a global nmis property if under config.
+#
+#  value: either array, or string or regex-string ('/.../' or '/.../i')
+#  array: set of acceptable values; one or more must meet strict equality test for the selector succeed
+#  single string: strict equality
+#  regex-string: identified property must match
+
+# create new or update existing outage
+# note that updates are absolute, not relative to existing outage!
+# you must pass all desired arguments, not only ones you want changed
+#
+# args: id IFF updating,
+# frequency/start/end/description/change_id/options/selector,
+# returns: hashref, keys success/error, id 
+sub update_outage
+{
+	my (%args) = @_;
+
+	# validate the args first
+	# lock and load existing outages,
+	# create new one or update existing one,
+	# save and unlock
+
+	my (%newrec, $op_create);
+	my $outid = $args{id};
+	
+	if (!defined($outid) or $outid eq "") # 0 is ok, empty is not
+	{
+		$outid = NMIS::UUID::getRandomUUID();
+		$op_create = 1;
+	}
+	$newrec{id} = $outid;
+
+	# copy simple args
+	for my $copyable (qw(description change_id))
+	{
+		$newrec{$copyable} = $args{$copyable};
+	}
+	$newrec{options} = ref($args{options}) eq "HASH"? $args{options} : {}; # make sure it's a hash
+	
+	# check freq and freq vs start/end
+	my $freq = $args{frequency};
+	return { error => "invalid frequency \"$freq\"!" } 	
+	if (!defined $freq or $freq !~ /^(once|daily|weekly|monthly)$/);
+	$newrec{frequency} = $args{frequency};
+	
+	for my $check (qw(start end))
+	{
+		my $doesitparse = $freq eq "once"?
+				( func::parseDateTime($args{$check})
+					|| func::getUnixTime($args{$check}) )
+				: _abs_time(relative => $args{$check}, frequency => $freq);
+		
+		return { error => "invalid $check argument \"$args{$check}\" for frequency $freq!" }
+		if (!$doesitparse);
+		$newrec{$check} = $args{$check};
+	}
+
+	# quick/rough sanity check of selectors
+	$newrec{selector} = {};
+	if (ref($args{selector}) eq "HASH")
+	{
+		for my $cat (qw(node config))
+		{
+			my $catsel = $args{selector}->{$cat};
+			next if (ref($catsel) ne "HASH");
+			
+			for my $onesel (keys %$catsel)
+			{
+				# one string, or an array of strings
+				return { error => "invalid selector content for \"$cat.$onesel\"!" }
+				if (ref($catsel->{$onesel}) and ref($catsel->{$onesel}) ne "ARRAY");
+			
+				$newrec{selector}->{$cat}->{$onesel} = $catsel->{$onesel}; # happy, continue
+			}
+		}
+	}
+
+	# inputs look good, lock and load!
+	my ($data, $fh) = loadTable(dir => "conf", name => "Outages", lock => "true");
+	return { error => "failed to lock Outages file: $!" } if (!$fh);
+	$data //= {};									# empty file is ok
+
+	if ($op_create && ref $data->{$outid})
+	{
+		close($fh);									# unlock
+		return { error => "cannot create outage with id $outid: already existing!" };
+	}
+	$data->{$outid} = \%newrec;
+	writeTable(dir => "conf", name => "Outages", handle => $fh, data => $data);
+
+	return { success => 1, id => $outid};
 }
 
+# take a relative/incomplete time and day specification and make into absolute timestamp
+# args: relative (date + time, frequency-specific!),
+# frequency (daily, weekly, monthly)
+#
+# the times are absolutified relative to now, so can be in the past or the future!
+# returns: unix time if parseable, undef if not
+sub _abs_time
+{
+	my (%args) = @_;
+	
+	my ($rel,$frequency) = @args{qw(relative frequency)};
+	return undef if ($frequency !~ /^(once|daily|weekly|monthly)$/);
+
+	my $dt;
+	my %wdlist = ("mon" => 1, "tue" => 2, "wed" => 3, "thu" => 4, "fri" => 5, "sat" => 6, "sun" => 7);
+	my $timezone = "local";
+
+	if ($frequency eq "weekly")
+	{
+		# format: weekday hh:mm(:ss)?, weekday is shortname!
+		# pull off and mangle the weekday first
+		if ($rel =~ s/^\s*(\S+)\s+//)
+		{
+			my $wd = lc(substr($1,0,3));
+			return undef if !$wdlist{$wd};
+
+			# truncate to week begin, then add X-1 days (monday is day 1!, but DT-weekstart is monday too...)
+			$dt = DateTime->now(time_zone => $timezone)->truncate(to => "week")->add("days" => $wdlist{$wd}-1);
+		}
+	}
+	elsif ($frequency eq "monthly")
+	{
+		# format: DayNum hh:mm(:ss)? DayNum==1 means first day of the month, DayNum==-1 means LAST day of the month etc.
+		if ($rel =~ s/^(-?\d+)\s+//)
+		{
+			my $monthday = $1;
+			$dt = DateTime->now(time_zone => $timezone)->truncate(to => "month");
+			if ($monthday <= 0)
+			{
+				$dt->add(months => 1)->subtract(days => -$monthday);
+			}
+			else
+			{
+				eval { $dt->set(day => $monthday); };
+				return undef if $@;
+			}
+		}
+	}
+	# inputs may have a time component (required for daily, optional for the others)
+	# format: hh:mm(:ss)?, with 00:00 meaning day before and 24:00 day after
+	if ($frequency eq "daily")
+	{
+		$dt = DateTime->now(time_zone => $timezone)->truncate(to => "day");
+	}
+	else
+	{
+		return undef if !$dt;
+	}
+	
+	if ($rel =~ /^\s*(\d+):(\d+)(:(\d+))?\s*$/)
+	{
+		my ($h,$m,$s) = ($1,$2,$4);
+		$s ||= 0;
+		
+		return $dt->add(days => 1)->epoch
+				if ($h == 24 and $m == 0 and $s == 0); # handle 24:00:00
+		
+		eval { $dt->set_hour($h)->set_minute($m)->set_second($s) };
+		return $@? undef: $dt->epoch;
+	}
+	else
+	{
+		return $frequency eq "daily"? undef : $dt->epoch; # hhmm is optional only for non-dailies
+	}
+}
+
+# remove existing outage
+# args: id
+# returns: hashrev, keys success/error
+sub remove_outage
+{
+	my (%args) = @_;
+	my $id = $args{id};
+
+	return { error => "cannot remove outage without id argument!" } 
+	if (!$id);
+
+	# lock and load the outages,
+	# delete the indicated one,
+	# save and unlock
+	my ($data, $fh) = loadTable(dir => "conf", name => "Outages", lock => "true");
+	return { error => "failed to lock Outage file: $!" } if (!$fh);
+	$data //= {};
+	
+	delete $data->{$id};
+	writeTable(dir => "conf", name => "Outages", handle => $fh, data => $data);
+
+	return { success => 1};
+}
+
+# find outages, all or filtered
+# args: filter (optional, hashref of outage properties 
+# to check - no filtering by selector FIXME
+# 
+# returns: hashref of success/error, outages (=array of matching outages)
+sub find_outages
+{
+	my (%args) = @_;
+	my $filter = ref($args{filter}) eq "HASH"? $args{filter} : {};
+	
+	my $data = loadTable(dir => "conf", name => "Outages");
+	$data //= {};
+
+	# filter by id? 
+	if (my $thisid = $filter->{id})
+	{
+		# no matching result is not an error
+		return { success => 1, outages => [ grep($_->{id} eq $thisid, values %$data) ] };
+	}
+	# fixme add other filter criteria 
+	
+	return { success => 1, outages => [ values %$data ] };
+}
+
+
+# fixme remove!
+sub outageRemove { die("function gone"); }
+
+# fixme rework into wrapper
 #
 # check outage of node
 # return status,key where status is pending or current, key is hash key of event table
 #
 sub outageCheck {
+
 	my %args = @_;
 	my $node = $args{node};
 	my $time = $args{time};
 
-	my $OT = loadOutageTable();
+fixme gone	my $OT = loadOutageTable();
 
 	# Get each of the nodes info in a HASH for playing with
 	foreach my $key (sort keys %{$OT}) {
@@ -2218,47 +2454,6 @@ sub outageCheck {
 	}
 }
 
-sub outageRemove {
-	my %args = @_;
-	my $key = $args{key};
-
-	my $C = loadConfTable();
-	my $time = time();
-	my $string;
-
-	my ($OT,$handle) = loadTable(dir=>'conf',name=>'Outage',lock=>'true');
-
-	# dont log pending
-	if ($time > $OT->{$key}{start})  {
-		$string = ", Node $OT->{$key}{node}, Start $OT->{$key}{start}, End $OT->{$key}{end}, "
-							."Change $OT->{$key}{change}, Closed $time, User $OT->{$key}{user}";
-	}
-
-	delete $OT->{$key};
-
-	writeTable(dir=>'conf',name=>'Outage',data=>$OT,handle=>$handle);
-
-	my @problems;
-
-	if ($string ne '') {
-		# log this action but DON'T DEADLOCK - logMsg locks, too!
-		if ( open($handle,">>$C->{outage_log}") ) {
-			if ( flock($handle, LOCK_EX) ) {
-				if ( not print $handle returnDateStamp()." $string\n" ) {
-					push(@problems, "cannot write file $C->{outage_log}: $!");
-				}
-			} else {
-				push(@problems, "cannot lock file $C->{outage_log}: $!");
-			}
-			close $handle;
-			map { logMsg("ERROR (nmis) $_") } (@problems);
-
-			setFileProt($C->{outage_log});
-		} else {
-			logMsg("ERROR (nmis) cannot open file $C->{outage_log}: $!");
-		}
-	}
-}
 
 ### HIGHLY EXPERIMENTAL!
 #sub sendTrap {
