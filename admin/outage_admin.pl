@@ -106,6 +106,8 @@ my $debuglevel = setDebug($args{debug});
 my $infolevel = setDebug($args{info});
 my $confname = $args{conf} || "Config";
 
+my $wantquiet = getbool($args{quiet});
+
 # get us a common config first
 my $config = loadConfTable(conf=>$confname,
 													 dir=>"$FindBin::RealBin/../conf",
@@ -122,7 +124,7 @@ if ($args{act} eq "list")
 
 	if (!@{$res->{outages}})
 	{
-		print "No outages defined.\n";
+		print STDERR "No outages defined.\n" if (!$wantquiet);
 		exit 0;
 	}
 	# header only if tty
@@ -218,11 +220,22 @@ elsif ($args{act} eq "create")
 		die "translation of arguments failed: $error\n" if ($error);
 	}
 	die "No arguments for creating an outage!\n" if (!$addables);
+	# make sure the user doesn't pass a clashing id arg!
+	$createme{id} //= $args{id} if (defined $args{id});
+	if ($createme{id})
+	{
+		my $clash = NMIS::find_outages(filter => { id => $createme{id} });
+		die "Failed to lookup outage: $clash->{error}" if (!$clash->{success});
+		die "Cannot create outage with id \"$createme{id}\": already exists!\n"
+				if (@{$clash->{outages}});
+	}
 
 	my $res = NMIS::update_outage(%createme);
 	die "Failed to create: $res->{error}\n" if (!$res->{success});
 
-	print "Created outage \"$res->{id}\"\n";
+	# print the created id if not quiet, and without fluff if not tty
+	print (-t \*STDOUT? "Created outage \"$res->{id}\"\n" : $res->{id}."\n")
+			if (!$wantquiet);
 }
 elsif ($args{act} eq "check")
 {

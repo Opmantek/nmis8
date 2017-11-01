@@ -2194,13 +2194,14 @@ sub loadEnterpriseTable {
 #  single string: strict equality
 #  regex-string: identified property must match
 
+
 # create new or update existing outage
 # note that updates are absolute, not relative to existing outage!
 # you must pass all desired arguments, not only ones you want changed
 #
 # args: id IFF updating,
 # frequency/start/end/description/change_id/options/selector,
-# returns: hashref, keys success/error, id 
+# returns: hashref, keys success/error, id
 sub update_outage
 {
 	my (%args) = @_;
@@ -2212,7 +2213,7 @@ sub update_outage
 
 	my (%newrec, $op_create);
 	my $outid = $args{id};
-	
+
 	if (!defined($outid) or $outid eq "") # 0 is ok, empty is not
 	{
 		$outid = NMIS::UUID::getRandomUUID();
@@ -2226,24 +2227,39 @@ sub update_outage
 		$newrec{$copyable} = $args{$copyable};
 	}
 	$newrec{options} = ref($args{options}) eq "HASH"? $args{options} : {}; # make sure it's a hash
-	
+
 	# check freq and freq vs start/end
 	my $freq = $args{frequency};
-	return { error => "invalid frequency \"$freq\"!" } 	
+	return { error => "invalid frequency \"$freq\"!" }
 	if (!defined $freq or $freq !~ /^(once|daily|weekly|monthly)$/);
 	$newrec{frequency} = $args{frequency};
-	
+
+	my %parsedtimes;
 	for my $check (qw(start end))
 	{
 		my $doesitparse = $freq eq "once"?
 				( func::parseDateTime($args{$check})
 					|| func::getUnixTime($args{$check}) )
 				: _abs_time(relative => $args{$check}, frequency => $freq);
-		
+
 		return { error => "invalid $check argument \"$args{$check}\" for frequency $freq!" }
 		if (!$doesitparse);
-		$newrec{$check} = $args{$check};
+
+		$parsedtimes{$check} = $doesitparse;
+		# for one-offs with relative inputs let's store the parsed value
+		# dodgy heuristic: chars outside of what's needed for iso8601?
+		# 2017-01-01T12:34:56.789+04:30
+		if ($freq eq "once" && $args{$check} !~ /^[0-9TZ.: +-]+$/)
+		{
+			$newrec{$check} = $doesitparse;
+		}
+		else
+		{
+			$newrec{$check} = $args{$check};
+		}
 	}
+	return { error => "invalid times, start is later than end!" }
+	if ($freq eq "once" && $parsedtimes{start} >= $parsedtimes{end});
 
 	# quick/rough sanity check of selectors
 	$newrec{selector} = {};
@@ -2253,24 +2269,40 @@ sub update_outage
 		{
 			my $catsel = $args{selector}->{$cat};
 			next if (ref($catsel) ne "HASH");
-			
+
 			for my $onesel (keys %$catsel)
 			{
 				# one string, or an array of strings
 				return { error => "invalid selector content for \"$cat.$onesel\"!" }
 				if (ref($catsel->{$onesel}) and ref($catsel->{$onesel}) ne "ARRAY");
-			
-				$newrec{selector}->{$cat}->{$onesel} = $catsel->{$onesel}; # happy, continue
+
+				if (defined $catsel->{$onesel})
+				{
+					$newrec{selector}->{$cat}->{$onesel} = $catsel->{$onesel};
+				}
+				else
+				{
+					delete $newrec{selector}->{$cat}->{$onesel};
+				}
 			}
 		}
 	}
-
 	# inputs look good, lock and load!
-	my ($data, $fh) = loadTable(dir => "conf", name => "Outages", lock => "true");
+
+	# except that loadtable doesn't allow file creation on the fly, only readfiletohash
+	# which is much lowerlevel wrt arguments  :-/
+	if (!existFile(dir => "conf", name => "Outages"))
+	{
+		writeTable(dir => "conf", name => "Outages", data => {});
+	}
+	my ($data, $fh) = loadTable(dir => "conf", name => "Outages", lock => 1);
+
+
+
 	return { error => "failed to lock Outages file: $!" } if (!$fh);
 	$data //= {};									# empty file is ok
 
-	if ($op_create && ref $data->{$outid})
+	if ($op_create && ref($data->{$outid}))
 	{
 		close($fh);									# unlock
 		return { error => "cannot create outage with id $outid: already existing!" };
@@ -2290,7 +2322,7 @@ sub update_outage
 sub _abs_time
 {
 	my (%args) = @_;
-	
+
 	my ($rel,$frequency) = @args{qw(relative frequency)};
 	return undef if ($frequency !~ /^(once|daily|weekly|monthly)$/);
 
@@ -2339,15 +2371,15 @@ sub _abs_time
 	{
 		return undef if !$dt;
 	}
-	
+
 	if ($rel =~ /^\s*(\d+):(\d+)(:(\d+))?\s*$/)
 	{
 		my ($h,$m,$s) = ($1,$2,$4);
 		$s ||= 0;
-		
+
 		return $dt->add(days => 1)->epoch
 				if ($h == 24 and $m == 0 and $s == 0); # handle 24:00:00
-		
+
 		eval { $dt->set_hour($h)->set_minute($m)->set_second($s) };
 		return $@? undef: $dt->epoch;
 	}
@@ -2365,7 +2397,7 @@ sub remove_outage
 	my (%args) = @_;
 	my $id = $args{id};
 
-	return { error => "cannot remove outage without id argument!" } 
+	return { error => "cannot remove outage without id argument!" }
 	if (!$id);
 
 	# lock and load the outages,
@@ -2374,7 +2406,7 @@ sub remove_outage
 	my ($data, $fh) = loadTable(dir => "conf", name => "Outages", lock => "true");
 	return { error => "failed to lock Outage file: $!" } if (!$fh);
 	$data //= {};
-	
+
 	delete $data->{$id};
 	writeTable(dir => "conf", name => "Outages", handle => $fh, data => $data);
 
@@ -2382,26 +2414,26 @@ sub remove_outage
 }
 
 # find outages, all or filtered
-# args: filter (optional, hashref of outage properties 
+# args: filter (optional, hashref of outage properties
 # to check - no filtering by selector FIXME
-# 
+#
 # returns: hashref of success/error, outages (=array of matching outages)
 sub find_outages
 {
 	my (%args) = @_;
 	my $filter = ref($args{filter}) eq "HASH"? $args{filter} : {};
-	
+
 	my $data = loadTable(dir => "conf", name => "Outages");
 	$data //= {};
 
-	# filter by id? 
+	# filter by id?
 	if (my $thisid = $filter->{id})
 	{
 		# no matching result is not an error
 		return { success => 1, outages => [ grep($_->{id} eq $thisid, values %$data) ] };
 	}
-	# fixme add other filter criteria 
-	
+	# fixme add other filter criteria
+
 	return { success => 1, outages => [ values %$data ] };
 }
 
