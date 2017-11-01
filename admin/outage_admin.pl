@@ -55,7 +55,7 @@ my $usage = "Usage: $bn act=[action to take] [extras...]
 \t$bn act=create [outage.A=B... outage.X.Y=Z...]
 \t$bn act=update id=<outid> [outage.A=B... outage.X.Y=Z...]
 \t$bn act={delete|show} id=<outid>
-\t$bn act=check [id=<outid>] [node=X] [time=T]
+\t$bn act=check [node=X] [time=T]
 
 list: shows overview of defined outage schedules
 show: displays the details for an outage
@@ -239,8 +239,52 @@ elsif ($args{act} eq "create")
 }
 elsif ($args{act} eq "check")
 {
-	# fixme create!
+	my $node = $args{node};
+	my $uuid = $args{uuid};				# option
+	my $when = $args{time} || time;
+	if ($when !~ /^\d+(\.\d+)?$/)
+	{
+		$when = func::parseDateTime($when) || func::getUnixTime($when);
+	}
 
+	my $res = NMIS::check_outages( node => $node, uuid => $uuid, time => $when);
+	die "Failed to check outages: $res->{error}\n" if (!$res->{success});
+
+	if ($uuid && !$node)
+	{
+		my $LNT = loadLocalNodeTable;
+		$node = (grep($_->{uuid} eq $uuid, values %$LNT))[0]->{name};
+	}
+
+	print "\nRelevant outages for node $node, at time "
+			.localtime($when).":\n";
+
+	for (["Past:", "past"], ["Future:", "future"], ["Current: ", "current" ])
+	{
+		my ($tag, $source) = @$_;
+
+		if (!@{$res->{$source}})
+		{
+			print "$tag None\n";
+		}
+		else
+		{
+			my @output;
+			for my $match (@{$res->{$source}})
+			{
+				my $msg = "\n\t\"$match->{description}\" ($match->{id})\n\t$match->{frequency} from '"
+						. ($match->{start} =~ /^\d+(\.\d+)?$/? scalar(localtime($match->{start})) : $match->{start})
+						."' to '"
+						. ($match->{end} =~ /^\d+(\.\d+)?$/? scalar(localtime($match->{end})) : $match->{end})."'";
+				$msg .= "\n\t(actual '".localtime($match->{actual_start}). "' to '".localtime($match->{actual_end})."')"
+						if ($match->{actual_start});
+				push @output, $msg;
+			}
+			print "$tag ".join("\n\n", @output)."\n";
+		}
+	}
+	print "\n";
+	exit 0;
 }
 else
 {

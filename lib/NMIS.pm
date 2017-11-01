@@ -48,6 +48,8 @@ use URI::Escape;
 use JSON::XS 2.01;
 use File::Basename;
 use File::Copy;
+use Clone;
+use List::Util;
 use CGI qw();												# very ugly but createhrbuttons needs it :(
 use NMIS::UUID;
 
@@ -2238,8 +2240,8 @@ sub update_outage
 	for my $check (qw(start end))
 	{
 		my $doesitparse = $freq eq "once"?
-				( func::parseDateTime($args{$check})
-					|| func::getUnixTime($args{$check}) )
+				( ($args{$check} =~ /^\d+(\.\d+)?$/)?
+					$args{$check} :  func::parseDateTime($args{$check}) || func::getUnixTime($args{$check}) )
 				: _abs_time(relative => $args{$check}, frequency => $freq);
 
 		return { error => "invalid $check argument \"$args{$check}\" for frequency $freq!" }
@@ -2315,7 +2317,8 @@ sub update_outage
 
 # take a relative/incomplete time and day specification and make into absolute timestamp
 # args: relative (date + time, frequency-specific!),
-# frequency (daily, weekly, monthly)
+# frequency (daily, weekly, monthly),
+# base (optional, absolute base time; if not given now is used)
 #
 # the times are absolutified relative to now, so can be in the past or the future!
 # returns: unix time if parseable, undef if not
@@ -2326,9 +2329,10 @@ sub _abs_time
 	my ($rel,$frequency) = @args{qw(relative frequency)};
 	return undef if ($frequency !~ /^(once|daily|weekly|monthly)$/);
 
-	my $dt;
 	my %wdlist = ("mon" => 1, "tue" => 2, "wed" => 3, "thu" => 4, "fri" => 5, "sat" => 6, "sun" => 7);
 	my $timezone = "local";
+	my $dt = $args{base}? DateTime->from_epoch(epoch => $args{base}, time_zone => $timezone)
+			: DateTime->now(time_zone => $timezone);
 
 	if ($frequency eq "weekly")
 	{
@@ -2340,7 +2344,7 @@ sub _abs_time
 			return undef if !$wdlist{$wd};
 
 			# truncate to week begin, then add X-1 days (monday is day 1!, but DT-weekstart is monday too...)
-			$dt = DateTime->now(time_zone => $timezone)->truncate(to => "week")->add("days" => $wdlist{$wd}-1);
+			$dt = $dt->truncate(to => "week")->add("days" => $wdlist{$wd}-1);
 		}
 	}
 	elsif ($frequency eq "monthly")
@@ -2349,7 +2353,7 @@ sub _abs_time
 		if ($rel =~ s/^(-?\d+)\s+//)
 		{
 			my $monthday = $1;
-			$dt = DateTime->now(time_zone => $timezone)->truncate(to => "month");
+			$dt = $dt->truncate(to => "month");
 			if ($monthday <= 0)
 			{
 				$dt->add(months => 1)->subtract(days => -$monthday);
@@ -2365,7 +2369,7 @@ sub _abs_time
 	# format: hh:mm(:ss)?, with 00:00 meaning day before and 24:00 day after
 	if ($frequency eq "daily")
 	{
-		$dt = DateTime->now(time_zone => $timezone)->truncate(to => "day");
+		$dt = $dt->truncate(to => "day");
 	}
 	else
 	{
@@ -2386,6 +2390,35 @@ sub _abs_time
 	else
 	{
 		return $frequency eq "daily"? undef : $dt->epoch; # hhmm is optional only for non-dailies
+	}
+}
+
+# advances (or reduces) timestamp by X intervals, based on the given frequency
+# args: timestamp, frquency, count (default: +1)
+# returns new timestamp
+sub _prev_next_interval
+{
+	my (%args) = @_;
+	my ($ts, $freq, $count) = @args{qw(timestamp frequency count)};
+
+	my %freq2delta = ("daily" => { days => 1}, "weekly" => {weeks => 1},
+										"monthly" => { months => 1 });
+	return $ts if (!$freq or !$freq2delta{$freq} or (defined $count and !$count));
+	$count ||= 1;
+
+	my $timezone = 	"local";
+	my $dt = 	DateTime->from_epoch(epoch => $ts, time_zone => $timezone);
+	my %delta = %{$freq2delta{$freq}};
+
+	if ($count < 0)
+	{
+		$delta{(keys %delta)[0]} = -$count; # only one key
+		return $dt->subtract(%delta)->epoch;
+	}
+	else
+	{
+		$delta{(keys %delta)[0]} = $count;
+		return $dt->add(%delta)->epoch;
 	}
 }
 
@@ -2437,6 +2470,184 @@ sub find_outages
 	return { success => 1, outages => [ values %$data ] };
 }
 
+# find active/future/past outages for a given context,
+# ie. one node and a time
+#
+# args: node or uuid, time (a unix timestamp, fractional is ok); all required
+# returns: hashref, with keys success/error, past, current, future: arrays (can be empty)
+#
+# current: outages that fully apply - these are amended with actual_start/actual_end unix TS,
+# past: past one-off (not recurring ones!) outages for this node
+# future: future outages for this node, also with actual_start/actual_end (of the next instance)
+sub check_outages
+{
+	my (%args) = @_;
+	my $when = $args{time};
+
+	return { error => "cannot check outages without valid time argument!" }
+	if (!$when or $when !~ /^\d+(\.d+)?$/);
+
+	return { error => "cannot check outages without node or uuid argument!" }
+	if (!$args{node} and !$args{uuid});
+
+	my $outagedata = loadTable(dir => "conf", name => "Outages");
+	$outagedata //= {};
+	# no outages, no problem
+	return { success => 1, future => [], past => [], current => [] }
+	if (!keys %$outagedata);
+
+	# get the data for selectors
+	my $C = loadConfTable;	# cached
+	my $LNT = loadLocalNodeTable();
+	my $who;
+	if ($args{uuid})
+	{
+		$who = (grep($_->{uuid} eq $args{uuid}, values %$LNT))[0]; # at most one
+		return { error => "no node with uuid \"$args{uuid}\" exists!" } if (!$who);
+	}
+	else
+	{
+		$who = $LNT->{ $args{node} };
+		return { error => "no node named \"$args{node}\" exists!" } if (!$who);
+	}
+	# also pull the node info for the nodeModel property
+	# fixme!
+
+	my (@future,@past,@current);
+	for my $outid (keys %$outagedata)
+	{
+		my $maybeout = $outagedata->{$outid};
+
+		# let's check all selectors
+		my $rulematches = 1;
+		for my $selcat (qw(config node))
+		{
+			if (ref($maybeout->{selector}->{$selcat}) eq "HASH")
+			{
+				for my $propname (keys %{$maybeout->{selector}->{$selcat}})
+				{
+					my $actual = ($selcat eq "config"?
+												$C->{$propname} : $who->{$propname});
+
+					# choices can be: regex, or fixed string, or array of fixed strings
+					my $expected = $maybeout->{selector}->{$selcat}->{$propname};
+
+					# list of precise matches
+					if (ref($expected) eq "ARRAY")
+					{
+						$rulematches = 0 if (! List::Util::any { $actual eq $_ } @$expected);
+					}
+					# or a regex-like string
+					elsif ($expected =~ m!^/(.*)/(i)?$!)
+					{
+						my ($re,$options) = ($1,$2);
+						my $regex = ($options? qr{$re}i : qr{$re});
+						$rulematches = 0 if ($actual !~ $regex);
+					}
+					# or a single precise match
+					else
+					{
+						$rulematches = 0 if ($actual ne $expected);
+					}
+				}
+				last if (!$rulematches);
+			}
+			last if (!$rulematches);
+		}
+		# didn't survive all selector rules? note that no selectors === match
+		next if (!$rulematches);
+
+		# how about the time?
+		my $intime;
+		if ($maybeout->{frequency} eq "once")
+		{
+			if ($when < $maybeout->{start})
+			{
+				push @future, $maybeout;
+			}
+			elsif ($when >= $maybeout->{start} && $when <= $maybeout->{end})
+			{
+				push @current, { %$maybeout,
+												 actual_start => $maybeout->{start},
+												 actual_end => $maybeout->{end} }; # convenience only
+				$intime = 1;
+			}
+			else # ie. > $maybeout->{end}
+			{
+				push @past, $maybeout;
+			}
+		}
+		elsif ($maybeout->{frequency} =~ /^(daily|weekly|monthly)$/)
+		{
+			# absolute time is going to be 'near' when, but that's not quite good enough
+			my $start = _abs_time(relative => $maybeout->{start},
+														frequency => $maybeout->{frequency},
+														base => $when);
+			my $end = _abs_time(relative => $maybeout->{end},
+													frequency => $maybeout->{frequency},
+													base => $when);
+
+			# start after end? (e.g. daily, start 1400, end 0200) -> start must go back one interval
+			# (or end would have to go forward one)
+			$start = _prev_next_interval(timestamp => $start, frequency => $maybeout->{frequency},
+																	 count => -1) if ($start > $end);
+
+			# advance or retreat until closest to when
+			if ($when < $start && $when < $end) # retreat
+			{
+				while ($when < $start && $when < $end)
+				{
+					$start = _prev_next_interval(timestamp => $start,
+																			 frequency => $maybeout->{frequency}, count => -1);
+					$end = _prev_next_interval(timestamp => $end,
+																		 frequency => $maybeout->{frequency}, count => -1);
+				}
+			}
+			elsif ($when > $start && $when > $end) # advance
+			{
+				while ($when > $start && $when > $end)
+				{
+					$start = _prev_next_interval(timestamp => $start,
+																			 frequency => $maybeout->{frequency}, count => 1);
+					$end = _prev_next_interval(timestamp => $end,
+																		 frequency => $maybeout->{frequency}, count => 1);
+				}
+			}
+
+			# before both start and end is obviously future
+			if ($when < $start)
+			{
+				push @future, { %$maybeout, actual_start => $start, actual_end => $end };
+			}
+			# but *after* both start and end is also future, just plus one or more repeat intervals
+			elsif ($when > $end)
+			{
+				push @future, { %$maybeout,
+												actual_start => _prev_next_interval(timestamp => $start,
+																														frequency => $maybeout->{frequency},
+																														count => 1),
+												actual_end => _prev_next_interval(timestamp => $end,
+																													frequency => $maybeout->{frequency},
+																													count => 1),
+				};
+			}
+			# and current is inbetween
+			elsif ($when >= $start && $when <= $end)
+			{
+				push @current, { %$maybeout, actual_start => $start, actual_end => $end };
+				$intime = 1;
+			}
+		}
+		else
+		{
+			return { error => "outage \"$outid\" has invalid frequency!" };
+		}
+
+		next if (!$intime);
+	}
+
+	return { success => 1,  past => \@past, current => \@current, future => \@future };
+}
 
 # fixme remove!
 sub outageRemove { die("function gone"); }
