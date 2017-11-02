@@ -36,6 +36,9 @@ use lib "$FindBin::Bin/../lib";
 #
 use strict;
 use Time::ParseDate;
+use JSON::XS;
+use POSIX;
+
 use NMIS;
 use Sys;
 use func;
@@ -90,8 +93,8 @@ exit;
 
 #===================
 
-sub viewOutage {
-
+sub viewOutage
+{
 	my @out;
 	my $node = $Q->{node};
 
@@ -102,8 +105,15 @@ sub viewOutage {
 	print header($headeropts);
 	pageStartJscript(title => $title, refresh => 86400) if (!$wantwidget);
 
-	my $OT = loadOutageTable();
 	my $NT = loadNodeTable();
+	my $res = NMIS::find_outages(node => $node); # or all
+	if (!$res->{success})
+	{
+		$Q->{error} = "Cannot find outages: $res->{error}";
+		return;
+	}
+	my @outages = @{$res->{outages}};
+
 
 	my $S = Sys::->new;
 	$S->init(name=>$node,snmp=>'false');
@@ -148,7 +158,7 @@ sub viewOutage {
 				textfield(-name=>'end',-id=>'id_end',-style=>'background-color:yellow;width:100%;',override=>'1',
 					-value=>returnDateStamp($end)),div({-id=>'calendar-end'}) )
 			);
-			
+
 		print Tr(
 			td({class=>'header',align=>'left'},'Related Change Details'),
 			td({class=>'info',colspan=>'2'},
@@ -181,40 +191,68 @@ sub viewOutage {
 	print Tr(td({class=>'header',colspan=>'6'},$hd));
 
 	push @out, Tr(
-		td({class=>'header',align=>'center'},'Node'),
+		td({class=>'header',align=>'center'},'Node Selector'),
 		td({class=>'header',align=>'center'},'Start'),
 		td({class=>'header',align=>'center'},'End'),
 		td({class=>'header',align=>'center'},'Change'),
 		td({class=>'header',align=>'center'},'Status'),
 		td({class=>'header',align=>'center'},'Action')
-		);
-	foreach my $ot (sortall($OT,'start','rev')) {
-		next unless $AU->InGroup($NT->{$OT->{$ot}{node}}{group});
-		next if $Q->{node} ne '' and $node !~ /$OT->{$ot}{node}/;
+			);
 
-		my $outage = 'closed';
-		my $color = "#FFFFFF";
-		if ($OT->{$ot}{start} <= $time and $OT->{$ot}{end} >= $time) {
-			$outage = 'current';
-			$color = "#00FF00";
-		} elsif ($OT->{$ot}{start} >= $time) {
-			$outage = 'pending';
-			$color = "#FFFF00";
+	for my $outage (@outages)
+	{
+		my ($status,$color);
+
+		# no coloring/status for recurring ones
+		if ($outage->{frequency} eq "once")
+		{
+			if ($time >= $outage->{end})
+			{
+				$status =  'closed';
+				$color = "#FFFFFF";
+			}
+			elsif ($time < $outage->{start})
+			{
+				$status = "pending";
+				$color = "#FFFF00";
+			}
+			else
+			{
+				$status = 'current';
+				$color = "#00FF00";
+			}
+
+		}
+		else
+		{
+			$status = $outage->{frequency};
+			$color = "white";
 		}
 
+		# very rough stringification of the of the selector
+		my $visual = JSON::XS->new->encode($outage->{selector});
+
 		push @out, Tr(
-			td({class=>'info',style=>getBGColor($color)},$NT->{$OT->{$ot}{node}}{name}),
-			td({class=>'info',style=>getBGColor($color)},returnDateStamp($OT->{$ot}{start})),
-			td({class=>'info',style=>getBGColor($color)},returnDateStamp($OT->{$ot}{end})),
-			td({class=>'info',style=>getBGColor($color)},$OT->{$ot}{change}),
-			td({class=>'info',style=>getBGColor($color)},$outage),
-			td({class=>'info'},a({href=>url(-absolute=>1)."?conf=$Q->{conf}&act=outage_table_dodelete&hash=$ot&widget=$widget"},'delete'))
-			);
+			td({class=>'info',style=>getBGColor($color)}, $visual),
+
+			# one-offs have start/end in unix seconds, make them friendlier for viewing
+			td({class=>'info',style=>getBGColor($color)}, $outage->{start} =~ /^\d+(\.\d+)?$/?
+				 POSIX::strftime("%Y-%m-%dT%H:%M:%S", localtime($outage->{start})) : $outage->{start}),
+
+			td({class=>'info',style=>getBGColor($color)}, $outage->{end} =~ /^\d+(\.\d+)?$/?
+				 POSIX::strftime("%Y-%m-%dT%H:%M:%S", localtime($outage->{end})) : $outage->{end}),
+
+			td({class=>'info',style=>getBGColor($color)}, $outage->{change_id}),
+			td({class=>'info',style=>getBGColor($color)}, $status),
+			td({class=>'info'},a({href=>url(-absolute=>1)."?conf=$Q->{conf}&act=outage_table_dodelete&id=$outage->{id}&widget=$widget"},'delete'))
+				);
 	}
-	if ($#out > 0) {
+
+	if (@out)
+	{
 		print @out;
 	} else {
-		print Tr(td({class=>'info',colspan=>'6'},'No outage current',eval { return " of Node $node" if $node ne '';}));
+		print Tr(td({class=>'info',colspan=>'6'}, 'No outage current' . ($node ne ''? " of Node $node": "")));
 	}
 
 	print end_table;
@@ -284,34 +322,39 @@ sub doaddOutage {
 		return;
 	}
 
-	$change =~ s/,//g; # remove comma
+	$Q->{node} = '';							# fixme: what is that for??
 
-	my ($OT,$handle) = loadTable(dir=>'conf',name=>'Outage',lock=>'true');
+	$change =~ s/,//g; # remove comma to appease brittle event log system
 
 	# process multiple node selection - which arrives \0-packed if POSTed, ie. nonwidget,
 	# or comma separated in widget mode
 	my $sep = $wantwidget? qr/\s*,\s*/ : qr/\0/;
-	for my $nd ( split( $sep, $node) )
+	my @nodes = split( $sep, $node);
+
+	my $res = NMIS::update_outage(frequency => "once",
+																change_id => $change,
+																start => $start,
+																end => $end,
+																selector => { node =>
+																							{ name =>
+																										(@nodes > 1? \@nodes : $nodes[0]) } }); # array only if more than one
+
+	if (!$res->{success})
 	{
-		my $outageHash = "$nd-$start-$end"; # key
-		$OT->{$outageHash}{node} = $nd;
-		$OT->{$outageHash}{start} = $start;
-		$OT->{$outageHash}{end} = $end;
-		$OT->{$outageHash}{change} = $change;
-		$OT->{$outageHash}{user} = $AU->User();
+		$Q->{error} = "Failed to create outage: $res->{error}";
+		return;
 	}
-
-	writeTable(dir=>'conf',name=>'Outage',data=>$OT,handle=>$handle);
-
-	$Q->{node} = '';
 }
 
+# requires the outage id
 sub dodeleteOutage {
-
 	$AU->CheckAccess("Table_Outages_rw",'header');
 
-	outageRemove(key=>$Q->{hash});
+	$Q->{node} = '';							# fixme what is that for?
 
-
-	$Q->{node} = '';
+	my $res = NMIS::remove_outage(id => $Q->{id});
+	if (!$res->{success})
+	{
+		$Q->{error} = "Failed to delete outage $Q->{id}: $res->{error}";
+	}
 }
