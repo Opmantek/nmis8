@@ -176,6 +176,8 @@ NMIS version $NMIS::VERSION
 &NMIS::upgrade_events_structure;
 # ditto for nodeconf
 &NMIS::upgrade_nodeconf_structure;
+# and for outages
+&NMIS::upgrade_outages;
 
 if ($type =~ /^(collect|update|services)$/) {
 	runThreads(type=>$type, node=>$node, mthread=>$mthread, mthreadDebug=>$mthreadDebug);
@@ -3538,7 +3540,7 @@ sub processAlerts
 			source => $alert->{source}, # snmp or wmi
 			section => $alert->{section},
 			# name does not exist for simple alerts, let's synthesize it from ds
-			name => $alert->{alert} || $alert->{ds},	
+			name => $alert->{alert} || $alert->{ds},
 		};
 	}
 }

@@ -109,6 +109,7 @@ use Exporter;
 		checkEvent
 		notify
 
+    outageCheck
 
 		nodeStatus
     PreciseNodeStatus
@@ -138,7 +139,6 @@ use Exporter;
 		statusNumber
 		logMessage
 
-		sendTrap
 		eventToSMTPPri
 		dutyTime
 		resolveDNStoAddr
@@ -1198,15 +1198,14 @@ sub getNodeSummary {
 			$nt{$nd}{nodestatus} = "reachable";
 		}
 
-		# fixme rework
-		my $OT = undef;
-		my ($otgStatus,$otgHash) = outageCheck(node=>$nd,time=>time());
+		my ($otgStatus,$otgHash) = outageCheck(node=>$nd, time=>time());
 		my $outageText;
+
 		if ( $otgStatus eq "current" or $otgStatus eq "pending") {
 			my $color = ( $otgStatus eq "current" ) ? "#00AA00" : "#FFFF00";
 
-			my $outageText = "node=$OT->{$otgHash}{node}<br>start=".returnDateStamp($OT->{$otgHash}{start})
-			."<br>end=".returnDateStamp($OT->{$otgHash}{end})."<br>change=$OT->{$otgHash}{change}";
+			my $outageText = "node=$nd<br>start=".returnDateStamp($otgHash->{actual_start})
+			."<br>end=".returnDateStamp($otgHash->{actual_end})."<br>change=$otgHash->{change_id}";
 		}
 		$nt{$nd}{outage} = $otgStatus;
 		$nt{$nd}{outageText} = $outageText;
@@ -1817,113 +1816,45 @@ sub overallNodeStatus {
 	my $NT = loadNodeTable();
 	my $NS = loadNodeSummary();
 
-	#print STDERR &returnDateStamp." overallNodeStatus: netType=$netType roleType=$roleType\n";
+	foreach $node (sort keys %{$NT} )
+	{
+		next if (!getbool($NT->{$node}{active}));
 
-	if ( $group eq "" and $customer eq "" and $business eq "" and $netType eq "" and $roleType eq "" ) {
-		foreach $node (sort keys %{$NT} ) {
-			if (getbool($NT->{$node}{active})) {
-				my $nodedown = 0;
-				my $outage = "";
-				if ( $NT->{$node}{server} eq $C->{server_name} ) {
-					### 2013-08-20 keiths, check for SNMP Down if ping eq false.
-					my $down_event = "Node Down";
-					$down_event = "SNMP Down" if getbool($NT->{$node}{ping},"invert");
-					$nodedown = eventExist($node, $down_event, undef)? 1:0; # returns the event filename
+		if (
+			( $group eq "" and $customer eq "" and $business eq "" and $netType eq "" and $roleType eq "" )
+			or
+			( $netType ne "" and $roleType ne ""
+				and $NT->{$node}{net} eq "$netType" && $NT->{$node}{role} eq "$roleType" )
+			or ($group ne "" and $NT->{$node}{group} eq $group)
+			or ($customer ne "" and $NT->{$node}{customer} eq $customer)
+			or ($business ne "" and $NT->{$node}{businessService} =~ /$business/ ) )
+		{
+			my $nodedown = 0;
+			my $outage = "";
+			if ( $NT->{$node}{server} eq $C->{server_name} ) {
+				### 2013-08-20 keiths, check for SNMP Down if ping eq false.
+				my $down_event = "Node Down";
+				$down_event = "SNMP Down" if getbool($NT->{$node}{ping},"invert");
+				$nodedown = eventExist($node, $down_event, undef)? 1:0; # returns the event filename
 
-					($outage,undef) = outageCheck(node=>$node,time=>time());
-				}
-				else {
-					$outage = $NS->{$node}{outage};
-					if ( getbool($NS->{$node}{nodedown})) {
-						$nodedown = 1;
-					}
-				}
-
-				if ( $nodedown and $outage ne 'current' ) {
-					($event_status) = eventLevel("Node Down",$NT->{$node}{roleType});
-				}
-				else {
-					($event_status) = eventLevel("Node Up",$NT->{$node}{roleType});
-				}
-
-				++$statusHash{$event_status};
-				++$statusHash{count};
+				($outage,undef) = outageCheck(node=>$node,time=>time());
 			}
-		}
-	}
-	elsif ( $netType ne "" and $roleType ne "" ) {
-		foreach $node (sort keys %{$NT} ) {
-			if (getbool($NT->{$node}{active})) {
-				if ( $NT->{$node}{net} eq "$netType" && $NT->{$node}{role} eq "$roleType" ) {
-					my $nodedown = 0;
-					my $outage = "";
-					if ( $NT->{$node}{server} eq $C->{server_name} )
-					{
-						### 2013-08-20 keiths, check for SNMP Down if ping eq false.
-						my $down_event = "Node Down";
-						$down_event = "SNMP Down" if getbool($NT->{$node}{ping},"invert");
-						$nodedown = eventExist($node, $down_event, undef)? 1 : 0;
-
-						($outage,undef) = outageCheck(node=>$node,time=>time());
-					}
-					else {
-						$outage = $NS->{$node}{outage};
-						if ( getbool($NS->{$node}{nodedown})) {
-							$nodedown = 1;
-						}
-					}
-
-					if ( $nodedown and $outage ne 'current' ) {
-						($event_status) = eventLevel("Node Down",$NT->{$node}{roleType});
-					}
-					else {
-						($event_status) = eventLevel("Node Up",$NT->{$node}{roleType});
-					}
-
-					++$statusHash{$event_status};
-					++$statusHash{count};
+			else {
+				$outage = $NS->{$node}{outage};
+				if ( getbool($NS->{$node}{nodedown})) {
+					$nodedown = 1;
 				}
 			}
-		}
-	}
-	elsif ( $group ne "" or $customer ne "" or $business ne "" ) {
-		foreach $node (sort keys %{$NT} ) {
-			if (
-				getbool($NT->{$node}{active})
-				and ( ($group ne "" and $NT->{$node}{group} eq $group)
-							or ($customer ne "" and $NT->{$node}{customer} eq $customer)
-							or ($business ne "" and $NT->{$node}{businessService} =~ /$business/ )
-						)
-			) {
-				my $nodedown = 0;
-				my $outage = "";
-				if ( $NT->{$node}{server} eq $C->{server_name} )
-				{
-					### 2013-08-20 keiths, check for SNMP Down if ping eq false.
-					my $down_event = "Node Down";
-					$down_event = "SNMP Down" if getbool($NT->{$node}{ping},"invert");
 
-					$nodedown = eventExist($node, $down_event, undef)? 1:0;
-					($outage,undef) = outageCheck(node=>$node,time=>time());
-				}
-				else {
-					$outage = $NS->{$node}{outage};
-					if ( getbool($NS->{$node}{nodedown})) {
-						$nodedown = 1;
-					}
-				}
-
-				if ( $nodedown and $outage ne 'current' ) {
-					($event_status) = eventLevel("Node Down",$NT->{$node}{roleType});
-				}
-				else {
-					($event_status) = eventLevel("Node Up",$NT->{$node}{roleType});
-				}
-
-				++$statusHash{$event_status};
-				++$statusHash{count};
-				#print STDERR &returnDateStamp." overallNodeStatus: $node $group $event_status event=$statusHash{$event_status} count=$statusHash{count}\n";
+			if ( $nodedown and $outage ne 'current' ) {
+				($event_status) = eventLevel("Node Down",$NT->{$node}{roleType});
 			}
+			else {
+				($event_status) = eventLevel("Node Up",$NT->{$node}{roleType});
+			}
+
+			++$statusHash{$event_status};
+			++$statusHash{count};
 		}
 	}
 
@@ -2299,8 +2230,6 @@ sub update_outage
 	}
 	my ($data, $fh) = loadTable(dir => "conf", name => "Outages", lock => 1);
 
-
-
 	return { error => "failed to lock Outages file: $!" } if (!$fh);
 	$data //= {};									# empty file is ok
 
@@ -2314,6 +2243,52 @@ sub update_outage
 
 	return { success => 1, id => $outid};
 }
+
+# reads an old-style outage.nmis and converts any current or future outages
+# to the new format, then renames the file
+# returns: undef if ok, error message otherwise
+sub upgrade_outages
+{
+	my $C = loadConfTable();			# likely cached
+
+	# we're clearly done if no conf/Outage.nmis exists
+	my $oldoutagefile = func::getFileName(file => $C->{'<nmis_conf>'}."/Outage");
+	return undef if (!-f $oldoutagefile);
+
+	# load and lock the existing file
+	my ($old, $fh) = loadTable( dir=>'conf', name=>'Outage', lock=>'true');
+	for my $outagekey (keys %$old)
+	{
+		my $orec = $old->{$outagekey};
+		next if ($orec->{end} < time);
+
+		my $res = update_outage(frequency => "once",
+														start => $orec->{start},
+														end => $orec->{end},
+														change_id => $orec->{change},
+														selector => { node => { name => $orec->{node} } });
+		if (!$res->{success})
+		{
+			close $fh;
+			return "failed to convert outage: $res->{error}";
+		}
+	}
+
+	# finally, rename the old file away
+	if (!rename($oldoutagefile, "$oldoutagefile.disabled"))
+	{
+		my $problem = $!;
+		close $fh;
+		return "cannot rename $oldoutagefile: $problem";
+	}
+	close $fh;
+
+	logMsg("INFO NMIS has successfully upgraded the Outage data structure, and the old configuration file was renamed to \"$oldoutagefile.disabled\".");
+
+	return undef;
+}
+
+
 
 # take a relative/incomplete time and day specification and make into absolute timestamp
 # args: relative (date + time, frequency-specific!),
@@ -2477,8 +2452,10 @@ sub find_outages
 # returns: hashref, with keys success/error, past, current, future: arrays (can be empty)
 #
 # current: outages that fully apply - these are amended with actual_start/actual_end unix TS,
+#  and sorted by actual_start.
 # past: past one-off (not recurring ones!) outages for this node
-# future: future outages for this node, also with actual_start/actual_end (of the next instance)
+# future: future outages for this node, also with actual_start/actual_end (of the next instance),
+#  sorted by actual_start.
 sub check_outages
 {
 	my (%args) = @_;
@@ -2504,14 +2481,16 @@ sub check_outages
 	{
 		$who = (grep($_->{uuid} eq $args{uuid}, values %$LNT))[0]; # at most one
 		return { error => "no node with uuid \"$args{uuid}\" exists!" } if (!$who);
+		$who = Clone::clone($who);	# no polluting of lnt with nodeModel
 	}
 	else
 	{
-		$who = $LNT->{ $args{node} };
+		$who = Clone::clone($LNT->{ $args{node} }); # no polluting of lnt with nodeModel
 		return { error => "no node named \"$args{node}\" exists!" } if (!$who);
 	}
 	# also pull the node info for the nodeModel property
-	# fixme!
+	my $ninfo = loadNodeInfoTable( $who->{name} );
+	$who->{nodeModel} = $ninfo->{system}->{nodeModel};
 
 	my (@future,@past,@current);
 	for my $outid (keys %$outagedata)
@@ -2563,7 +2542,9 @@ sub check_outages
 		{
 			if ($when < $maybeout->{start})
 			{
-				push @future, $maybeout;
+				push @future, { %$maybeout,
+												actual_start => $maybeout->{start},
+												actual_end => $maybeout->{end} }; # convenience only
 			}
 			elsif ($when >= $maybeout->{start} && $when <= $maybeout->{end})
 			{
@@ -2646,81 +2627,70 @@ sub check_outages
 		next if (!$intime);
 	}
 
+	# sort current and future list by the actual start time
+	@current = sort { $a->{actual_start} <=> $b->{actual_start} } @current;
+	@future = sort { $a->{actual_start} <=> $b->{actual_start} } @future;
+
 	return { success => 1,  past => \@past, current => \@current, future => \@future };
 }
 
-# fixme remove!
-sub outageRemove { die("function gone"); }
-
-# fixme rework into wrapper
+# compat wrapper around check_outages
+# checks outage(s) for one node X and all nodes that X depends on
 #
-# check outage of node
-# return status,key where status is pending or current, key is hash key of event table
+# fixme: why check dependency nodes at all? why only if those are down?
+# and only if no direct future outages?
 #
-sub outageCheck {
-
+# args: node (name), time (unix ts), both required
+# returns: nothing or ('current', FIRST current outage record)
+# or ('pending', FIRST future outage)
+#
+sub outageCheck
+{
 	my %args = @_;
+
 	my $node = $args{node};
 	my $time = $args{time};
 
-fixme gone	my $OT = loadOutageTable();
-
-	# Get each of the nodes info in a HASH for playing with
-	foreach my $key (sort keys %{$OT}) {
-		if (($time-300) > $OT->{$key}{end}) {
-			outageRemove(key=>$key); # passed
-		} else {
-			if ( $node eq $OT->{$key}{node}) {
-				if ($time >= $OT->{$key}{start} and $time <= $OT->{$key}{end} ) {
-					return "current",$key;
-				}
-				elsif ($time < $OT->{$key}{start}) {
-					return "pending",$key;
-				}
-			}
-		}
+	my $nodeoutages = check_outages(node => $node, time => $time);
+	if (!$nodeoutages->{success})
+	{
+		logMessage("ERROR failed to check $node outages: $nodeoutages->{error}");
+		return;
 	}
-	# check also dependency
+
+	if (@{$nodeoutages->{current}})
+	{
+		return ("current", $nodeoutages->{current}->[0]);
+	}
+	elsif (@{$nodeoutages->{future}})
+	{
+		return ("pending", $nodeoutages->{future}->[0]);
+	}
+
+	# if neither current nor future, check dependency nodes with
+	# current outages and that are down
 	my $NT = loadNodeTable();
-	foreach my $nd ( split(/,/,$NT->{$node}{depend}) ) {
-		foreach my $key (sort keys %{$OT}) {
-			if ( $nd eq $OT->{$key}{node}) {
-				if ($time >= $OT->{$key}{start} and $time <= $OT->{$key}{end} ) {
-					# check if this node is down
-					my $NI = loadNodeInfoTable($nd);
-					if (getbool($NI->{system}{nodedown})) {
-						return "current",$key;
-					}
-				}
+
+	foreach my $nd ( split(/,/,$NT->{$node}{depend}) )
+	{
+		my $depoutages = check_outages(node => $nd, time => $time);
+		if (!$depoutages->{success})
+		{
+			logMessage("ERROR failed to check $nd outages: $depoutages->{error}");
+			return;
+		}
+		if (@{$depoutages->{current}})
+		{
+			# check if this node is down
+			my $NI = loadNodeInfoTable($nd);
+			if (getbool($NI->{system}{nodedown}))
+			{
+				return ("current", $depoutages->{current}->[0]);
 			}
 		}
 	}
+	return;
 }
-
-
-### HIGHLY EXPERIMENTAL!
-#sub sendTrap {
-#	my %arg = @_;
-#	use SNMP_util;
-#	my @servers = split(",",$arg{server});
-#	foreach my $server (@servers) {
-#		print "Sending trap to $server\n";
-#		#my($host, $ent, $agent, $gen, $spec, @vars) = @_;
-#		snmptrap(
-#			$server,
-#			".1.3.6.1.4.1.4818",
-#			"127.0.0.1",
-#			6,
-#			1000,
-#	        ".1.3.6.1.4.1.4818.1.1000",
-#	        "int",
-#	        "2448816"
-#	    );
-#    }
-#}
-
-
-
 
 # small translator from event level to priority: header for email
 sub eventToSMTPPri {
@@ -4192,11 +4162,9 @@ sub checkEvent
 
 		($level,$log,$syslog) = getLevelLogEvent(sys=>$S, event=>$event, level=>'Normal');
 
-		my $OT = loadOutageTable();
-
-		my ($otg,$key) = outageCheck(node=>$node,time=>time());
+		my ($otg,$outageinfo) = outageCheck(node=>$node,time=>time());
 		if ($otg eq 'current') {
-			$details .= " outage_current=true change=$OT->{$key}{change}";
+			$details .= " outage_current=true change=$outageinfo->{change_id}";
 		}
 
 		# now we save the new up event, and move the old down event into history
@@ -4320,12 +4288,9 @@ sub notify
 		my $is_stateless = ($C->{non_stateful_events} !~ /$event/
 												or getbool($thisevent_control->{Stateful}))? "false": "true";
 
-		### 2016-04-30 ks adding outage tagging to event when opened.
-		my $OT = loadOutageTable();
-
-		my ($otg,$key) = outageCheck(node=>$node,time=>time());
+		my ($otg,$outageinfo) = outageCheck(node=>$node,time=>time());
 		if ($otg eq 'current') {
-			$details .= " outage_current=true change=$OT->{$key}{change}";
+			$details .= " outage_current=true change=$outageinfo->{change_id}";
 		}
 
 		# Create and store this new event; record whether stateful or not
