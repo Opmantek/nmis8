@@ -127,19 +127,26 @@ if ($args{act} eq "list")
 		print STDERR "No outages defined.\n" if (!$wantquiet);
 		exit 0;
 	}
+
+	# uuids are 36c wide, align only if output is to tty
+	my $fmt = (-t \*STDOUT? "%36s\t%16s\t%30s\t\%10s\t%20s\t%20s\n" : "%s\t%s\t%s\t%s\t%s\t%s\n");
 	# header only if tty
-	print join("\t", "ID", "Change ID", "Description",
-						 "Frequency", "Start", "End")."\n"
-								 if (-t \*STDOUT);
+	printf($fmt, "ID", "Change ID", "Description",
+				 "Frequency", "Start", "End") if (-t \*STDOUT);
 
 	for my $orec (@{$res->{outages}})
 	{
-		print join("\t", $orec->{id},
-							 $orec->{change_id},
-							 $orec->{description},
-							 $orec->{frequency},
-							 $orec->{start},
-							 $orec->{end}, )."\n";
+		printf($fmt,
+					 $orec->{id},
+					 $orec->{change_id},
+					 $orec->{description},
+					 $orec->{frequency},
+					 ($orec->{frequency} eq "once" && $orec->{start} =~ /^\d+(\.\d+)?$/?
+						POSIX::strftime("%Y-%m-%dT%H:%M:%S", localtime($orec->{start})) : $orec->{start}),
+					 ($orec->{frequency} eq "once" && $orec->{end} =~ /^\d+(\.\d+)?$/?
+						POSIX::strftime("%Y-%m-%dT%H:%M:%S", localtime($orec->{end})) : $orec->{end})
+					 , );
+
 	}
 }
 # remove one outage by id

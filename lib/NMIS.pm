@@ -2179,10 +2179,9 @@ sub update_outage
 		if (!$doesitparse);
 
 		$parsedtimes{$check} = $doesitparse;
-		# for one-offs with relative inputs let's store the parsed value
-		# dodgy heuristic: chars outside of what's needed for iso8601?
-		# 2017-01-01T12:34:56.789+04:30
-		if ($freq eq "once" && $args{$check} !~ /^[0-9TZ.: +-]+$/)
+		# for one-offs let's store the parsed value 
+		# as it could have been a relative input like "now + 2 days"...
+		if ($freq eq "once")
 		{
 			$newrec{$check} = $doesitparse;
 		}
@@ -4074,7 +4073,7 @@ sub checkEvent
 	my %args = @_;
 
 	my $S = $args{sys};
-	my $node = $S->{node};
+	my $node = $S->{node};				# WARNING: this is the lowercased name!
 	my $event = $args{event};
 	my $element = $args{element};
 	my $details = $args{details};
@@ -4162,7 +4161,8 @@ sub checkEvent
 
 		($level,$log,$syslog) = getLevelLogEvent(sys=>$S, event=>$event, level=>'Normal');
 
-		my ($otg,$outageinfo) = outageCheck(node=>$node,time=>time());
+		# the REAL node name is required, not lowercased!
+		my ($otg,$outageinfo) = outageCheck(node => $S->{name}, time=>time());
 		if ($otg eq 'current') {
 			$details .= " outage_current=true change=$outageinfo->{change_id}";
 		}
@@ -4236,6 +4236,7 @@ sub notify
 	my $element = $args{element};
 	my $details = $args{details};
 	my $level = $args{level};
+
 	my $node = $S->{name};
 	my $log;
 	my $syslog;

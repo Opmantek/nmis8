@@ -61,7 +61,7 @@ sub createNodeUUID
 	my ($justonenode) = @_;
 
 	my $C = loadConfTable();
-	my $LNT = loadLocalNodeTable();
+	my $LNT = NMIS::loadLocalNodeTable();
 
 	my ($UUID_INDEX, $changed_nodes, $mustupdate);
 

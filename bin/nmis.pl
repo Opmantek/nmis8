@@ -6240,7 +6240,8 @@ sub runReach
 	}
 	elsif ( $reach{availability} eq "" ) { $reach{availability} = $intAvailValueWhenDown; }
 
-	my ($outage,undef) = outageCheck(node=>$S->{node},time=>time());
+	# the REAL node name is required, NOT the lowercased variant!
+	my ($outage,undef) = outageCheck(node => $S->{name}, time=>time());
 	dbg("Outage for $S->{name} is $outage");
 	# Health should actually reflect a combination of these values
 	# ie if response time is high health should be decremented.
