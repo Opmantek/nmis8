@@ -121,14 +121,14 @@ for my $node (sort keys %{$LNT})
 	# cache disabled so that the func table_cache gets populated
 	$S->init(name=>$node, snmp=>'false', cache_models => 'false');
 	my $NI = $S->ndinfo;
-	
+
 	# walk graphtype keys, if hash value: key is index, go one level deeper;
 	# otherwise key of graphtype is all getDBName needs
 	for my $section (keys %{$NI->{graphtype}})
 	{
 		# the generic ones remain where they were - in /metrics/.
 		next if ($section =~ /^(network|nmis|metrics)$/);
-		
+
 		if (ref($NI->{graphtype}->{$section}) eq "HASH")
 		{
 			my $index = $section;
@@ -173,9 +173,11 @@ die "Error: func.pm's table cache corrupt or nonexistent!\n"
 # merge the old and new stuff, new wins but orphaned old is NOT deleted!
 for my $newentry (keys %{$newlayout->{database}->{type}})
 {
-	$cacheobj->{$cachekey}->{data}->{database}->{type}->{$newentry} 
+	$cacheobj->{$cachekey}->{data}->{database}->{type}->{$newentry}
 	= $newlayout->{database}->{type}->{$newentry};
 }
+
+my $gotchas;
 
 # oldfile -> newfile
 my %todos;
@@ -186,24 +188,43 @@ for my $node (keys %rrdfiles)
 	# again, disabling the model cache use so that the massaged table_cache remains in force
 	my $S = Sys->new;
 	$S->init(name=>$node, snmp=>'false', cache_models => 'false');
-	
+
 	for my $oldname (keys %{$rrdfiles{$node}})
 	{
 		my $meta = $rrdfiles{$node}->{$oldname};
-		
+
 		my $newname = $S->getDBName(graphtype => $meta->{graphtype},
 																index => $meta->{index},
 																item => $meta->{item});
 		if (!$newname)
 		{
+			if ($simulate)
+			{
+				warn("FATAL: Cannot determine new name for $oldname (graphtype=".$meta->{graphtype}
+						 .", index=".$meta->{index}.", item=".$meta->{item}.")\n");
+				$newname = "fatal_conflict_".++$gotchas; # fudgery to make output possible under simulate
+				next;
+			}
 			die "Cannot determine new name for $oldname (graphtype=".$meta->{graphtype}
-			.", index=".$meta->{index}.", item=".$meta->{item}.")\n";
+				.", index=".$meta->{index}.", item=".$meta->{item}.")\n";
 		}
 		if ($oldname ne $newname)
 		{
 			my $friendlyold = $oldname; $friendlyold =~ s/^$C->{database_root}//;
 			my $friendlynew = $newname; $friendlynew =~ s/^$C->{database_root}//;
-			
+
+			# make sure there's no clashes
+			if (my @conflicts = grep($todos{$_} eq $newname, keys %todos))
+			{
+				if ($simulate)
+				{
+					warn("FATAL: cannot rename $oldname to $newname, clashes with renaming $conflicts[0]\n");
+					$todos{$oldname} = "fatal_conflict_".++$gotchas;
+					next;
+				}
+				die("FATAL: cannot rename $oldname to $newname, clashes with renaming $conflicts[0]\n");
+			}
+
 			info("Old RRD file $friendlyold, new $friendlynew");
 			$todos{$oldname} = $newname;
 		}
@@ -216,6 +237,7 @@ for my $node (keys %rrdfiles)
 
 my %olddirs;
 print STDERR "Found ".int(scalar(keys %todos)). " RRD files to move.\n";
+print STDERR "$gotchas conflicts that must be resolved before migration!\n" if ($gotchas);
 
 if (keys %todos and !$simulate)
 {
@@ -309,6 +331,7 @@ else
 }
 exit 0;
 
+# record relationship of node -> rrdfile
 sub record_rrd
 {
 	my (%args) = @_;
@@ -333,6 +356,16 @@ sub record_rrd
 	if (exists $rrdfiles{$args{node}}->{$fn})
 	{
 		my $old = $rrdfiles{$args{node}}->{$fn};
+
+		if ($simulate)
+		{
+			warn("FATAL: $fn already known!\n
+clash between old node=$old->{node}, graphtype=$old->{graphtype}, index=$old->{index}, item=$old->{item}
+and new node=$args{node}, graphtype=$args{graphtype}, index=$args{index}, item=$args{item}\n");
+			$rrdfiles{ $args{node}."_fatal_conflict_".++$gotchas } = {%args};
+			return;
+		}
+
 		die "error: $fn already known!\n
 clash between old node=$old->{node}, graphtype=$old->{graphtype}, index=$old->{index}, item=$old->{item}
 and new node=$args{node}, graphtype=$args{graphtype}, index=$args{index}, item=$args{item}\n";

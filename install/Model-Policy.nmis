@@ -24,22 +24,28 @@
      # },
 
      # more examples:
-		 #     20 => {
-		 #      	 IF => { 'node.name' => ['nodeA','nodeB'] },
-		 #      	 systemHealth => { 
-		 #            jnxDestinationClassUsage => 'true',
-		 #            jnxSourceClassUsage => 'true',
-		 #      	 },
-		 #      },
-		 #     
-		 #      30 => {
-		 #      	 IF => { 'node.name' => ['nodeA','nodeB'] },
-		 #      	 systemHealth => { 
-		 #            jnxDestinationClassUsage => 'true',
-		 #            jnxSourceClassUsage => 'true',
-		 #      	 },
-		 #      },
-		 #     
+#     20 => {
+#      	 IF => { 'node.name' => ['nodeA','nodeB'] },
+#      	 systemHealth => { 
+#            Juniper_CoS => 'true',  # Turn on the Juniper CoS section
+
+#            jnxDestinationClassUsage => 'false',  #as these two are in this model but much like the default we don't want them we need to explicitly turn them off.
+#            jnxSourceClassUsage => 'false',
+#      	 },
+#      },
+#     
+
+		 
+#		 600 => {
+#			 IF => { 'node.group' => '/Core/', 
+#			 'node.nodeModel' => '/JuniperRouter/',  }, # note needs to be regex for nodeModel
+#			 
+#			 systemHealth => { 
+#				Juniper_CoS => 'false',  # we just want DCU and SCU so we need to explicitly turn this off.
+#                jnxDestinationClassUsage => 'true',
+#                jnxSourceClassUsage => 'true',
+#			 },
+#		 },
      
      999 => {    # the fallback/defaults, without filter
        systemHealth => { 
@@ -54,6 +60,7 @@
          fanStatus => 'true',
          tempStatus => 'true',
          'env-temp' => 'true',
+         #Do not remove the '' due to interpretation of temp
          fanStatus => 'true',
          psuStatus => 'true',
          tempStatus => 'true',
@@ -97,6 +104,7 @@
          ciscoAsset => [ 6, "Device Inventory using the Cisco Asset Entity MIB" ],
 
          'env-temp' => [ 8, "Cisco Environment Temperature" ],
+         #Do not remove the '' due to interpretation of temp
          fanStatus => [ 8, "Cisco Fan Status" ],
          psuStatus => [ 8, "Cisco Power Supply Status" ],
          tempStatus => [ 8, "Cisco Temperature Status" ], 

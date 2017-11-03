@@ -55,6 +55,6 @@ $debug = 1;
 my $C = loadConfTable(conf=>$arg{conf},debug=>$arg{debug});
 
 # Update the UUIDs for the nodes.
-createNodeUUID();
+NMIS::UUID::createNodeUUID();
 
 print $t->elapTime(). " Begin\n";

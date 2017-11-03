@@ -122,6 +122,8 @@ sub typeGraph {
 
 	my $urlsafenode = uri_escape($node);
 	my $urlsafegroup = uri_escape($group);
+	my $urlsafeindex= uri_escape($index);
+	my $urlsafeitem = uri_escape($item);
 
 	my $length;
 
@@ -581,7 +583,7 @@ sub typeGraph {
 		}
 
 		my $graphLink="$C->{'rrddraw'}?conf=$Q->{conf}&amp;act=draw_graph_view".
-				"&node=$urlsafenode&group=$urlsafegroup&graphtype=$graphtype&start=$start&end=$end&width=$width&height=$height&intf=$index&item=$item";
+				"&node=$urlsafenode&group=$urlsafegroup&graphtype=$graphtype&start=$start&end=$end&width=$width&height=$height&intf=$urlsafeindex&item=$urlsafeitem";
 		my $chartDiv = "";
 		if( getbool($C->{display_opcharts}) ) {
 			$chartDiv = qq |<div class="chartDiv" id="chartDivId" data-chart-url="$graphLink" data-chart-height="$height" ><div class="chartSpan" id="chartSpanId"></div></div>|;

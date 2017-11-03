@@ -34,8 +34,8 @@ use lib "$NMIS::uselib::rrdtool_lib";
 
 use strict;
 use RRDs;
-use Time::ParseDate;
 use Time::Local;
+use DateTime;
 use Net::hostent;
 use Socket 2.001;								# for getnameinfo() used by resolveDNStoAddr
 use func;
@@ -48,7 +48,10 @@ use URI::Escape;
 use JSON::XS 2.01;
 use File::Basename;
 use File::Copy;
+use Clone;
+use List::Util;
 use CGI qw();												# very ugly but createhrbuttons needs it :(
+use NMIS::UUID;
 
 #! Imports the LOCK_ *constants (eg. LOCK_UN, LOCK_EX)
 use Fcntl qw(:DEFAULT :flock);
@@ -91,7 +94,6 @@ use Exporter;
 
 		loadNodeConfTable has_nodeconf get_nodeconf update_nodeconf
 
-		loadOutageTable
 		loadInterfaceTypes
 		loadCfgTable
 		findCfgEntry
@@ -107,6 +109,7 @@ use Exporter;
 		checkEvent
 		notify
 
+    outageCheck
 
 		nodeStatus
     PreciseNodeStatus
@@ -135,9 +138,7 @@ use Exporter;
 		convertConfFiles
 		statusNumber
 		logMessage
-		outageCheck
-		outageRemove
-		sendTrap
+
 		eventToSMTPPri
 		dutyTime
 		resolveDNStoAddr
@@ -1005,11 +1006,8 @@ sub getLevelLogEvent {
 	return ($level,$log,$syslog);
 }
 
-
-
-
-
-
+# extract summary data for a given period from rrd files,
+# via non-graph rrd graph declarations
 sub getSummaryStats
 {
 	my %args = @_;
@@ -1076,11 +1074,8 @@ sub getSummaryStats
 
 	push @option, ("--start", "$start", "--end", "$end") ;
 
-	# escape any : chars which might be in the database name, e.g handling C: in the RPN
-	$db =~ s/:/\\:/g;
-
 	{
-		no strict;
+		no strict;									# *shudder* this is wrong, so wrong
 		$database = $db; # global
 		$speed = $IF->{$index}{ifSpeed} if $index ne "";
 		$inSpeed = $IF->{$index}{ifSpeed} if $index ne "";
@@ -1089,9 +1084,10 @@ sub getSummaryStats
 		$outSpeed = $IF->{$index}{ifSpeedOut} if $index ne "" and $IF->{$index}{ifSpeedOut};
 
 		# read from Model and translate variable ($database etc.) rrd options
+		# note that all inputs need colon-escaping, not just the database
 		foreach my $str (@{$M->{stats}{type}{$type}}) {
 			my $s = $str;
-			$s =~ s{\$(\w+)}{if(defined${$1}){${$1};}else{"ERROR, no variable \$$1 ";}}egx;
+			$s =~ s{\$(\w+)}{if(defined${$1}){postcolonial(${$1});}else{"ERROR, no variable \$$1 ";}}egx;
 			if ($s =~ /ERROR/) {
 				logMsg("ERROR ($S->{name}) model=$NI->{system}{nodeModel} type=$type ($str) in expanding variables, $s");
 				return; # error
@@ -1130,17 +1126,23 @@ sub getSummaryStats
 	return;
 }
 
-### 2011-12-29 keiths, added for consistent nodesummary generation
+# whatever it is that goes into rrdgraph arguments, colons are Not Good
+sub postcolonial
+{
+	my ($unsafe) = @_;
+	# but escaping already escaped colons isn't that much better
+	$unsafe =~ s/(?<!\\):/\\:/g;
+	return $unsafe;
+}
+
 sub getNodeSummary {
 	my %args = @_;
 	my $C = $args{C};
 	my $group = $args{group};
 
 	my $NT = loadLocalNodeTable();
-	my $OT = loadOutageTable();
 	my %nt;
 
-	### 2015-01-13 keiths, making the field list configurable, these are extra properties, there will be some mandatory ones.
 	my $node_summary_field_list = "customer,businessService";
 	if ( defined $C->{node_summary_field_list} and $C->{node_summary_field_list} ne "" ) {
 		$node_summary_field_list = $C->{node_summary_field_list};
@@ -1196,13 +1198,14 @@ sub getNodeSummary {
 			$nt{$nd}{nodestatus} = "reachable";
 		}
 
-		my ($otgStatus,$otgHash) = outageCheck(node=>$nd,time=>time());
+		my ($otgStatus,$otgHash) = outageCheck(node=>$nd, time=>time());
 		my $outageText;
+
 		if ( $otgStatus eq "current" or $otgStatus eq "pending") {
 			my $color = ( $otgStatus eq "current" ) ? "#00AA00" : "#FFFF00";
 
-			my $outageText = "node=$OT->{$otgHash}{node}<br>start=".returnDateStamp($OT->{$otgHash}{start})
-			."<br>end=".returnDateStamp($OT->{$otgHash}{end})."<br>change=$OT->{$otgHash}{change}";
+			my $outageText = "node=$nd<br>start=".returnDateStamp($otgHash->{actual_start})
+			."<br>end=".returnDateStamp($otgHash->{actual_end})."<br>change=$otgHash->{change_id}";
 		}
 		$nt{$nd}{outage} = $otgStatus;
 		$nt{$nd}{outageText} = $outageText;
@@ -1813,113 +1816,45 @@ sub overallNodeStatus {
 	my $NT = loadNodeTable();
 	my $NS = loadNodeSummary();
 
-	#print STDERR &returnDateStamp." overallNodeStatus: netType=$netType roleType=$roleType\n";
+	foreach $node (sort keys %{$NT} )
+	{
+		next if (!getbool($NT->{$node}{active}));
 
-	if ( $group eq "" and $customer eq "" and $business eq "" and $netType eq "" and $roleType eq "" ) {
-		foreach $node (sort keys %{$NT} ) {
-			if (getbool($NT->{$node}{active})) {
-				my $nodedown = 0;
-				my $outage = "";
-				if ( $NT->{$node}{server} eq $C->{server_name} ) {
-					### 2013-08-20 keiths, check for SNMP Down if ping eq false.
-					my $down_event = "Node Down";
-					$down_event = "SNMP Down" if getbool($NT->{$node}{ping},"invert");
-					$nodedown = eventExist($node, $down_event, undef)? 1:0; # returns the event filename
+		if (
+			( $group eq "" and $customer eq "" and $business eq "" and $netType eq "" and $roleType eq "" )
+			or
+			( $netType ne "" and $roleType ne ""
+				and $NT->{$node}{net} eq "$netType" && $NT->{$node}{role} eq "$roleType" )
+			or ($group ne "" and $NT->{$node}{group} eq $group)
+			or ($customer ne "" and $NT->{$node}{customer} eq $customer)
+			or ($business ne "" and $NT->{$node}{businessService} =~ /$business/ ) )
+		{
+			my $nodedown = 0;
+			my $outage = "";
+			if ( $NT->{$node}{server} eq $C->{server_name} ) {
+				### 2013-08-20 keiths, check for SNMP Down if ping eq false.
+				my $down_event = "Node Down";
+				$down_event = "SNMP Down" if getbool($NT->{$node}{ping},"invert");
+				$nodedown = eventExist($node, $down_event, undef)? 1:0; # returns the event filename
 
-					($outage,undef) = outageCheck(node=>$node,time=>time());
-				}
-				else {
-					$outage = $NS->{$node}{outage};
-					if ( getbool($NS->{$node}{nodedown})) {
-						$nodedown = 1;
-					}
-				}
-
-				if ( $nodedown and $outage ne 'current' ) {
-					($event_status) = eventLevel("Node Down",$NT->{$node}{roleType});
-				}
-				else {
-					($event_status) = eventLevel("Node Up",$NT->{$node}{roleType});
-				}
-
-				++$statusHash{$event_status};
-				++$statusHash{count};
+				($outage,undef) = outageCheck(node=>$node,time=>time());
 			}
-		}
-	}
-	elsif ( $netType ne "" and $roleType ne "" ) {
-		foreach $node (sort keys %{$NT} ) {
-			if (getbool($NT->{$node}{active})) {
-				if ( $NT->{$node}{net} eq "$netType" && $NT->{$node}{role} eq "$roleType" ) {
-					my $nodedown = 0;
-					my $outage = "";
-					if ( $NT->{$node}{server} eq $C->{server_name} )
-					{
-						### 2013-08-20 keiths, check for SNMP Down if ping eq false.
-						my $down_event = "Node Down";
-						$down_event = "SNMP Down" if getbool($NT->{$node}{ping},"invert");
-						$nodedown = eventExist($node, $down_event, undef)? 1 : 0;
-
-						($outage,undef) = outageCheck(node=>$node,time=>time());
-					}
-					else {
-						$outage = $NS->{$node}{outage};
-						if ( getbool($NS->{$node}{nodedown})) {
-							$nodedown = 1;
-						}
-					}
-
-					if ( $nodedown and $outage ne 'current' ) {
-						($event_status) = eventLevel("Node Down",$NT->{$node}{roleType});
-					}
-					else {
-						($event_status) = eventLevel("Node Up",$NT->{$node}{roleType});
-					}
-
-					++$statusHash{$event_status};
-					++$statusHash{count};
+			else {
+				$outage = $NS->{$node}{outage};
+				if ( getbool($NS->{$node}{nodedown})) {
+					$nodedown = 1;
 				}
 			}
-		}
-	}
-	elsif ( $group ne "" or $customer ne "" or $business ne "" ) {
-		foreach $node (sort keys %{$NT} ) {
-			if (
-				getbool($NT->{$node}{active})
-				and ( ($group ne "" and $NT->{$node}{group} eq $group)
-							or ($customer ne "" and $NT->{$node}{customer} eq $customer)
-							or ($business ne "" and $NT->{$node}{businessService} =~ /$business/ )
-						)
-			) {
-				my $nodedown = 0;
-				my $outage = "";
-				if ( $NT->{$node}{server} eq $C->{server_name} )
-				{
-					### 2013-08-20 keiths, check for SNMP Down if ping eq false.
-					my $down_event = "Node Down";
-					$down_event = "SNMP Down" if getbool($NT->{$node}{ping},"invert");
 
-					$nodedown = eventExist($node, $down_event, undef)? 1:0;
-					($outage,undef) = outageCheck(node=>$node,time=>time());
-				}
-				else {
-					$outage = $NS->{$node}{outage};
-					if ( getbool($NS->{$node}{nodedown})) {
-						$nodedown = 1;
-					}
-				}
-
-				if ( $nodedown and $outage ne 'current' ) {
-					($event_status) = eventLevel("Node Down",$NT->{$node}{roleType});
-				}
-				else {
-					($event_status) = eventLevel("Node Up",$NT->{$node}{roleType});
-				}
-
-				++$statusHash{$event_status};
-				++$statusHash{count};
-				#print STDERR &returnDateStamp." overallNodeStatus: $node $group $event_status event=$statusHash{$event_status} count=$statusHash{count}\n";
+			if ( $nodedown and $outage ne 'current' ) {
+				($event_status) = eventLevel("Node Down",$NT->{$node}{roleType});
 			}
+			else {
+				($event_status) = eventLevel("Node Up",$NT->{$node}{roleType});
+			}
+
+			++$statusHash{$event_status};
+			++$statusHash{count};
 		}
 	}
 
@@ -2167,118 +2102,594 @@ sub loadEnterpriseTable {
 }
 
 
-sub loadOutageTable {
-	my $OT = loadTable(dir=>'conf',name=>'Outage'); # get in cache
+
+# outage api
+
+# outage data/argument structure:
+#
+# id (unique key, automatically generated on create, must be used for update and delete)
+# frequency ('once', 'daily', 'weekly', 'monthly')
+# start, end (a date/date+time/partial format that's suitable for the given frequency),
+# change_id (required but free-form text, used to tag events),
+# description (optional, free-form descriptive text),
+# options (hash substructure that selects optional behaviours for this outage)
+#   nostats (default undef, if set to 1 only 'U' values are written to rrds during the outage)
+# selector (hash substructure that defines what devices this outage covers)
+#  two category keys, 'node' and 'config'
+#  under these there can be any number of key => value filter expressions
+#  all filter expressions must match for the selector to match
+#
+#  selector key X needs to be a CONFIG! property of the node if under node,
+#   (plus nodeModel from the node info), or a global nmis property if under config.
+#
+#  value: either array, or string or regex-string ('/.../' or '/.../i')
+#  array: set of acceptable values; one or more must meet strict equality test for the selector succeed
+#  single string: strict equality
+#  regex-string: identified property must match
+
+
+# create new or update existing outage
+# note that updates are absolute, not relative to existing outage!
+# you must pass all desired arguments, not only ones you want changed
+#
+# args: id IFF updating,
+# frequency/start/end/description/change_id/options/selector,
+# returns: hashref, keys success/error, id
+sub update_outage
+{
+	my (%args) = @_;
+
+	# validate the args first
+	# lock and load existing outages,
+	# create new one or update existing one,
+	# save and unlock
+
+	my (%newrec, $op_create);
+	my $outid = $args{id};
+
+	if (!defined($outid) or $outid eq "") # 0 is ok, empty is not
+	{
+		$outid = NMIS::UUID::getRandomUUID();
+		$op_create = 1;
+	}
+	$newrec{id} = $outid;
+
+	# copy simple args
+	for my $copyable (qw(description change_id))
+	{
+		$newrec{$copyable} = $args{$copyable};
+	}
+	$newrec{options} = ref($args{options}) eq "HASH"? $args{options} : {}; # make sure it's a hash
+
+	# check freq and freq vs start/end
+	my $freq = $args{frequency};
+	return { error => "invalid frequency \"$freq\"!" }
+	if (!defined $freq or $freq !~ /^(once|daily|weekly|monthly)$/);
+	$newrec{frequency} = $args{frequency};
+
+	my %parsedtimes;
+	for my $check (qw(start end))
+	{
+		my $doesitparse = $freq eq "once"?
+				( ($args{$check} =~ /^\d+(\.\d+)?$/)?
+					$args{$check} :  func::parseDateTime($args{$check}) || func::getUnixTime($args{$check}) )
+				: _abs_time(relative => $args{$check}, frequency => $freq);
+
+		return { error => "invalid $check argument \"$args{$check}\" for frequency $freq!" }
+		if (!$doesitparse);
+
+		$parsedtimes{$check} = $doesitparse;
+		# for one-offs let's store the parsed value 
+		# as it could have been a relative input like "now + 2 days"...
+		if ($freq eq "once")
+		{
+			$newrec{$check} = $doesitparse;
+		}
+		else
+		{
+			$newrec{$check} = $args{$check};
+		}
+	}
+	return { error => "invalid times, start is later than end!" }
+	if ($freq eq "once" && $parsedtimes{start} >= $parsedtimes{end});
+
+	# quick/rough sanity check of selectors
+	$newrec{selector} = {};
+	if (ref($args{selector}) eq "HASH")
+	{
+		for my $cat (qw(node config))
+		{
+			my $catsel = $args{selector}->{$cat};
+			next if (ref($catsel) ne "HASH");
+
+			for my $onesel (keys %$catsel)
+			{
+				# one string, or an array of strings
+				return { error => "invalid selector content for \"$cat.$onesel\"!" }
+				if (ref($catsel->{$onesel}) and ref($catsel->{$onesel}) ne "ARRAY");
+
+				if (defined $catsel->{$onesel})
+				{
+					$newrec{selector}->{$cat}->{$onesel} = $catsel->{$onesel};
+				}
+				else
+				{
+					delete $newrec{selector}->{$cat}->{$onesel};
+				}
+			}
+		}
+	}
+	# inputs look good, lock and load!
+
+	# except that loadtable doesn't allow file creation on the fly, only readfiletohash
+	# which is much lowerlevel wrt arguments  :-/
+	if (!existFile(dir => "conf", name => "Outages"))
+	{
+		writeTable(dir => "conf", name => "Outages", data => {});
+	}
+	my ($data, $fh) = loadTable(dir => "conf", name => "Outages", lock => 1);
+
+	return { error => "failed to lock Outages file: $!" } if (!$fh);
+	$data //= {};									# empty file is ok
+
+	if ($op_create && ref($data->{$outid}))
+	{
+		close($fh);									# unlock
+		return { error => "cannot create outage with id $outid: already existing!" };
+	}
+	$data->{$outid} = \%newrec;
+	writeTable(dir => "conf", name => "Outages", handle => $fh, data => $data);
+
+	return { success => 1, id => $outid};
 }
 
+# reads an old-style outage.nmis and converts any current or future outages
+# to the new format, then renames the file
+# returns: undef if ok, error message otherwise
+sub upgrade_outages
+{
+	my $C = loadConfTable();			# likely cached
+
+	# we're clearly done if no conf/Outage.nmis exists
+	my $oldoutagefile = func::getFileName(file => $C->{'<nmis_conf>'}."/Outage");
+	return undef if (!-f $oldoutagefile);
+
+	# load and lock the existing file
+	my ($old, $fh) = loadTable( dir=>'conf', name=>'Outage', lock=>'true');
+	for my $outagekey (keys %$old)
+	{
+		my $orec = $old->{$outagekey};
+		next if ($orec->{end} < time);
+
+		my $res = update_outage(frequency => "once",
+														start => $orec->{start},
+														end => $orec->{end},
+														change_id => $orec->{change},
+														selector => { node => { name => $orec->{node} } });
+		if (!$res->{success})
+		{
+			close $fh;
+			return "failed to convert outage: $res->{error}";
+		}
+	}
+
+	# finally, rename the old file away
+	if (!rename($oldoutagefile, "$oldoutagefile.disabled"))
+	{
+		my $problem = $!;
+		close $fh;
+		return "cannot rename $oldoutagefile: $problem";
+	}
+	close $fh;
+
+	logMsg("INFO NMIS has successfully upgraded the Outage data structure, and the old configuration file was renamed to \"$oldoutagefile.disabled\".");
+
+	return undef;
+}
+
+
+
+# take a relative/incomplete time and day specification and make into absolute timestamp
+# args: relative (date + time, frequency-specific!),
+# frequency (daily, weekly, monthly),
+# base (optional, absolute base time; if not given now is used)
 #
-# check outage of node
-# return status,key where status is pending or current, key is hash key of event table
+# the times are absolutified relative to now, so can be in the past or the future!
+# returns: unix time if parseable, undef if not
+sub _abs_time
+{
+	my (%args) = @_;
+
+	my ($rel,$frequency) = @args{qw(relative frequency)};
+	return undef if ($frequency !~ /^(once|daily|weekly|monthly)$/);
+
+	my %wdlist = ("mon" => 1, "tue" => 2, "wed" => 3, "thu" => 4, "fri" => 5, "sat" => 6, "sun" => 7);
+	my $timezone = "local";
+	my $dt = $args{base}? DateTime->from_epoch(epoch => $args{base}, time_zone => $timezone)
+			: DateTime->now(time_zone => $timezone);
+
+	if ($frequency eq "weekly")
+	{
+		# format: weekday hh:mm(:ss)?, weekday is shortname!
+		# pull off and mangle the weekday first
+		if ($rel =~ s/^\s*(\S+)\s+//)
+		{
+			my $wd = lc(substr($1,0,3));
+			return undef if !$wdlist{$wd};
+
+			# truncate to week begin, then add X-1 days (monday is day 1!, but DT-weekstart is monday too...)
+			$dt = $dt->truncate(to => "week")->add("days" => $wdlist{$wd}-1);
+		}
+	}
+	elsif ($frequency eq "monthly")
+	{
+		# format: DayNum hh:mm(:ss)? DayNum==1 means first day of the month, DayNum==-1 means LAST day of the month etc.
+		if ($rel =~ s/^(-?\d+)\s+//)
+		{
+			my $monthday = $1;
+			$dt = $dt->truncate(to => "month");
+			if ($monthday <= 0)
+			{
+				$dt->add(months => 1)->subtract(days => -$monthday);
+			}
+			else
+			{
+				eval { $dt->set(day => $monthday); };
+				return undef if $@;
+			}
+		}
+	}
+	# inputs may have a time component (required for daily, optional for the others)
+	# format: hh:mm(:ss)?, with 00:00 meaning day before and 24:00 day after
+	if ($frequency eq "daily")
+	{
+		$dt = $dt->truncate(to => "day");
+	}
+	else
+	{
+		return undef if !$dt;
+	}
+
+	if ($rel =~ /^\s*(\d+):(\d+)(:(\d+))?\s*$/)
+	{
+		my ($h,$m,$s) = ($1,$2,$4);
+		$s ||= 0;
+
+		return $dt->add(days => 1)->epoch
+				if ($h == 24 and $m == 0 and $s == 0); # handle 24:00:00
+
+		eval { $dt->set_hour($h)->set_minute($m)->set_second($s) };
+		return $@? undef: $dt->epoch;
+	}
+	else
+	{
+		return $frequency eq "daily"? undef : $dt->epoch; # hhmm is optional only for non-dailies
+	}
+}
+
+# advances (or reduces) timestamp by X intervals, based on the given frequency
+# args: timestamp, frquency, count (default: +1)
+# returns new timestamp
+sub _prev_next_interval
+{
+	my (%args) = @_;
+	my ($ts, $freq, $count) = @args{qw(timestamp frequency count)};
+
+	my %freq2delta = ("daily" => { days => 1}, "weekly" => {weeks => 1},
+										"monthly" => { months => 1 });
+	return $ts if (!$freq or !$freq2delta{$freq} or (defined $count and !$count));
+	$count ||= 1;
+
+	my $timezone = 	"local";
+	my $dt = 	DateTime->from_epoch(epoch => $ts, time_zone => $timezone);
+	my %delta = %{$freq2delta{$freq}};
+
+	if ($count < 0)
+	{
+		$delta{(keys %delta)[0]} = -$count; # only one key
+		return $dt->subtract(%delta)->epoch;
+	}
+	else
+	{
+		$delta{(keys %delta)[0]} = $count;
+		return $dt->add(%delta)->epoch;
+	}
+}
+
+# remove existing outage
+# args: id
+# returns: hashrev, keys success/error
+sub remove_outage
+{
+	my (%args) = @_;
+	my $id = $args{id};
+
+	return { error => "cannot remove outage without id argument!" }
+	if (!$id);
+
+	# lock and load the outages,
+	# delete the indicated one,
+	# save and unlock
+	my ($data, $fh) = loadTable(dir => "conf", name => "Outages", lock => "true");
+	return { error => "failed to lock Outage file: $!" } if (!$fh);
+	$data //= {};
+
+	delete $data->{$id};
+	writeTable(dir => "conf", name => "Outages", handle => $fh, data => $data);
+
+	return { success => 1};
+}
+
+# find outages, all or filtered
+# args: filter (optional, hashref of outage properties
+# to check - no filtering by selector FIXME
 #
-sub outageCheck {
+# returns: hashref of success/error, outages (=array of matching outages)
+sub find_outages
+{
+	my (%args) = @_;
+	my $filter = ref($args{filter}) eq "HASH"? $args{filter} : {};
+
+	my $data = loadTable(dir => "conf", name => "Outages");
+	$data //= {};
+
+	# filter by id?
+	if (my $thisid = $filter->{id})
+	{
+		# no matching result is not an error
+		return { success => 1, outages => [ grep($_->{id} eq $thisid, values %$data) ] };
+	}
+	# fixme add other filter criteria
+
+	return { success => 1, outages => [ values %$data ] };
+}
+
+# find active/future/past outages for a given context,
+# ie. one node and a time
+#
+# args: node or uuid, time (a unix timestamp, fractional is ok); all required
+# returns: hashref, with keys success/error, past, current, future: arrays (can be empty)
+#
+# current: outages that fully apply - these are amended with actual_start/actual_end unix TS,
+#  and sorted by actual_start.
+# past: past one-off (not recurring ones!) outages for this node
+# future: future outages for this node, also with actual_start/actual_end (of the next instance),
+#  sorted by actual_start.
+sub check_outages
+{
+	my (%args) = @_;
+	my $when = $args{time};
+
+	return { error => "cannot check outages without valid time argument!" }
+	if (!$when or $when !~ /^\d+(\.d+)?$/);
+
+	return { error => "cannot check outages without node or uuid argument!" }
+	if (!$args{node} and !$args{uuid});
+
+	my $outagedata = loadTable(dir => "conf", name => "Outages");
+	$outagedata //= {};
+	# no outages, no problem
+	return { success => 1, future => [], past => [], current => [] }
+	if (!keys %$outagedata);
+
+	# get the data for selectors
+	my $C = loadConfTable;	# cached
+	my $LNT = loadLocalNodeTable();
+	my $who;
+	if ($args{uuid})
+	{
+		$who = (grep($_->{uuid} eq $args{uuid}, values %$LNT))[0]; # at most one
+		return { error => "no node with uuid \"$args{uuid}\" exists!" } if (!$who);
+		$who = Clone::clone($who);	# no polluting of lnt with nodeModel
+	}
+	else
+	{
+		$who = Clone::clone($LNT->{ $args{node} }); # no polluting of lnt with nodeModel
+		return { error => "no node named \"$args{node}\" exists!" } if (!$who);
+	}
+	# also pull the node info for the nodeModel property
+	my $ninfo = loadNodeInfoTable( $who->{name} );
+	$who->{nodeModel} = $ninfo->{system}->{nodeModel};
+
+	my (@future,@past,@current);
+	for my $outid (keys %$outagedata)
+	{
+		my $maybeout = $outagedata->{$outid};
+
+		# let's check all selectors
+		my $rulematches = 1;
+		for my $selcat (qw(config node))
+		{
+			if (ref($maybeout->{selector}->{$selcat}) eq "HASH")
+			{
+				for my $propname (keys %{$maybeout->{selector}->{$selcat}})
+				{
+					my $actual = ($selcat eq "config"?
+												$C->{$propname} : $who->{$propname});
+
+					# choices can be: regex, or fixed string, or array of fixed strings
+					my $expected = $maybeout->{selector}->{$selcat}->{$propname};
+
+					# list of precise matches
+					if (ref($expected) eq "ARRAY")
+					{
+						$rulematches = 0 if (! List::Util::any { $actual eq $_ } @$expected);
+					}
+					# or a regex-like string
+					elsif ($expected =~ m!^/(.*)/(i)?$!)
+					{
+						my ($re,$options) = ($1,$2);
+						my $regex = ($options? qr{$re}i : qr{$re});
+						$rulematches = 0 if ($actual !~ $regex);
+					}
+					# or a single precise match
+					else
+					{
+						$rulematches = 0 if ($actual ne $expected);
+					}
+				}
+				last if (!$rulematches);
+			}
+			last if (!$rulematches);
+		}
+		# didn't survive all selector rules? note that no selectors === match
+		next if (!$rulematches);
+
+		# how about the time?
+		my $intime;
+		if ($maybeout->{frequency} eq "once")
+		{
+			if ($when < $maybeout->{start})
+			{
+				push @future, { %$maybeout,
+												actual_start => $maybeout->{start},
+												actual_end => $maybeout->{end} }; # convenience only
+			}
+			elsif ($when >= $maybeout->{start} && $when <= $maybeout->{end})
+			{
+				push @current, { %$maybeout,
+												 actual_start => $maybeout->{start},
+												 actual_end => $maybeout->{end} }; # convenience only
+				$intime = 1;
+			}
+			else # ie. > $maybeout->{end}
+			{
+				push @past, $maybeout;
+			}
+		}
+		elsif ($maybeout->{frequency} =~ /^(daily|weekly|monthly)$/)
+		{
+			# absolute time is going to be 'near' when, but that's not quite good enough
+			my $start = _abs_time(relative => $maybeout->{start},
+														frequency => $maybeout->{frequency},
+														base => $when);
+			my $end = _abs_time(relative => $maybeout->{end},
+													frequency => $maybeout->{frequency},
+													base => $when);
+
+			# start after end? (e.g. daily, start 1400, end 0200) -> start must go back one interval
+			# (or end would have to go forward one)
+			$start = _prev_next_interval(timestamp => $start, frequency => $maybeout->{frequency},
+																	 count => -1) if ($start > $end);
+
+			# advance or retreat until closest to when
+			if ($when < $start && $when < $end) # retreat
+			{
+				while ($when < $start && $when < $end)
+				{
+					$start = _prev_next_interval(timestamp => $start,
+																			 frequency => $maybeout->{frequency}, count => -1);
+					$end = _prev_next_interval(timestamp => $end,
+																		 frequency => $maybeout->{frequency}, count => -1);
+				}
+			}
+			elsif ($when > $start && $when > $end) # advance
+			{
+				while ($when > $start && $when > $end)
+				{
+					$start = _prev_next_interval(timestamp => $start,
+																			 frequency => $maybeout->{frequency}, count => 1);
+					$end = _prev_next_interval(timestamp => $end,
+																		 frequency => $maybeout->{frequency}, count => 1);
+				}
+			}
+
+			# before both start and end is obviously future
+			if ($when < $start)
+			{
+				push @future, { %$maybeout, actual_start => $start, actual_end => $end };
+			}
+			# but *after* both start and end is also future, just plus one or more repeat intervals
+			elsif ($when > $end)
+			{
+				push @future, { %$maybeout,
+												actual_start => _prev_next_interval(timestamp => $start,
+																														frequency => $maybeout->{frequency},
+																														count => 1),
+												actual_end => _prev_next_interval(timestamp => $end,
+																													frequency => $maybeout->{frequency},
+																													count => 1),
+				};
+			}
+			# and current is inbetween
+			elsif ($when >= $start && $when <= $end)
+			{
+				push @current, { %$maybeout, actual_start => $start, actual_end => $end };
+				$intime = 1;
+			}
+		}
+		else
+		{
+			return { error => "outage \"$outid\" has invalid frequency!" };
+		}
+
+		next if (!$intime);
+	}
+
+	# sort current and future list by the actual start time
+	@current = sort { $a->{actual_start} <=> $b->{actual_start} } @current;
+	@future = sort { $a->{actual_start} <=> $b->{actual_start} } @future;
+
+	return { success => 1,  past => \@past, current => \@current, future => \@future };
+}
+
+# compat wrapper around check_outages
+# checks outage(s) for one node X and all nodes that X depends on
+#
+# fixme: why check dependency nodes at all? why only if those are down?
+# and only if no direct future outages?
+#
+# args: node (name), time (unix ts), both required
+# returns: nothing or ('current', FIRST current outage record)
+# or ('pending', FIRST future outage)
+#
+sub outageCheck
+{
 	my %args = @_;
+
 	my $node = $args{node};
 	my $time = $args{time};
 
-	my $OT = loadOutageTable();
-
-	# Get each of the nodes info in a HASH for playing with
-	foreach my $key (sort keys %{$OT}) {
-		if (($time-300) > $OT->{$key}{end}) {
-			outageRemove(key=>$key); # passed
-		} else {
-			if ( $node eq $OT->{$key}{node}) {
-				if ($time >= $OT->{$key}{start} and $time <= $OT->{$key}{end} ) {
-					return "current",$key;
-				}
-				elsif ($time < $OT->{$key}{start}) {
-					return "pending",$key;
-				}
-			}
-		}
+	my $nodeoutages = check_outages(node => $node, time => $time);
+	if (!$nodeoutages->{success})
+	{
+		logMessage("ERROR failed to check $node outages: $nodeoutages->{error}");
+		return;
 	}
-	# check also dependency
+
+	if (@{$nodeoutages->{current}})
+	{
+		return ("current", $nodeoutages->{current}->[0]);
+	}
+	elsif (@{$nodeoutages->{future}})
+	{
+		return ("pending", $nodeoutages->{future}->[0]);
+	}
+
+	# if neither current nor future, check dependency nodes with
+	# current outages and that are down
 	my $NT = loadNodeTable();
-	foreach my $nd ( split(/,/,$NT->{$node}{depend}) ) {
-		foreach my $key (sort keys %{$OT}) {
-			if ( $nd eq $OT->{$key}{node}) {
-				if ($time >= $OT->{$key}{start} and $time <= $OT->{$key}{end} ) {
-					# check if this node is down
-					my $NI = loadNodeInfoTable($nd);
-					if (getbool($NI->{system}{nodedown})) {
-						return "current",$key;
-					}
-				}
+
+	foreach my $nd ( split(/,/,$NT->{$node}{depend}) )
+	{
+		my $depoutages = check_outages(node => $nd, time => $time);
+		if (!$depoutages->{success})
+		{
+			logMessage("ERROR failed to check $nd outages: $depoutages->{error}");
+			return;
+		}
+		if (@{$depoutages->{current}})
+		{
+			# check if this node is down
+			my $NI = loadNodeInfoTable($nd);
+			if (getbool($NI->{system}{nodedown}))
+			{
+				return ("current", $depoutages->{current}->[0]);
 			}
 		}
 	}
+	return;
 }
-
-sub outageRemove {
-	my %args = @_;
-	my $key = $args{key};
-
-	my $C = loadConfTable();
-	my $time = time();
-	my $string;
-
-	my ($OT,$handle) = loadTable(dir=>'conf',name=>'Outage',lock=>'true');
-
-	# dont log pending
-	if ($time > $OT->{$key}{start})  {
-		$string = ", Node $OT->{$key}{node}, Start $OT->{$key}{start}, End $OT->{$key}{end}, "
-							."Change $OT->{$key}{change}, Closed $time, User $OT->{$key}{user}";
-	}
-
-	delete $OT->{$key};
-
-	writeTable(dir=>'conf',name=>'Outage',data=>$OT,handle=>$handle);
-
-	my @problems;
-
-	if ($string ne '') {
-		# log this action but DON'T DEADLOCK - logMsg locks, too!
-		if ( open($handle,">>$C->{outage_log}") ) {
-			if ( flock($handle, LOCK_EX) ) {
-				if ( not print $handle returnDateStamp()." $string\n" ) {
-					push(@problems, "cannot write file $C->{outage_log}: $!");
-				}
-			} else {
-				push(@problems, "cannot lock file $C->{outage_log}: $!");
-			}
-			close $handle;
-			map { logMsg("ERROR (nmis) $_") } (@problems);
-
-			setFileProt($C->{outage_log});
-		} else {
-			logMsg("ERROR (nmis) cannot open file $C->{outage_log}: $!");
-		}
-	}
-}
-
-### HIGHLY EXPERIMENTAL!
-#sub sendTrap {
-#	my %arg = @_;
-#	use SNMP_util;
-#	my @servers = split(",",$arg{server});
-#	foreach my $server (@servers) {
-#		print "Sending trap to $server\n";
-#		#my($host, $ent, $agent, $gen, $spec, @vars) = @_;
-#		snmptrap(
-#			$server,
-#			".1.3.6.1.4.1.4818",
-#			"127.0.0.1",
-#			6,
-#			1000,
-#	        ".1.3.6.1.4.1.4818.1.1000",
-#	        "int",
-#	        "2448816"
-#	    );
-#    }
-#}
-
-
-
 
 # small translator from event level to priority: header for email
 sub eventToSMTPPri {
@@ -2391,7 +2802,7 @@ sub htmlGraph {
 		$target = $group;
 	}
 
-	my $id = "$target-$intf-$graphtype";
+	my $id = uri_escape("$target-$intf-$graphtype"); # intf and node are unsafe
 	my $C = loadConfTable();
 
 	my $width = $args{width}; # graph size
@@ -2401,18 +2812,19 @@ sub htmlGraph {
 
 	my $urlsafenode = uri_escape($node);
 	my $urlsafegroup = uri_escape($group);
+	my $urlsafeintf = uri_escape($intf);
 
 	my $time = time();
-	my $clickurl = "$C->{'node'}?conf=$C->{conf}&act=network_graph_view&graphtype=$graphtype&group=$urlsafegroup&intf=$intf&server=$server&node=$urlsafenode";
+	my $clickurl = "$C->{'node'}?conf=$C->{conf}&act=network_graph_view&graphtype=$graphtype&group=$urlsafegroup&intf=$urlsafeintf&server=$server&node=$urlsafenode";
 
 
 	if( getbool($C->{display_opcharts}) ) {
-		my $graphLink = "$C->{'rrddraw'}?conf=$C->{conf}&act=draw_graph_view&group=$urlsafegroup&graphtype=$graphtype&node=$urlsafenode&intf=$intf&server=$server".
+		my $graphLink = "$C->{'rrddraw'}?conf=$C->{conf}&act=draw_graph_view&group=$urlsafegroup&graphtype=$graphtype&node=$urlsafenode&intf=$urlsafeintf&server=$server".
 				"&start=&end=&width=$width&height=$height&time=$time";
 		my $retval = qq|<div class="chartDiv" id="${id}DivId" data-chart-url="$graphLink" data-title-onclick='viewwndw("$target","$clickurl",$win_width,$win_height)' data-chart-height="$height" data-chart-width="$width"><div class="chartSpan" id="${id}SpanId"></div></div>|;
 	}
 	else {
-		my $src = "$C->{'rrddraw'}?conf=$C->{conf}&act=draw_graph_view&group=$urlsafegroup&graphtype=$graphtype&node=$urlsafenode&intf=$intf&server=$server".
+		my $src = "$C->{'rrddraw'}?conf=$C->{conf}&act=draw_graph_view&group=$urlsafegroup&graphtype=$graphtype&node=$urlsafenode&intf=$urlsafeintf&server=$server".
 			"&start=&end=&width=$width&height=$height&time=$time";
 		### 2012-03-28 keiths, changed graphs to come up in their own Window with the target of node, handy for comparing graphs.
 		return 	qq|<a target="Graph-$target" onClick="viewwndw(\'$target\',\'$clickurl\',$win_width,$win_height)">
@@ -3661,7 +4073,7 @@ sub checkEvent
 	my %args = @_;
 
 	my $S = $args{sys};
-	my $node = $S->{node};
+	my $node = $S->{node};				# WARNING: this is the lowercased name!
 	my $event = $args{event};
 	my $element = $args{element};
 	my $details = $args{details};
@@ -3749,11 +4161,10 @@ sub checkEvent
 
 		($level,$log,$syslog) = getLevelLogEvent(sys=>$S, event=>$event, level=>'Normal');
 
-		my $OT = loadOutageTable();
-
-		my ($otg,$key) = outageCheck(node=>$node,time=>time());
+		# the REAL node name is required, not lowercased!
+		my ($otg,$outageinfo) = outageCheck(node => $S->{name}, time=>time());
 		if ($otg eq 'current') {
-			$details .= " outage_current=true change=$OT->{$key}{change}";
+			$details .= " outage_current=true change=$outageinfo->{change_id}";
 		}
 
 		# now we save the new up event, and move the old down event into history
@@ -3825,6 +4236,7 @@ sub notify
 	my $element = $args{element};
 	my $details = $args{details};
 	my $level = $args{level};
+
 	my $node = $S->{name};
 	my $log;
 	my $syslog;
@@ -3877,12 +4289,9 @@ sub notify
 		my $is_stateless = ($C->{non_stateful_events} !~ /$event/
 												or getbool($thisevent_control->{Stateful}))? "false": "true";
 
-		### 2016-04-30 ks adding outage tagging to event when opened.
-		my $OT = loadOutageTable();
-
-		my ($otg,$key) = outageCheck(node=>$node,time=>time());
+		my ($otg,$outageinfo) = outageCheck(node=>$node,time=>time());
 		if ($otg eq 'current') {
-			$details .= " outage_current=true change=$OT->{$key}{change}";
+			$details .= " outage_current=true change=$outageinfo->{change_id}";
 		}
 
 		# Create and store this new event; record whether stateful or not

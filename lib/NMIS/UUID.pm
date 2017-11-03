@@ -28,53 +28,20 @@
 #
 # *****************************************************************************
 package NMIS::UUID;
-our $VERSION  = "1.3.0";
+our $VERSION  = "1.4.0";
 
 use strict;
 use Fcntl qw(:DEFAULT :flock);
-use NMIS;
 use func;
 use UUID::Tiny qw(:std);
 
 use vars qw(@ISA @EXPORT);
 
+# fixme: get rid of the export - counterproductive
 use Exporter;
 @ISA = qw(Exporter);
-@EXPORT = qw(auditNodeUUID createNodeUUID getUUID);
+@EXPORT = qw(createNodeUUID getUUID);
 
-
-# check which nodes do not have UUID's.
-sub auditNodeUUID {
-	#load nodes
-	#foreach node
-	# Does it have a UUID?
-	# Print exception
-	#done
-	my $C = loadConfTable();
-	my $success = 1;
-	my $LNT = loadLocalNodeTable();
-	my $UUID_INDEX;
-	foreach my $node (sort keys %{$LNT}) {
-		if (!keys %{$LNT->{$node}})
-		{
-			print "ERROR: $node is completely blank!\n";
-		}
-	  elsif ( $LNT->{$node}{uuid} eq "" ) {
-	    print "ERROR: $node does not have a UUID\n";
-		}
-		else {
-			print "Node: $node, UUID: $LNT->{$node}{uuid}\n" if $C->{debug};
-			if ($UUID_INDEX->{$LNT->{$node}{uuid}} ne "" ) {
-				print "ERROR: the improbable has happened, a UUID conflict has been found for $LNT->{$node}{uuid}, between $node and $UUID_INDEX->{$LNT->{$node}{uuid}}\n";
-			}
-			else {
-				$UUID_INDEX->{$LNT->{$node}{uuid}} = $node;
-				$UUID_INDEX->{$node} = $LNT->{$node}{uuid};
-			}
-		}
-	}
-	return $success;
-}
 
 # translate between data::uuid and uuid::tiny namespace constants
 # namespace_<X> (url,dns,oid,x500) in data::uuid correspond to UUID_NS_<X> in uuid::tiny
@@ -87,12 +54,14 @@ my %known_namespaces = map { my $varname = "UUID_NS_$_";
 #
 # args: one node name (optional)
 # returns the number of nodes that were changed
+
+# note: caller of this function must have loaded the NMIS module!
 sub createNodeUUID
 {
 	my ($justonenode) = @_;
 
 	my $C = loadConfTable();
-	my $LNT = loadLocalNodeTable();
+	my $LNT = NMIS::loadLocalNodeTable();
 
 	my ($UUID_INDEX, $changed_nodes, $mustupdate);
 
@@ -166,6 +135,14 @@ sub getUUID
 	}
 
 	return $uuid;
+}
+
+# small helper that generates a random-based uuid
+# args: none
+# returns: uuid string
+sub getRandomUUID
+{
+	return create_uuid_as_string(UUID_RANDOM);
 }
 
 # create a new namespaced uuid from concat of all components that are passed in

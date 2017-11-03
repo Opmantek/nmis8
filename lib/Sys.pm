@@ -822,7 +822,7 @@ sub getValues
 
 		# check if we should just skip any collect and leave this to a plugin to collect
 		# we need to have an rrd section so we can define the graphtypes.
-		if ($thissection->{skip_collect} and $thissection->{skip_collect} eq "true")
+		if ($thissection->{skip_collect} and getbool($thissection->{skip_collect}))
 		{
 			dbg("skip_collect $thissection->{skip_collect} found for section=$sectionname",2);
 			$status{skipped} = "skipped $sectionname because skip_collect set to true";
@@ -1245,8 +1245,9 @@ sub loadModel
 		createDir($modelcachedir);
 		setFileProt($modelcachedir);
 	}
-	my $thiscf = "$modelcachedir/$model.json";
 
+	my $shortname = $model; $shortname =~ s/^Model-//;
+	my $thiscf = "$modelcachedir/$model.json";
 	if ($self->{cache_models} && -f $thiscf)
 	{
 		$self->{mdl} = readFiletoHash(file => $thiscf, json => 1, lock => 0);
@@ -1272,7 +1273,6 @@ sub loadModel
 			# prime the nodeModel property from the model's filename,
 			# ignoring whatever may be in the deprecated nodeModel property
 			# in the model file
-			my $shortname = $model; $shortname =~ s/^Model-//;
 			$self->{mdl}->{system}->{nodeModel} = $shortname;
 
 			# continue with loading common Models
@@ -1305,6 +1305,7 @@ sub loadModel
 		}
 	}
 
+
 	# if the loading has succeeded (cache or from source), optionally amend with rules from the policy
 	if ($exit)
 	{
@@ -1327,7 +1328,7 @@ sub loadModel
 					my ($sourcename,$propname) = ($1,$2);
 
 					my $value = ($proppath eq "node.nodeModel"?
-											 $model : ($sourcename eq "config"? $C : $self->{info}->{system} )->{$propname});
+											 $shortname : ($sourcename eq "config"? $C : $self->{info}->{system} )->{$propname});
 					$value = '' if (!defined($value));
 
 					# choices can be: regex, or fixed string, or array of fixed strings
@@ -1353,7 +1354,7 @@ sub loadModel
 				}
 				else
 				{
-					db("ERROR, ignoring policy $polnr with invalid property path \"$proppath\"");
+					dbg("ERROR, ignoring policy $polnr with invalid property path \"$proppath\"");
 					$rulematches = 0;
 				}
 				next NEXTRULE if (!$rulematches); # all IF clauses must match
