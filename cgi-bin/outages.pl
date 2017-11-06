@@ -106,7 +106,7 @@ sub viewOutage
 	pageStartJscript(title => $title, refresh => 86400) if (!$wantwidget);
 
 	my $NT = loadNodeTable();
-	my $res = NMIS::find_outages(node => $node); # or all
+	my $res = NMIS::find_outages(); # attention: cannot filter by affected node
 	if (!$res->{success})
 	{
 		$Q->{error} = "Cannot find outages: $res->{error}";

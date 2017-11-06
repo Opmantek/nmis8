@@ -49,7 +49,7 @@ use JSON::XS 2.01;
 use File::Basename;
 use File::Copy;
 use Clone;
-use List::Util;
+use List::Util 1.33;
 use CGI qw();												# very ugly but createhrbuttons needs it :(
 use NMIS::UUID;
 
@@ -2179,7 +2179,7 @@ sub update_outage
 		if (!$doesitparse);
 
 		$parsedtimes{$check} = $doesitparse;
-		# for one-offs let's store the parsed value 
+		# for one-offs let's store the parsed value
 		# as it could have been a relative input like "now + 2 days"...
 		if ($freq eq "once")
 		{
@@ -2421,8 +2421,14 @@ sub remove_outage
 }
 
 # find outages, all or filtered
-# args: filter (optional, hashref of outage properties
-# to check - no filtering by selector FIXME
+# args: filter (optional, hashref of outage properties => check values)
+# note: filters are verbatim/passive/inert, ie. checked against the
+# raw outage schedule - NOT evaluated with any nodes' nodeinfo/models etc!
+#
+# filter properties: id, description, change_id, frequency/start/end,
+# options.nostats, selector.node.X, selector.config.Y - must be given in dotted form!
+# filter check values can be: qr// or plain string/number.
+# for array selectors one or more elems must match for the filter to match.
 #
 # returns: hashref of success/error, outages (=array of matching outages)
 sub find_outages
@@ -2433,15 +2439,30 @@ sub find_outages
 	my $data = loadTable(dir => "conf", name => "Outages");
 	$data //= {};
 
-	# filter by id?
-	if (my $thisid = $filter->{id})
-	{
-		# no matching result is not an error
-		return { success => 1, outages => [ grep($_->{id} eq $thisid, values %$data) ] };
-	}
-	# fixme add other filter criteria
+	# unfiltered?
+	return { success => 1, outages => [ values %$data ] }
+	if (!keys %$filter);
 
-	return { success => 1, outages => [ values %$data ] };
+	my @matches;
+ SCRATCHMONKEY:
+	for my $candidate (values %$data)
+	{
+		for my $filterprop (keys %$filter)
+		{
+			my ($have, $diag) = func::follow_dotted($candidate, $filterprop);
+			next SCRATCHMONKEY if ($diag); # requested thing not present or wrong structure
+			# none of the array elems match? (or the one and only thing doesn't?
+			my @maybes = (ref($have) eq "ARRAY")? @$have: ($have);
+
+			my $expected = $filter->{$filterprop};
+			next SCRATCHMONKEY if ( List::Util::none { ref($expected) eq "Regexp"?
+																										 ($_ =~ $expected) :
+																										 ($_ eq $expected) } (@maybes) );
+		}
+		push @matches, $candidate;	# survived!
+	}
+
+	return { success => 1, outages => \@matches };
 }
 
 # find active/future/past outages for a given context,

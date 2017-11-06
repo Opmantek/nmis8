@@ -51,7 +51,7 @@ use NMIS;
 my $bn = basename($0);
 my $usage = "Usage: $bn act=[action to take] [extras...]
 
-\t$bn act=list
+\t$bn act=list [filter=X...]
 \t$bn act=create [outage.A=B... outage.X.Y=Z...]
 \t$bn act=update id=<outid> [outage.A=B... outage.X.Y=Z...]
 \t$bn act={delete|show} id=<outid>
@@ -119,12 +119,28 @@ die "could not load configuration $confname!\n"
 # overview of all outages; no selector, no options
 if ($args{act} eq "list")
 {
-	my $res = NMIS::find_outages;
+	my %filter;
+	for my $maybe (keys %args)
+	{
+		next if ($maybe !~ /^(id|description|change_id|frequency|start|end|options\.nostats|selector.(config|node).[^=]+)$/);
+
+		if ($args{$maybe} =~ m!^/(.*)/(i)?$!)
+		{
+			my ($re,$options) = ($1,$2);
+			$filter{$maybe} = ($options? qr{$re}i : qr{$re});
+		}
+		else
+		{
+			$filter{$maybe} =  $args{$maybe};
+		}
+	}
+
+	my $res = NMIS::find_outages(filter => \%filter);
 	die "failed to find outages: $res->{error}\n" if (!$res->{success});
 
 	if (!@{$res->{outages}})
 	{
-		print STDERR "No outages defined.\n" if (!$wantquiet);
+		print STDERR "No matching outages.\n" if (!$wantquiet);
 		exit 0;
 	}
 
@@ -207,7 +223,7 @@ elsif ($args{act} eq "update")
 	die "No changes for outage \"$outid\"!\n" if (!$dosomething);
 
 	$updateme->{id} = $outid;			# bsts...
-	my $res = NMIS::update_outage(%$updateme);
+	$res = NMIS::update_outage(%$updateme);
 	die "Failed to update \"$outid\": $res->{error}\n" if (!$res->{success});
 }
 elsif ($args{act} eq "create")
@@ -241,7 +257,7 @@ elsif ($args{act} eq "create")
 	die "Failed to create: $res->{error}\n" if (!$res->{success});
 
 	# print the created id if not quiet, and without fluff if not tty
-	print (-t \*STDOUT? "Created outage \"$res->{id}\"\n" : $res->{id}."\n")
+	print((-t \*STDOUT? "Created outage \"$res->{id}\"\n" : $res->{id}."\n"))
 			if (!$wantquiet);
 }
 elsif ($args{act} eq "check")
