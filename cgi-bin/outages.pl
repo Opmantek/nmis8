@@ -201,9 +201,10 @@ sub viewOutage
 
 	for my $outage (@outages)
 	{
-		my ($status,$color);
 
-		# no coloring/status for recurring ones
+		# no coloring/status for anything but non-recurring+current ones
+		my ($status,$color) = ($outage->{frequency},"white");
+
 		if ($outage->{frequency} eq "once")
 		{
 			if ($time >= $outage->{end})
@@ -214,19 +215,12 @@ sub viewOutage
 			elsif ($time < $outage->{start})
 			{
 				$status = "pending";
-				$color = "#FFFF00";
 			}
 			else
 			{
 				$status = 'current';
 				$color = "#00FF00";
 			}
-
-		}
-		else
-		{
-			$status = $outage->{frequency};
-			$color = "white";
 		}
 
 		# very rough stringification of the of the selector
