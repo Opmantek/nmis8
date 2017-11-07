@@ -8,6 +8,7 @@ use strict;
 
 use FindBin;
 use lib "$FindBin::RealBin/../lib";
+use Data::Dumper;
 use func;
 
 my $mf = $ARGV[0];
