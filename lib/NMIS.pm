@@ -2208,7 +2208,12 @@ sub update_outage
 				return { error => "invalid selector content for \"$cat.$onesel\"!" }
 				if (ref($catsel->{$onesel}) and ref($catsel->{$onesel}) ne "ARRAY");
 
-				if (defined $catsel->{$onesel})
+				if (ref($catsel->{$onesel}) eq "ARRAY")
+				{
+					# fix up any holes if item N was deleted but N+1... exist
+					$newrec{selector}->{$cat}->{$onesel} = [ grep( defined($_), @{$catsel->{$onesel}}) ];
+				}
+				elsif (defined $catsel->{$onesel})
 				{
 					$newrec{selector}->{$cat}->{$onesel} = $catsel->{$onesel};
 				}
