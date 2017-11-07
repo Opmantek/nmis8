@@ -4173,12 +4173,16 @@ sub checkEvent
 		{
 			$event =~ s/down/Up/i;
 		}
+		elsif ($event =~ /\Wopen($|\W)/i)
+		{
+			$event =~ s/(\W)open($|\W)/$1Closed$2/i;
+		}
 
 		# event was renamed/inverted/massaged, need to get the right control record
 		# this is likely not needed
 		$thisevent_control = $events_config->{$event} || { Log => "true", Notify => "true", Status => "true"};
 
-		$details .= " Time=$outage";
+		$details .= ($details? " " : "") . "Time=$outage";
 
 		($level,$log,$syslog) = getLevelLogEvent(sys=>$S, event=>$event, level=>'Normal');
 
@@ -4312,7 +4316,7 @@ sub notify
 
 		my ($otg,$outageinfo) = outageCheck(node=>$node,time=>time());
 		if ($otg eq 'current') {
-			$details .= " outage_current=true change=$outageinfo->{change_id}";
+			$details .= ($details? " ":""). "outage_current=true change=$outageinfo->{change_id}";
 		}
 
 		# Create and store this new event; record whether stateful or not

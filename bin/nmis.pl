@@ -6114,8 +6114,7 @@ sub HandleNodeDown
 # performs various node health status checks
 # optionally! updates rrd
 # args: sys, delayupdate (default: 0),
-# if delayupdate is set, this DOES NOT update the
-#type 'health' rrd (to be done later, with total polltime)
+# if delayupdate is set, this DOES NOT update the type 'health' rrd (to be done later, with total polltime)
 # returns: reachability data (hashref)
 sub runReach
 {
@@ -6242,7 +6241,27 @@ sub runReach
 
 	# the REAL node name is required, NOT the lowercased variant!
 	my ($outage,undef) = outageCheck(node => $S->{name}, time=>time());
-	dbg("Outage for $S->{name} is $outage");
+	dbg("Outage status for $S->{name} is ". ($outage || "<none>"));
+	$reach{outage} = $outage eq "current"? 1 : 0;
+	# raise a planned outage event, or close it
+	if ($outage eq "current")
+	{
+		notify(sys=>$S,
+					 event=> "Planned Outage Open",
+					 level => "Warning",
+					 element => "",
+					 details=> "",				# filled in by notify
+					 context => { type => "node" }, );
+
+	}
+	else
+	{
+		checkEvent(sys=>$S, event=>"Planned Outage Open",
+							 level=> "Normal",
+							 element=> "",
+							 details=> "" );
+	}
+
 	# Health should actually reflect a combination of these values
 	# ie if response time is high health should be decremented.
 	if ( $pingresult == 100 and $snmpresult == 100 ) {
@@ -6512,7 +6531,13 @@ sub runReach
 	}
 
 	$reach{health} = ($reach{health} > 100) ? 100 : $reach{health};
+
+	# massaged result with rrd metadata
 	my %reachVal;
+
+	$reachVal{outage} =  { value => $reach{outage},
+												 option => "gauge,0:1" };
+
 	$reachVal{reachability}{value} = $reach{reachability};
 	$reachVal{availability}{value} = $reach{availability};
 	$reachVal{responsetime}{value} = $reach{responsetime};
@@ -7249,7 +7274,7 @@ LABEL_ESC:
 		# if an planned outage is in force, keep writing the start time of any unack event to the current start time
 		# so when the outage expires, and the event is still current, we escalate as if the event had just occured
 		my ($outage,undef) = outageCheck(node=>$thisevent->{node},time=>time());
-		dbg("Outage for $thisevent->{node} is $outage");
+		dbg("Outage status for $thisevent->{node} is ". ($outage || "<none>"));
 		if ( $outage eq "current" and getbool($thisevent->{ack},"invert") )
 		{
 			$thisevent->{startdate} = time();
