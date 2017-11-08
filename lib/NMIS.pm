@@ -2473,7 +2473,8 @@ sub find_outages
 # find active/future/past outages for a given context,
 # ie. one node and a time
 #
-# args: node or uuid, time (a unix timestamp, fractional is ok); all required
+# args: node or uuid or a live and init'd sys object
+# time (a unix timestamp, fractional is ok); all required
 # returns: hashref, with keys success/error, past, current, future: arrays (can be empty)
 #
 # current: outages that fully apply - these are amended with actual_start/actual_end unix TS,
@@ -2485,12 +2486,13 @@ sub check_outages
 {
 	my (%args) = @_;
 	my $when = $args{time};
+	my $S = $args{sys};						#  optional
 
 	return { error => "cannot check outages without valid time argument!" }
 	if (!$when or $when !~ /^\d+(\.d+)?$/);
 
-	return { error => "cannot check outages without node or uuid argument!" }
-	if (!$args{node} and !$args{uuid});
+	return { error => "cannot check outages without node, uuid or sys argument!" }
+	if (!$args{node} and !$args{uuid} and ref($S) ne "Sys");
 
 	my $outagedata = loadTable(dir => "conf", name => "Outages");
 	$outagedata //= {};
@@ -2500,22 +2502,32 @@ sub check_outages
 
 	# get the data for selectors
 	my $C = loadConfTable;	# cached
-	my $LNT = loadLocalNodeTable();
+
 	my $who;
-	if ($args{uuid})
+	if (ref($S) eq "Sys")	# that has all info ready...
 	{
-		$who = (grep($_->{uuid} eq $args{uuid}, values %$LNT))[0]; # at most one
-		return { error => "no node with uuid \"$args{uuid}\" exists!" } if (!$who);
-		$who = Clone::clone($who);	# no polluting of lnt with nodeModel
+		$who = Clone::clone($S->ndcfg->{node}); # but let's not mess up sys datastructures
+		$who->{nodeModel} = $S->ndinfo->{system}->{nodeModel};
 	}
 	else
 	{
-		$who = Clone::clone($LNT->{ $args{node} }); # no polluting of lnt with nodeModel
-		return { error => "no node named \"$args{node}\" exists!" } if (!$who);
+		my $LNT = loadLocalNodeTable();
+		if ($args{uuid})
+		{
+			$who = (grep($_->{uuid} eq $args{uuid}, values %$LNT))[0]; # at most one
+			return { error => "no node with uuid \"$args{uuid}\" exists!" } if (!$who);
+			$who = Clone::clone($who);	# no polluting of lnt with nodeModel
+		}
+		else
+		{
+			$who = Clone::clone($LNT->{ $args{node} }); # no polluting of lnt with nodeModel
+			return { error => "no node named \"$args{node}\" exists!" } if (!$who);
+		}
+
+		# also pull the node info for the nodeModel property
+		my $ninfo = loadNodeInfoTable( $who->{name} );
+		$who->{nodeModel} = $ninfo->{system}->{nodeModel};
 	}
-	# also pull the node info for the nodeModel property
-	my $ninfo = loadNodeInfoTable( $who->{name} );
-	$who->{nodeModel} = $ninfo->{system}->{nodeModel};
 
 	my (@future,@past,@current);
 	for my $outid (keys %$outagedata)
