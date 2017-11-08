@@ -904,6 +904,19 @@ sub doUpdate
 	my $NI = $S->ndinfo;
 	my $NC = $S->ndcfg;
 
+	# look for any current outages with options.nostats set,
+	# and set a marker in nodeinfo so that updaterrd writes nothing but 'U'
+	my $outageres = NMIS::check_outages(sys => $S, time => time);
+	if (!$outageres->{success})
+	{
+		logMsg("ERROR Failed to check outage status for $name: $outageres->{error}");
+	}
+	else
+	{
+		$NI->{admin}->{outage_nostats} = ( List::Util::any { ref($_->{options}) eq "HASH"
+																														 && $_->{options}->{nostats} } @{$outageres->{current}} )? 1 : 0;
+	}
+
 	if (!getbool($nvp{force}))
 	{
 		$S->readNodeView; # from prev. run, but only if force isn't active
@@ -1112,6 +1125,22 @@ sub doServices
 
 	my $S = Sys->new;
 	$S->init(name => $name);
+	my $NI = $S->ndinfo;
+
+	# look for any current outages with options.nostats set,
+	# and set a marker in nodeinfo so that updaterrd writes nothing but 'U'
+	my $outageres = NMIS::check_outages(sys => $S, time => time);
+	if (!$outageres->{success})
+	{
+		logMsg("ERROR Failed to check outage status for $name: $outageres->{error}");
+	}
+	else
+	{
+		$NI->{admin}->{outage_nostats} = ( List::Util::any { ref($_->{options}) eq "HASH"
+																														 && $_->{options}->{nostats} }
+																			 @{$outageres->{current}}) ? 1:0;
+	}
+
 	dbg("node=$name ".join(" ", map { "$_=".$S->ndinfo->{system}->{$_} } (qw(group nodeType nodedown snmpdown wmidown))));
 
 	$S->readNodeView;							# init does not load the node view, but runservices updates view data!
@@ -1181,6 +1210,20 @@ sub doCollect
 	my $NI = $S->ndinfo;
 	my $NC = $S->ndcfg;
 	$S->readNodeView;  # s->init does NOT load that, but we need it as we're overwriting some view info
+
+	# look for any current outages with options.nostats set,
+	# and set a marker in nodeinfo so that updaterrd writes nothing but 'U'
+	my $outageres = NMIS::check_outages(sys => $S, time => time);
+	if (!$outageres->{success})
+	{
+		logMsg("ERROR Failed to check outage status for $name: $outageres->{error}");
+	}
+	else
+	{
+		$NI->{admin}->{outage_nostats} = ( List::Util::any { ref($_->{options}) eq "HASH"
+																														 && $_->{options}->{nostats} }
+																			 @{$outageres->{current}} ) ? 1 : 0;
+	}
 
 	# run an update if no update poll time is known
 	if ( !exists($NI->{system}{last_update}) or !$NI->{system}{last_update})
@@ -3300,8 +3343,10 @@ sub updateNodeInfo
 	my $time_marker = $args{time_marker} || time;
 
 	info("Starting Update Node Info, node $S->{name}");
-	# clear the node reset indication from the last run
-	$NI->{system}->{node_was_reset}=0;
+	# clear any node reset indication from the last run
+	delete $NI->{admin}->{node_was_reset};
+	# node reset marker is now under admin
+	delete $NI->{system}->{node_was_reset};
 
 	# save what we need now for check of this node
 	my $sysObjectID = $NI->{system}{sysObjectID};
@@ -3401,9 +3446,9 @@ sub updateNodeInfo
 						 details => "Old_sysUpTime=$sysUpTime New_sysUpTime=$NI->{system}{sysUpTime}",
 						 context => { type => "node" } );
 
-			# now stash this info in the node info object, to ensure we insert one set of U's into the rrds
+			# now stash this info in the node info object, to ensure we insert ONE set of U's into the rrds
 			# so that no spikes appear in the graphs
-			$NI->{system}{node_was_reset}=1;
+			$NI->{admin}->{node_was_reset}=1;
 		}
 
 		$V->{system}{sysUpTime_value} = $NI->{system}{sysUpTime};

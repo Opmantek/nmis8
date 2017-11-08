@@ -27,7 +27,7 @@
 #
 # *****************************************************************************
 package rrdfunc;
-our $VERSION = "2.4.0";
+our $VERSION = "2.4.1";
 
 use NMIS::uselib;
 use lib "$NMIS::uselib::rrdtool_lib";
@@ -477,6 +477,10 @@ sub getFileName
 # arsg: sys, data (absolutely required), type/index/item (more or less required), extras (optional),
 # database (optional, if set overrides the internal file naming logic)
 #
+# if node has marker node_was_reset or outage_nostats, then inbound
+# data is IGNORED and 'U' is written instead
+# (except for type "health", DS "outage", "polltime" and "updatetime", which are always let through)
+#
 # returns: the database file name; sets the internal error indicator
 sub updateRRD
 {
@@ -485,10 +489,10 @@ sub updateRRD
 	my ($S,$data,$type,$index,$item,$database,$extras) =
 			@args{"sys","data","type","index","item","database","extras"};
 
-	my $NI = $S->{info};
-	my $IF = $S->{intf};
+	my $NI = $S->ndinfo;
 
 	++ $stats{nodes}->{$S->{name}};
+
 	dbg("Starting RRD Update Process, type=$type, index=$index, item=$item");
 
 	# use heuristic or given database?
@@ -544,7 +548,9 @@ sub updateRRD
 	my (@options, @ds);
 	my @values = ("N");							# that's 'reading is for Now'
 
-	dbg("node was reset, inserting U values") if ($NI->{system}->{node_was_reset});
+	# if the node has gone through a reset, then insert a U to avoid spikes - but log once only
+	dbg("node was reset, inserting U values") if ($NI->{admin}->{node_was_reset});
+	dbg("node has current outage with nostats option, inserting U values") if ($NI->{admin}->{outage_nostats});
 	foreach my $var (keys %{$data})
 	{
 		# handle the nosave option
@@ -555,8 +561,10 @@ sub updateRRD
 		}
 
 		push @ds, $var;
-		# if the node has gone through a reset, then insert a U to avoid spikes - but log once only
-		if ($NI->{system}->{node_was_reset})
+
+		# type health, ds outage, polltime, updatetime: are never overridden
+		if ( ($NI->{admin}->{node_was_reset} or $NI->{admin}->{outage_nostats})
+				 and ($type ne "health" or  $var !~ /^(outage|polltime|updatetime)$/))
 		{
 			push @values, 'U';
 		}
