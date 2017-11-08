@@ -2710,6 +2710,8 @@ sub outageCheck
 
 	foreach my $nd ( split(/,/,$NT->{$node}{depend}) )
 	{
+		# ignore nonexistent stuff, defaults and circular self-dependencies
+		next if ($nd =~ m!^(N/A|$node)?$!);
 		my $depoutages = check_outages(node => $nd, time => $time);
 		if (!$depoutages->{success})
 		{
