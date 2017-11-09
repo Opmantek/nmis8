@@ -27,24 +27,22 @@
 #  http://support.opmantek.com/users/
 #
 # *****************************************************************************
-# Auto configure to the <nmis-base>/lib
+use strict;
+
 use FindBin;
 use lib "$FindBin::Bin/../lib";
 
-use strict;
+use CGI qw(:standard *table *Tr *td *form *Select *div);
+
 use NMIS;
 use func;
-
-use Data::Dumper;
-$Data::Dumper::Indent = 1;
-
-use CGI qw(:standard *table *Tr *td *form *Select *div);
+use Auth;
 
 my $q = new CGI; # This processes all parameters passed via GET and POST
 my $Q = $q->Vars; # values in hash
-my $C;
 
-if (!($C = loadConfTable(conf=>$Q->{conf},debug=>$Q->{debug}))) { exit 1; };
+my $C = loadConfTable(conf=>$Q->{conf},debug=>$Q->{debug});
+die "failed to load configuration!\n" if (!$C or ref($C) ne "HASH" or !keys %$C);
 
 # widget default on, only off if explicitely set to off
 my $wantwidget = !getbool($Q->{widget},"invert");
@@ -54,9 +52,8 @@ my $formid = 'nodeconf';
 
 # Before going any further, check to see if we must handle
 # an authentication login or logout request
-
-# NMIS Authentication module
-use Auth;
+# if arguments present, then called from command line
+if ( @ARGV ) { $C->{auth_require} = 0; } # bypass auth
 
 # variables used for the security mods
 my $headeropts = {type => 'text/html', expires => 'now'};
@@ -469,6 +466,19 @@ sub updateNodeConf {
 			}
 			else
 			{
+				# speed in and out are a bit more equal than others, too:
+				# if present they must be positive integers
+				if ($source =~ /^speed(In|Out)?_/)
+				{
+					my $theval = $Q->{$source};
+
+					if (int($theval) ne $theval or $theval <= 0)
+					{
+						print header(-status => 400, %$headeropts),
+						"Validation error for $source: '$theval' is not a positive integer!";
+						return undef;
+					}
+				}
 				$thisintfover->{$target} = $Q->{$source};
 			}
 		}
