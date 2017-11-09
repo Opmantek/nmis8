@@ -796,8 +796,7 @@ sub validation_abort
 
 	print header($headeropts),
 	Tr(td({class=>'error'} , escapeHTML("'$item' failed to validate: $message")));
-
-	die("fixme! $item $message");
+	return undef;
 }
 
 sub dodeleteTable {
