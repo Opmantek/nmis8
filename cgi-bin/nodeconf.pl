@@ -460,7 +460,9 @@ sub updateNodeConf {
 			# event, collect and threshold are special:
 			# value "unchanged" means remove the override
 			if (($source =~ /^(collect|event|threshold)_/ and $Q->{$source} eq "unchanged")
-					or !$Q->{$source})	# others: no value given means remove
+					# others: no value given means remove
+					or !defined($Q->{$source})
+					or $Q->{$source} eq "")
 			{
 				delete $thisintfover->{$target};
 			}
