@@ -211,10 +211,20 @@ sub getCGIForm {
 	}
 	return %FORM;
 }
-
+ 
 sub convertIfName {
 	my $ifName = shift;
-	$ifName =~ s/\W+/-/g;
+	
+	# new configuration option to handle customers with conflicting names, e.g. Gig0/0.1 and Gig0/0/1
+	my $preserve_dot_in_ifdescr = getbool($C_cache->{preserve_dot_in_ifdescr});
+	
+	if ( $preserve_dot_in_ifdescr ) {
+		$ifName =~ s/[^A-Za-z0-9_.]+/-/g;
+	}
+	else {
+		$ifName =~ s/\W+/-/g;
+	}
+	
 	$ifName =~ s/\-$//g;
 	$ifName = lc($ifName);
 	return $ifName
