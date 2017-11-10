@@ -29,43 +29,47 @@
 #  http://support.opmantek.com/users/
 #
 # *****************************************************************************
-# Auto configure to the <nmis-base>/lib
+use strict;
+our $VERSION="8.6.2b";
+
 use FindBin;
 use lib "$FindBin::Bin/../lib";
 
-#
-use strict;
+use URI::Escape;
+use CGI qw(:standard *table *Tr *td *form *Select *div);
+use Net::IP;
+
 use NMIS;
 use func;
 use csv;
 use DBfunc;
-use URI::Escape;
-
-use CGI qw(:standard *table *Tr *td *form *Select *div);
+use Auth;
 
 my $q = new CGI; # This processes all parameters passed via GET and POST
 my $Q = $q->Vars; # values in hash
-my $C;
+my $C = loadConfTable(conf=>$Q->{conf},debug=>$Q->{debug});
 
-if (!($C = loadConfTable(conf=>$Q->{conf},debug=>$Q->{debug}))) { exit 1; };
+die "failed to load configuration!\n" if (!$C or ref($C) ne "HASH" or !keys %$C);
+
+# if arguments present, then called from command line
+if ( @ARGV ) { $C->{auth_require} = 0; } # bypass auth
 
 # this cgi script defaults to widget mode ON
 my $wantwidget = exists $Q->{widget}?
 		!getbool($Q->{widget}, "invert") : 1;
 my $widget = $wantwidget ? "true" : "false";
 
-# Before going any further, check to see if we must handle
-# an authentication login or logout request
-
-# NMIS Authentication module
-use Auth;
-
 my $headeropts = {type=>'text/html',expires=>'now'};
 my $AU = Auth->new(conf => $C);  # Auth::Auth::new will reap init values from NMIS::config
 
 if ($AU->Require) {
 	exit 0 unless $AU->loginout(type=>$Q->{auth_type},username=>$Q->{auth_username},
-					password=>$Q->{auth_password},headeropts=>$headeropts) ;
+															password=>$Q->{auth_password},headeropts=>$headeropts) ;
+}
+else
+{
+	# that's the command line/debugger scenario, where we assume a full admin
+	$AU->SetUser("nmis");
 }
 
 # $AU->CheckAccess, will send header and display message denying access if fails.
@@ -77,9 +81,6 @@ if ($Q->{server} ne "") { exit if requestServer(headeropts=>$headeropts); }
 #======================================================================
 
 # select function
-
-# what shall we do
-
 if ($Q->{act} eq 'config_nmis_menu') {			displayConfig();
 } elsif ($Q->{act} eq 'config_nmis_add') {		addConfig();
 } elsif ($Q->{act} eq 'config_nmis_edit') {		editConfig();
@@ -94,8 +95,10 @@ if ($Q->{act} eq 'config_nmis_menu') {			displayConfig();
 } elsif ($Q->{act} eq 'config_nmis_dostore') { 	doStoreTable(); displayConfig();
 } else { notfound(); }
 
+exit 1;
+
 sub notfound {
-	print header($headeropts);
+	print header(-status => 400, %$headeropts);
 	pageStart(title => "NMIS Configuration", refresh => $Q->{refresh}) 	if (!$wantwidget);
 
 	print "Config: ERROR, act=$Q->{act}, node=$Q->{node}, intf=$Q->{intf}\n";
@@ -103,13 +106,11 @@ sub notfound {
 	pageEnd if (!$wantwidget);
 }
 
-exit 1;
-
-
 #
 # display the Config of NMIS
 #
-sub displayConfig{
+sub displayConfig
+{
 	my %args = @_;
 
 	my $section = $Q->{section};
@@ -165,9 +166,13 @@ End_page:
 
 }
 
+# very minimal escape of inputs that will break the html structure
 sub escape {
 	my $k = shift;
-	$k =~ s/</&lt;/g; $k =~ s/>/&gt;/g;
+	$k =~ s/&/&amp;/g;
+	$k =~ s/</&lt;/g;
+	$k =~ s/>/&gt;/g;
+
 	return $k;
 }
 
@@ -374,7 +379,14 @@ sub editConfig{
 	pageEnd if (!$wantwidget);
 }
 
-sub doEditConfig {
+# endpoint for edit operation,
+# consumes one section+item = value argument;
+# validates where possible and updates
+# the configuration if ok
+#
+# returns 1 if ok, 0 otherwise
+sub doEditConfig
+{
 	my %args = @_;
 
 	return 1 if (getbool($Q->{cancel}));
@@ -388,63 +400,192 @@ sub doEditConfig {
 	# check if DB <=> file change
 	if ($section eq 'database' and $item =~ /^db.*sql$/
 			and $C->{$item} ne $value and ($C->{$item} ne ''
-																		 or getbool($value)) ) {
+																		 or getbool($value)) )
+	{
 		storeTable(section=>$section,item=>$item,value=>$value);
 		return 0;
 	}
-	else
+
+	# that's the  non-flattened raw hash
+	my ($CC,undef) = readConfData(conf=>$C->{conf});
+	# that's the set of display and validation rules
+	my $configrules = loadCfgTable(table => "Config", user => $AU->{user});
+
+	# handle the comfy group_list editing and translate the separate values
+	# ditto for roletype, nettype and nodetype
+	if ($section eq "system" and ( $item =~ /^(group|roletype|nettype|nodetype)_list$/))
 	{
-		my ($CC,undef) = readConfData(conf=>$C->{conf});
+		my $concept = $1;
+		my $conceptname = $concept eq "group"? "Group"
+				: $concept eq "roletype"? "Role Type" : $concept eq "nettype"? "Network Type" : "Node Type"; # uggly
+		my @existing = split(/\s*,\s*/, $CC->{$section}->{$item});
 
-		# handle the comfy group_list editing and translate the separate values
-		# ditto for roletype, nettype and nodetype
-		if ($section eq "system" and ( $item =~ /^(group|roletype|nettype|nodetype)_list$/))
+		my $newthing = $Q->{"new$concept"};
+		# add actions ONLY if the add button was used to submit
+		if ($Q->{edittype} eq "Add" and defined $newthing and $newthing ne '')
 		{
-			my $concept = $1;
-			my $conceptname = $concept eq "group"? "Group"
-					: $concept eq "roletype"? "Role Type" : $concept eq "nettype"? "Network Type" : "Node Type"; # uggly
-			my @existing = split(/\s*,\s*/, $CC->{$section}->{$item});
+			return validation_abort($conceptname,
+															"'$newthing' contains invalid characters. Spaces and commas are prohibited.")
+					if ($newthing =~ /[, ]/);
 
-			my $newthing = $Q->{"new$concept"};
-			# add actions ONLY if the add button was used to submit
-			if ($Q->{edittype} eq "Add" and defined $newthing and $newthing ne '')
-			{
-				if ($newthing =~ /[, ]/)
-				{
-					$Q->{error_message} = "$conceptname name \"$newthing\" contains invalid characters. Spaces and commas are prohibited.";
-					return 0;
-				}
-
-				push @existing, $newthing
-						if (!grep($_ eq $newthing, @existing));
-			}
-
-			# delete actions ONLY if the delete button was used to submit
-			if ($Q->{edittype} eq "Delete")
-			{
-				for my $deletable (grep(/^delete_${concept}_/, keys %$Q))
-				{
-					next if $Q->{$deletable} ne "nuke";
-					my $deletablename = $deletable;
-					$deletablename =~ s/^delete_group_//;
-					my $unesc = uri_unescape($deletablename);
-
-					@existing = grep($_ ne $unesc, @existing);
-				}
-			}
-
-			$value = join(",", sort @existing);
+			push @existing, $newthing
+					if (!grep($_ eq $newthing, @existing));
 		}
 
+		# delete actions ONLY if the delete button was used to submit
+		if ($Q->{edittype} eq "Delete")
+		{
+			for my $deletable (grep(/^delete_${concept}_/, keys %$Q))
+			{
+				next if $Q->{$deletable} ne "nuke";
+				my $deletablename = $deletable;
+				$deletablename =~ s/^delete_group_//;
+				my $unesc = uri_unescape($deletablename);
 
-		$CC->{$section}{$item} = $value;
-		writeConfData(data=>$CC);
-		return 1;
+				@existing = grep($_ ne $unesc, @existing);
+			}
+		}
+
+		$value = join(",", sort @existing);
 	}
+
+	my $thisrule = NMIS::findCfgEntry(section => $section, item => $item, table => $configrules);
+	if (ref($thisrule) eq "HASH" && ref($thisrule->{validate}) eq "HASH")
+	{
+		# supported validation mechanisms:
+		# "int" => [ min, max ], undef can be used for no min/max - rejects X < min or > max
+		# "float" => [ min, max, above, below ] - rejects X < min or X <= above, X > max or X >= below
+		#   that's required to express 'positive float' === strictly above zero: [0 or undef,dontcare,0,dontcare]
+		# "regex" => qr//,
+		# "ip" => [ 4 or 6 or 4, 6],
+		# "resolvable" => [ 4 or 6 or 4, 6] - accepts ip of that type or hostname that resolves to that ip type
+		# "onefromlist" => [ list of accepted values ] or undef - if undef, 'value' list is used
+		#   accepts exactly one value
+		# "multifromlist" => [ list of accepted values ] or undef, like fromlist but more than one
+		#   accepts any number of values from the list, including none whatsoever!
+		# more than one rule possible but likely not very useful
+		for my $valtype (sort keys %{$thisrule->{validate}})
+		{
+			my $valprops = $thisrule->{validate}->{$valtype};
+
+			if ($valtype eq "int" or $valtype eq "float")
+			{
+				return validation_abort($item, "'$value' is not an integer!")
+						if ($valtype eq "int" and int($value) ne $value);
+				return validation_abort($item, "'$value' is not a floating point number!")
+						# integer or full ieee floating point with optional exponent notation
+						if ($valtype eq "float" and $value !~ /^([+-]?)(?=\d|\.\d)\d*(\.\d*)?([Ee]([+-]?\d+))?$/);
+
+				my ($min,$max,$above,$below) = ref($valprops) eq "ARRAY"? @{$valprops} : (undef,undef,undef,undef);
+				return validation_abort($item, "$value below minimum $min!")
+						if (defined($min) and $value < $min);
+				return validation_abort($item,"$value above maximum $max!")
+						if (defined($max) and $value > $max);
+
+				# integers don't subdivide infinitely precisely so above and below not needed
+				if ($valtype eq "float")
+				{
+					return validation_abort($item, "$value is not above $above!")
+							if (defined($above) and $value <= $above);
+
+					return validation_abort($item, "$value is not below $below!")
+							if (defined($below) and $value >= $below);
+				}
+			}
+			elsif ($valtype eq "regex")
+			{
+				my $expected = ref($valprops) eq "Regexp"? $valprops : qr//; # fallback will match anything
+				return validation_abort($item, "'$value' didn't match regular expression!")
+						if ($value !~ $expected);
+			}
+			elsif ($valtype eq "ip")
+			{
+				my @ipversions = ref($valprops) eq "ARRAY"? @$valprops : (4,6);
+
+				my $ipobj = Net::IP->new($value);
+				return validation_abort($item, "'$value' is not a valid IP address!")
+						if (!$ipobj);
+
+				return validation_abort($item, "'$value' is IP address of the wrong type!")
+						if (($ipobj->version == 6 and !grep($_ == 6, @ipversions))
+								or $ipobj->version == 4 and !grep($_ == 4, @ipversions));
+			}
+			elsif ($valtype eq "resolvable")
+			{
+				return validation_abort($item, "'$value' is not a resolvable name or IP address!")
+						if (!$value);
+
+				my @ipversions = ref($valprops) eq "ARRAY"? @$valprops : (4,6);
+
+				my $alreadyip = Net::IP->new($value);
+				if ($alreadyip)
+					{
+						return validation_abort($item, "'$value' is IP address of the wrong type!")
+								if (!grep($_ == $alreadyip->version, @ipversions));
+						# otherwise, we're happy...
+					}
+				else
+				{
+					my @addresses = NMIS::resolve_dns_name($value);
+					return validation_abort($item, "DNS failed to resolve '$value'!")
+							if (!@addresses);
+
+					my @addr_objs = map { Net::IP->new($_) } (@addresses);
+					my $goodones;
+						for my $type (4,6)
+						{
+							$goodones += grep($_->version == $type, @addr_objs) if (grep($_ == $type, @ipversions));
+						}
+					return validation_abort($item,
+																	"'$value' does not resolve to an IP address of the right type!")
+							if (!$goodones);
+				}
+			}
+			elsif ($valtype eq "onefromlist" or $valtype eq "multifromlist")
+			{
+				# either explicit list of acceptables, or the 'value' config item
+				my @acceptable = ref($valprops) eq "ARRAY"? @$valprops :
+						ref($thisrule->{value}) eq "ARRAY"? @{$thisrule->{value}}: ();
+				return validation_abort($item, "no validation choices configured!")
+						if (!@acceptable);
+
+				# for multifromlist assume that value is now comma-separated. *sigh*
+				# for onefromlist values with colon are utterly unspecial *double sigh*
+				my @mustcheckthese = ($valtype eq "multifromlist")? split(/,/, $value) : $value;
+				for my $oneofmany (@mustcheckthese)
+				{
+					return validation_abort($item, "'$oneofmany' is not in list of acceptable values!")
+							if (!List::Util::any { $oneofmany eq $_ } (@acceptable));
+				}
+			}
+			else
+			{
+				return validation_abort($item, "unknown validation type \"$valtype\"");
+			}
+		}
+	}
+
+	# no validation or success, so let's update the config
+
+	$CC->{$section}{$item} = $value;
+	writeConfData(data=>$CC);
+	return 1;
+}
+
+# setup (negative) response in $Q's error attribute
+# args: item, message
+# returns: undef
+sub validation_abort
+{
+	my ($item, $message) = @_;
+
+	$Q->{error_message} = "'$item' failed to validate: $message";
+	return undef;
 }
 
 
-sub deleteConfig {
+sub deleteConfig
+{
 	my %args = @_;
 
 	my $section = $Q->{section};

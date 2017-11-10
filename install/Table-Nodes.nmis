@@ -114,7 +114,7 @@ my $uuid = getUUID();
 									 value => ["", sort keys %{loadServicesTable()}],
 										validate => { "multifromlist" => undef } }},
 	 { timezone => { header => 'Time Zone',display => 'text',value => ["0"],
-									 validate => { regex => qr/^[+-]?\d{1,2}(:\d{1,2})?$/ } } },
+									 validate => { regex => qr/^([+-]?\d{1,2}(:\d{1,2})?)?$/ } } },
 	 { extra_options => { special => 'separator', header => 'SNMP Settings'}},
 	 { version => { header => 'SNMP Version',display => 'popup',value => ["snmpv2c","snmpv1","snmpv3"],
 									validate => { "onefromlist" => undef } }},

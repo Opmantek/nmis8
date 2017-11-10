@@ -27,8 +27,9 @@
 #  http://support.opmantek.com/users/
 #
 # *****************************************************************************
-our $VERSION="8.6.2a";
 use strict;
+our $VERSION="8.6.2b";
+
 use FindBin;
 use lib "$FindBin::Bin/../lib";
 
@@ -69,7 +70,6 @@ else
 	# that's the command line/debugger scenario, where we assume a full admin
 	$AU->SetUser("nmis");
 }
-
 # check for remote request
 if ($Q->{server} ne "") { exit if requestServer(headeropts=>$headeropts); }
 
@@ -128,26 +128,6 @@ sub loadReqTable
 	return $T;
 }
 
-# loads the table definition/configuration file
-sub loadCfgTable {
-	my %args = @_;
-	my $table = $args{table};
-
-	# Set the Environment VAR to tell the EVAL'd program who the user is.
-	$ENV{'NMIS_USER'} = $AU->{user};
-
-	my $tabCfg = loadGenericTable("Table-$table");
-	my %Cfg = %{$tabCfg};
-
-	if (!($Cfg{$table})) {
-		print Tr(td({class=>'error'},"Failed to load $table configuration file!"));
-		return;
-	}
-
-	return $Cfg{$table};
-}
-
-#
 sub menuTable{
 
 	my $table = $Q->{table};
@@ -173,7 +153,8 @@ EOF
 	$T = loadReqTable(table=>$table); # load requested table
 
 	my $CT;
-	return if (!($CT = loadCfgTable(table=>$table))); # load configuration of table
+	# load configuration of table
+	return if (!($CT = loadCfgTable(table=>$table, user => $AU->{user})));
 
 	print start_table;
 
@@ -262,7 +243,7 @@ sub viewTable {
 	my $T;
 	return if (!($T = loadReqTable(table=>$table))); # load requested table
 
-	my $CT = loadCfgTable(table=>$table); # load table configuration
+	my $CT = loadCfgTable(table=>$table, user => $AU->{user}); # load table configuration
 	# not delete -> we assume view
 	my $action= $Q->{act} =~ /delete/? "config_table_dodelete": "config_table_menu";
 
@@ -351,7 +332,7 @@ sub showTable {
 	my $T;
 	return if (!($T = loadReqTable(table=>$table))); # load requested table
 
-	my $CT = loadCfgTable(table=>$table); # load table configuration
+	my $CT = loadCfgTable(table=>$table, user => $AU->{user}); # load table configuration
 
 	my $S = Sys::->new;
 	$S->init(name=>$node,snmp=>'false');
@@ -411,7 +392,7 @@ sub editTable
 	my $T;
 	return if (!($T = loadReqTable(table=>$table,msg=>'false')) and $Q->{act} =~ /edit/); # load requested table
 
-	my $CT = loadCfgTable(table=>$table);
+	my $CT = loadCfgTable(table=>$table, user => $AU->{user});
 
 	my $func = ($Q->{act} eq 'config_table_add') ? 'doadd' : 'doedit';
 	my $button = ($Q->{act} eq 'config_table_add') ? 'Add' : 'Edit';
@@ -564,7 +545,7 @@ sub doeditTable
 
 	my $T = loadReqTable(table=>$table, msg=>'false');
 
-	my $CT = loadCfgTable(table=>$table);
+	my $CT = loadCfgTable(table=>$table, user => $AU->{user});
 	my $TAB = loadGenericTable('Tables');
 
 	# combine key from values, values separated by underscrore
@@ -621,7 +602,9 @@ sub doeditTable
 			next if (ref($thisitem->{validate}) ne "HASH");
 
 			# supported validation mechanisms:
-			# "int" => [ min, max ], undef can be used for no min/max
+			# "int" => [ min, max ], undef can be used for no min/max - rejects X < min or > max.
+			# "float" => [ min, max, above, below ] - rejects X < min or X <= above, X > max or X >= below
+			#   that's required to express 'positive float' === strictly above zero: [0 or undef,dontcare,0,dontcare]
 			# "regex" => qr//,
 			# "ip" => [ 4 or 6 or 4, 6],
 			# "resolvable" => [ 4 or 6 or 4, 6] - accepts ip of that type or hostname that resolves to that ip type
@@ -634,17 +617,29 @@ sub doeditTable
 			{
 				my $valprops = $thisitem->{validate}->{$valtype};
 
-				if ($valtype eq "int")
+				if ($valtype eq "int" or $valtype eq "float")
 				{
 					return validation_abort($item, "'$value' is not an integer!")
-							if (int($value) ne $value);
+							if ($valtype eq "int" and int($value) ne $value);
+					return validation_abort($item, "'$value' is not a floating point number!")
+							# integer or full ieee floating point with optional exponent notation
+							if ($valtype eq "float" and $value !~ /^([+-]?)(?=\d|\.\d)\d*(\.\d*)?([Ee]([+-]?\d+))?$/);
 
-					my ($min,$max) = ref($valprops) eq "ARRAY"? @{$valprops} : (undef,undef);
+					my ($min,$max,$above,$below) = ref($valprops) eq "ARRAY"? @{$valprops} : (undef,undef,undef,undef);
 					return validation_abort($item, "$value below minimum $min!")
 							if (defined($min) and $value < $min);
 					return validation_abort($item,"$value above maximum $max!")
 							if (defined($max) and $value > $max);
 
+					# integers don't subdivide infinitely precisely so above and below not needed
+					if ($valtype eq "float")
+					{
+						return validation_abort($item, "$value is not above $above!")
+								if (defined($above) and $value <= $above);
+
+						return validation_abort($item, "$value is not below $below!")
+								if (defined($below) and $value >= $below);
+					}
 				}
 				elsif ($valtype eq "regex")
 				{
@@ -673,7 +668,7 @@ sub doeditTable
 
 					my $alreadyip = Net::IP->new($value);
 					if ($alreadyip)
-					{ 
+					{
 						return validation_abort($item, "'$value' is IP address of the wrong type!")
 								if (!grep($_ == $alreadyip->version, @ipversions));
 						# otherwise, we're happy...
@@ -683,14 +678,14 @@ sub doeditTable
 						my @addresses = NMIS::resolve_dns_name($value);
 						return validation_abort($item, "DNS failed to resolve '$value'!")
 								if (!@addresses);
-						
+
 						my @addr_objs = map { Net::IP->new($_) } (@addresses);
 						my $goodones;
 						for my $type (4,6)
 						{
 							$goodones += grep($_->version == $type, @addr_objs) if (grep($_ == $type, @ipversions));
 						}
-						return validation_abort($item, 
+						return validation_abort($item,
 																		"'$value' does not resolve to an IP address of the right type!")
 								if (!$goodones);
 					}
