@@ -253,7 +253,7 @@ fi
 
 if [ "$2" = "collect" ]
 then
-	$nmis type=collect "$node" info=true $DEBUG $MODEL
+	$nmis type=collect "$node" info=true force=true $DEBUG $MODEL
 	exit 0
 fi
 
