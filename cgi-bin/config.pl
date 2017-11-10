@@ -87,10 +87,11 @@ if ($Q->{act} eq 'config_nmis_menu') {			displayConfig();
 } elsif ($Q->{act} eq 'config_nmis_delete') {	deleteConfig();
 } elsif ($Q->{act} eq 'config_nmis_doadd') {	doAddConfig(); displayConfig();
 
-# edit submission action: if it returns 0, we do nothing (assuming it prints complains)
+# edit submission action: if it returns 0, we do nothing (assuming it prints complaints)
 # if it returns 0 AND sets error_message in Q, then we show the toplevel config AND the error message in a bar
-# if it returns 1 we shod the topplevel config
-} elsif ($Q->{act} eq 'config_nmis_doedit') {	if (doEditConfig() or $Q->{error_message}) { displayConfig(); }
+# if it returns 1 we show the top level config
+} elsif ($Q->{act} eq 'config_nmis_doedit') {
+	displayConfig() if (doEditConfig() or $Q->{error_message});
 } elsif ($Q->{act} eq 'config_nmis_dodelete') { doDeleteConfig(); displayConfig();
 } elsif ($Q->{act} eq 'config_nmis_dostore') { 	doStoreTable(); displayConfig();
 } else { notfound(); }
@@ -583,7 +584,7 @@ sub validation_abort
 	return undef;
 }
 
-
+# shows the deletion yes/no dialog
 sub deleteConfig
 {
 	my %args = @_;
@@ -591,12 +592,12 @@ sub deleteConfig
 	my $section = $Q->{section};
 	my $item = $Q->{item};
 
-	#start of page
 	print header($headeropts);
 	pageStart(title => "NMIS Configuration", refresh => $Q->{refresh}) 	if (!$wantwidget);
 
 	$AU->CheckAccess("Table_Config_rw");
 
+	# that's the non-flattened raw hash
 	my ($CC,undef) = readConfData(conf=>$C->{conf});
 
 	my $value = $CC->{$section}{$item};
@@ -631,15 +632,16 @@ sub deleteConfig
 									 onclick=> '$("#cancelinput").val("true");' . ($wantwidget? "get('nmisconfig');" : 'submit();'),
 									 -value=>'Cancel')));
 
-	print end_form;
-
-End_deleteConfig:
-	print end_table;
+	print end_form, end_table;
 	pageEnd if (!$wantwidget);
 }
 
 
-sub doDeleteConfig {
+# deletes one config entry (identified by section and item),
+# if allowed to: rejects deletion of items that are subject to validation rules
+# returns: 1 if ok, undef if not; sets Q's error attribute in that case
+sub doDeleteConfig
+{
 	my %args = @_;
 
 	return if (getbool($Q->{cancel}));
@@ -649,11 +651,25 @@ sub doDeleteConfig {
 	my $section = $Q->{section};
 	my $item = $Q->{item};
 
+	# that's the  non-flattened raw hash
 	my ($CC,undef) = readConfData(conf=>$C->{conf});
+	# that's the set of display and validation rules
+	my $configrules = loadCfgTable(table => "Config", user => $AU->{user});
+
+
+	# check if that thing is under validation; if so, reject deletion
+	# possible future improvement: check if validation rule allows empty value
+	my $thisrule = NMIS::findCfgEntry(section => $section, item => $item, table => $configrules);
+	if (ref($thisrule) eq "HASH" && ref($thisrule->{validate}) eq "HASH")
+	{
+		$Q->{error_message} = "'$item' cannot be deleted: required by validation rule!";
+		return undef;
+	}
+
 
 	delete $CC->{$section}{$item};
-
 	writeConfData(data=>$CC);
+	return 1;
 }
 
 sub addConfig{
