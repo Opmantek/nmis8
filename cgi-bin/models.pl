@@ -27,40 +27,38 @@
 #  http://support.opmantek.com/users/
 #
 # *****************************************************************************
+use strict;
+our $VERSION = "8.6.2b";
+
 use FindBin;
 use lib "$FindBin::Bin/../lib";
 
-use strict;
+use CGI qw(:standard *table *Tr *td *form *Select *div);
+use Fcntl qw(:DEFAULT :flock);
+use Data::Dumper;
+
 use NMIS;
 use func;
 use csv;
-use Fcntl qw(:DEFAULT :flock);
 use Sys;
 use Mib;
 use Auth;
-use Data::Dumper;
-
-use CGI qw(:standard *table *Tr *td *form *Select *div);
 
 my $q = new CGI;
 my $Q = $q->Vars;
 
 my $wantwidget = (!getbool($Q->{widget},"invert")); # default is thus 1=widgetted.
 $Q->{widget} = $wantwidget? "true":"false"; # and set it back to prime urls and inputs
-my $C = loadConfTable(conf=>$Q->{conf},debug=>$Q->{debug});
 
-if (!$C)
-{
-	print header(-status => 500);
-	pageStart(title => "NMIS Modeling") if (!$wantwidget);
-	print "<div>Error: Failed to load config file!</div>";
-	pageEnd if (!$wantwidget);
-	exit 1;
-}
+my $C = loadConfTable(conf=>$Q->{conf},debug=>$Q->{debug});
+die "failed to load configuration!\n" if (!$C or ref($C) ne "HASH" or !keys %$C);
+
+# if arguments present, then called from command line
+if ( @ARGV ) { $C->{auth_require} = 0; } # bypass auth
 
 # variables used for the security mods
 my $headeropts = {type=>'text/html',expires=>'now'};
-my $AU = Auth->new(conf => $C);  # Auth::new will reap init values from NMIS::config
+my $AU = Auth->new(conf => $C);
 
 if ($AU->Require)
 {
@@ -205,7 +203,10 @@ elsif ($Q->{act} eq 'config_model_edit') {	editModel(); }
 elsif ($Q->{act} eq 'config_model_delete') {	deleteModel(); }
 # performing actual changes
 elsif ($Q->{act} eq 'config_model_doadd') {	doAddModel(); displayModel(); }
-elsif ($Q->{act} eq 'config_model_doedit') { doEditModel(); displayModel(); }
+# if edit fails, remain on the editmodel page
+elsif ($Q->{act} eq 'config_model_doedit') {
+	doEditModel()? displayModel() : editModel();
+}
 elsif ($Q->{act} eq 'config_model_dodelete') { doDeleteModel(); displayModel(); }
 else
 {
@@ -258,6 +259,10 @@ sub displayModel
 			. hidden(-override => 1, -name => "widget", -value => $Q->{widget}),
 			# the menu-ish table part
 			start_table(),
+
+			# error indicator if there is one
+			($Q->{error_message} ? Tr(td({class=>'Fatal',align=>'center'}, "Error: $Q->{error_message}")) : ""),
+
 			"<tr>", td({class=>'header'},
 								 "Select Model<br>".
 								 popup_menu(-name=>'model', -override=>'1',
@@ -477,6 +482,9 @@ sub editModel
 
 	print "<table>", Tr(td({class=>"header",colspan=>'8',align=>'center'},
 												 "Editing Model $wantedmodel"));
+
+	print Tr(td({class=>'Fatal',align=>'center',colspan => 8}, "Error: $Q->{error_message}"))
+			if ($Q->{error_message});
 
 	my $field = $modelstruct;
 	my @locationsteps = split(/,/, $locsteps);
@@ -700,10 +708,10 @@ sub addModel
 
 # endpoint for post, for making in-place edits to leaf things
 # args: none but uses q's mode, section, hash and value, also cancel
-# returns: nothing;
+# returns: 1 if ok, undef if not - sets Q's error attribute in that case
 sub doEditModel
 {
-	return if (getbool($Q->{cancel}));
+	return 1 if (getbool($Q->{cancel}));
 	$AU->CheckAccess("Table_Models_rw",'header');
 
 	my ($wantedmodel,$wantedsection,$locsteps,$value) =
@@ -718,6 +726,18 @@ sub doEditModel
 			if (ref($modelstruct) ne "HASH" or !keys %$modelstruct);
 
 	my @locationsteps = split(/,/, $locsteps);
+	# validation: enfoce numeric value (floating point or integer) for
+	# 1. all things under section=threshold with second-to-last step being 'value'
+	# 2. all things under section=alerts, with second-to-last step being 'threshold'
+	if ($value !~ /^([+-]?)(?=\d|\.\d)\d*(\.\d*)?([Ee]([+-]?\d+))?$/
+			and ( ($wantedsection eq "threshold" and  $locationsteps[-2] eq "value")
+						or ($wantedsection eq "alerts" and  $locationsteps[-2] eq "threshold")))
+	{
+		$Q->{error_message} = "Validation for $locationsteps[-1] failed: '$value' is not a number!";
+		return undef;
+	}
+
+	# validation ok? then traverse the structure and update the leaf
 	my $target = $modelstruct;
 	for my $nextstep (@locationsteps[0..$#locationsteps-1])
 	{
@@ -733,6 +753,7 @@ sub doEditModel
 		$target->{$locationsteps[-1]} = $value;
 	}
 	writeHashtoFile(file => $modelfn, data => $modelstruct);
+	return 1;
 }
 
 # endpoint for post, for deleting leaves or whole subtrees
