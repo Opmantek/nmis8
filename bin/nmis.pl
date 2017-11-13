@@ -5992,43 +5992,48 @@ sub runAlerts
 
 							my $level=$CA->{$sect}{$alrt}{level};
 
-							# check the thresholds
-							# fixed thresholds to fire at level not one off, and threshold falling was just wrong.
+							# check the thresholds, in appropriate order
+							# report normal if below level for warning (for threshold-rising, or above for threshold-falling)
+							# debug-warn and ignore a level definition for 'Normal' - overdefined and buggy!
 							if ( $CA->{$sect}{$alrt}{type} =~ /^threshold/ )
 							{
-									if ( $CA->{$sect}{$alrt}{type} eq "threshold-rising" ) {
-											if ( $test_value <= $CA->{$sect}{$alrt}{threshold}{Normal} ) {
-													$test_result = 0;
-													$level = "Normal";
-											}
-											else {
-													my @levels = qw(Fatal Critical Major Minor Warning);
-													foreach my $lvl (@levels) {
-															if ( $test_value >= $CA->{$sect}{$alrt}{threshold}{$lvl} ) {
-																	$test_result = 1;
-																	$level = $lvl;
-																	last;
-															}
-													}
-											}
-									}
-									elsif ( $CA->{$sect}{$alrt}{type} eq "threshold-falling" ) {
-											if ( $test_value >= $CA->{$sect}{$alrt}{threshold}{Normal} ) {
-													$test_result = 0;
-													$level = "Normal";
-											}
-											else {
-													my @levels = qw(Warning Minor Major Critical Fatal);
-													foreach my $lvl (@levels) {
-															if ( $test_value <= $CA->{$sect}{$alrt}{threshold}{$lvl} ) {
-																	$test_result = 1;
-																	$level = $lvl;
-																	last;
-															}
-													}
-											}
-									}
-									info("alert result: Normal=$CA->{$sect}{$alrt}{threshold}{Normal} test_value=$test_value test_result=$test_result level=$level",2);
+								dbg("Warning: ignoring deprecated threshold level Normal for alert \"$alrt\"!")
+										if (defined($CA->{$sect}->{$alrt}->{threshold}->{'Normal'}));
+
+								my @matches;
+								# to disable particular levels, set their value to the same as the desired one
+								# comparison code looks for all matches and picks the worst/highest severity match
+								if ( $CA->{$sect}{$alrt}{type} eq "threshold-rising" )
+								{
+									# from not-bad to very-bad, for skipping skippable levels
+									@matches = grep( $test_value >= $CA->{$sect}->{$alrt}->{threshold}->{$_},
+																	 (qw(Warning Minor Major Critical Fatal)));
+								}
+								elsif ( $CA->{$sect}{$alrt}{type} eq "threshold-falling" )
+								{
+									# from not-bad to very bad, again, same rationale
+									@matches = grep($test_value <= $CA->{$sect}->{$alrt}->{threshold}->{$_},
+																	(qw(Warning Minor Major Critical Fatal)));
+								}
+								else
+								{
+									logMsg("ERROR: skipping unknown alert type \"$CA->{$sect}{$alrt}{type}\"!");
+									next;
+								}
+
+								# no matches for above threshold (for rising)? then "Normal"
+								# ditto for matches below threshold (for falling)
+								if (!@matches)
+								{
+									$level = "Normal";
+									$test_result = 0;
+								}
+								else
+								{
+									$level = @matches[-1]; # we want the highest severity/worst matching one
+									$test_result = 1;
+								}
+								info("alert result: test_value=$test_value test_result=$test_result level=$level",2);
 							}
 
 							# and now save the result, for both tests and thresholds (source of level is the only difference)
