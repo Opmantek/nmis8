@@ -108,7 +108,7 @@ my $NODES = loadLocalNodeTable();
 # Step 7: Check the results
 
 if ( not -f $arg{nodes} ) {
-	createNodeUUID();
+	NMIS::UUID::createNodeUUID();
 	exportNodes($arg{nodes});
 }
 else {

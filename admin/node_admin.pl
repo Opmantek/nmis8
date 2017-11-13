@@ -432,7 +432,7 @@ Use act=rename for renaming nodes.\n"
 	# no uuid? then we add one
 	if (!$mayberec->{uuid})
 	{
-		$mayberec->{uuid} = getUUID($node);
+		$mayberec->{uuid} = NMIS::UUID::getUUID($node);
 	}
 
 	# ok, looks good enough. save the node info.

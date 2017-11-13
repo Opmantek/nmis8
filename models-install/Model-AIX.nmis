@@ -170,7 +170,6 @@
       'HighDiskUsage' => {
         'type' => 'threshold-rising',
         'threshold' => {
-        	'Normal' => '70',
         	'Warning' => '75',
         	'Minor' => '80',
         	'Major' => '95',
@@ -180,6 +179,7 @@
         'test' => '',
         'value' => 'CVAR1=hrStorageSize;CVAR2=hrStorageUsed;$CVAR2 / $CVAR1 * 100',
         'element' => 'hrStorageDescr',
+				'title' => "Disk Usage",
         'unit' => '%',
         'event' => 'High Disk Usage',
         'level' => 'Warning',
@@ -188,7 +188,6 @@
       'HighMemoryUsage' => {
         'type' => 'threshold-rising',
         'threshold' => {
-        	'Normal' => '30',
         	'Warning' => '70',
         	'Minor' => '80',
         	'Major' => '90',
@@ -198,6 +197,7 @@
         'test' => '',
         'value' => 'CVAR1=hrStorageSize;CVAR2=hrStorageUsed;$CVAR2 / $CVAR1 * 100',
         'element' => 'hrStorageDescr',
+				'title' => "Memory Usage",
         'unit' => '%',
         'event' => 'High Memory Usage',
         'level' => 'Warning',

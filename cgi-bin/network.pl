@@ -1472,7 +1472,7 @@ sub viewNode {
 	}
 
 	my %status = PreciseNodeStatus(system => $S);
-
+	
 	$S->readNodeView();
 	my $V = $S->view;
 
@@ -1496,8 +1496,9 @@ EO_HTML
 
 	# fallback/default order and set of propertiess for displaying all information
 	my @order = (
-		'status'
-		,'sysName'
+		'status',
+		'outage',
+		'sysName',
 		,'host_addr'
 		,'group'
 		,'customer'
@@ -1564,7 +1565,7 @@ EO_HTML
 		# substitute any known parameters
 		$url =~ s/\$host/$NT->{$node}{host}/g;
 		$url =~ s/\$name/$NT->{$node}{name}/g;
-		$url =~ s/\$node/$NT->{$node}{name}/g;
+		$url =~ s/\$node_name/$NT->{$node}{name}/g;
 
 		$context = qq| <a href="$url" target="context_$node" style="color:white;">$NT->{$node}{node_context_name}</a>|;
 	}
@@ -1576,7 +1577,7 @@ EO_HTML
 		# substitute any known parameters
 		$url =~ s/\$host/$NT->{$node}{host}/g;
 		$url =~ s/\$name/$NT->{$node}{name}/g;
-		$url =~ s/\$node/$NT->{$node}{name}/g;
+		$url =~ s/\$node_name/$NT->{$node}{name}/g;
 
 		$remote = qq| <a href="$url" target="remote_$node" style="color:white;">$NT->{$node}{remote_connection_name}</a>|;
 	}
@@ -1598,108 +1599,129 @@ EO_HTML
 	# list of values
 		eval {
 			my @out;
-			foreach my $k (@items){
+			foreach my $k (@items)
+			{
 				# the default title is the key name.
 				# but can I get a better title?
 				my $title = ( defined($V->{system}->{"${k}_title"}) ?
 											$V->{system}{"${k}_title"}
 											: $S->getTitle(attr=>$k,section=>'system')) ||  $k;
 
-				# print STDERR "DEBUG: k=$k, title=$title\n";
+				next if ($title eq '');
+				
+				my $color = $V->{system}{"${k}_color"} || '#FFF';
+				my $gurl = $V->{system}{"${k}_gurl"}; # create new window
+				
+				# existing window, possibly widgeted or not
+				# but that's unknown when nmis.pl creates the view entry!
+				my $url;
+				if ($V->{system}{"${k}_url"})
+				{
+					my $u = URI->new($V->{system}{"${k}_url"});
+					$u->query_param("widget" => ($wantwidget? "true": "false"));
+					$url = $u->as_string;
+				}
+				
+				my $value;
+				# get the value from the view if it one of the special ones, or only present there 
+				if ( $k =~ /^(host_addr|lastUpdate|configurationState|configLastChanged|configLastSaved|bootConfigLastChanged)$/
+						 or not exists($NI->{system}{$k}) ) 
+				{
+					$value = $V->{system}{"${k}_value"};
+				}
+				else 
+				{
+					$value = $NI->{system}{$k};
+				}
+				
+				# escape the input if there's anything in need of escaping;
+				# we don't want doubly-escaped uglies.
+				$value = escapeHTML($value) if ($value =~ /[<>]/);
+				
+				$color = colorPercentHi(100) if $V->{system}{"${k}_value"} eq "running";
+				$color = colorPercentHi(0) if $color eq "red";
 
-				if ($title ne '') {
-					my $color = $V->{system}{"${k}_color"} || '#FFF';
-					my $gurl = $V->{system}{"${k}_gurl"}; # create new window
-
-					# existing window, possibly widgeted or not
-					# but that's unknown when nmis.pl creates the view entry!
-					my $url;
-					if ($V->{system}{"${k}_url"})
+				# a few special ones
+				if ($k eq 'status')
+				{
+					if ( !$status{overall} )
 					{
-						my $u = URI->new($V->{system}{"${k}_url"});
-						$u->query_param("widget" => ($wantwidget? "true": "false"));
-						$url = $u->as_string;
+						$value = "unreachable";
+						$color = "#F00";
 					}
-
-					my $value;
-					# get the value from the view if it one of the special ones, or only present there
-					if (
-						$k =~ /^(host_addr|lastUpdate|configurationState|configLastChanged|configLastSaved|bootConfigLastChanged)$/
-						or not exists($NI->{system}{$k})
-					) {
-						$value = $V->{system}{"${k}_value"};
+					elsif ( $status{overall} == -1 )
+					{
+						$value = "degraded";
+						$color = "#FF0";
 					}
 					else {
-						$value = $NI->{system}{$k};
-					}
-
-					# escape the input if there's anything in need of escaping;
-					# we don't want doubly-escaped uglies.
-					$value = escapeHTML($value) if ($value =~ /[<>]/);
-
-					$color = colorPercentHi(100) if $V->{system}{"${k}_value"} eq "running";
-					$color = colorPercentHi(0) if $color eq "red";
-
-					if ($k eq 'status')
-					{
-						if ( !$status{overall} )
-						{
-							$value = "unreachable";
-							$color = "#F00";
-						}
-						elsif ( $status{overall} == -1 )
-						{
-							$value = "degraded";
-							$color = "#FF0";
-						}
-						else {
-							$value = "reachable";
-							$color = "#0F0";
-						}
-					}
-
-					if ($k eq 'lastUpdate') {
-						# check lastupdate
-						my $time = $NI->{system}{last_poll};
-						if ( $time ne "" ) {
-							if ($time < (time - 60*15)) {
-								$color = "#ffcc00"; # to late
-							}
-						}
-					}
-
-					if ($k eq 'TimeSinceTopologyChange' and $NI->{system}{TimeSinceTopologyChange} =~ /\d+/ ) {
-						if ( $value ne "N/A" ) {
-							# convert to uptime format, time since change
-							$value = convUpTime($NI->{system}{TimeSinceTopologyChange}/100);
-							# did this reset in the last 1 h
-							if ( $NI->{system}{TimeSinceTopologyChange} / 100 < 360000 ) {
-								$color = "#ffcc00"; # to late
-							}
-						}
-					}
-
-					### 2012-02-21 keiths, fixed popup window not opening correctly.
-					my $content = $value;
-					if ($gurl) {
-						$content = a({target=>"Graph-$node", onClick=>"viewwndw(\'$node\',\'$gurl\',$C->{win_width},$C->{win_height})"},"$value");
-					}
-					elsif ($url) {
-						$content = a({href=>$url},$value);
-					}
-
-					my $printData = 1;
-					$printData = 0 if $k eq "customer" and not tableExists('Customers');
-					$printData = 0 if $k eq "businessService" and not tableExists('BusinessServices');
-					$printData = 0 if $k eq "serviceStatus" and not tableExists('ServiceStatus');
-					$printData = 0 if $k eq "location" and not tableExists('Locations');
-
-					if ( $printData ) {
-						push @out,Tr(td({class=>'info Plain'}, escapeHTML($title)),
-						td({class=>'info Plain',style=>getBGColor($color)},$content));
+						$value = "reachable";
+						$color = "#0F0";
 					}
 				}
+				# from outageCheck, neither nodeinfo nor view
+				elsif ($k eq 'outage')
+				{
+					my ($outagestatus, $nextoutage) = NMIS::outageCheck(node => $node, time => time());
+					
+					# slightly special: don't show this row unless current or pending
+					next if (!$outagestatus);
+
+					$title = "Outage Status";
+					if ($outagestatus eq "current")
+					{
+						$value = "Outage \"".($nextoutage->{change_id} || $nextoutage->{description})."\" is Current";
+						$color = eventColor("Warning");
+					}
+					else
+					{
+						$value = "Planned Future Outage \"".($nextoutage->{change_id} || $nextoutage->{description}).'"';
+						$color = eventColor("Normal"); # it's not active yet, let's show it as good/green/whatever
+					}
+				}
+				elsif ($k eq 'lastUpdate') 
+				{
+					# check lastupdate
+					my $time = $NI->{system}{last_poll};
+					if ( $time ne "" ) {
+						if ($time < (time - 60*15)) {
+							$color = "#ffcc00"; # to late
+						}
+					}
+				}
+				elsif ($k eq 'TimeSinceTopologyChange' and $NI->{system}{TimeSinceTopologyChange} =~ /\d+/ ) 
+				{
+					if ( $value ne "N/A" ) {
+						# convert to uptime format, time since change
+						$value = convUpTime($NI->{system}{TimeSinceTopologyChange}/100);
+						# did this reset in the last 1 h
+						if ( $NI->{system}{TimeSinceTopologyChange} / 100 < 360000 ) {
+							$color = "#ffcc00"; # to late
+						}
+						}
+				}
+
+				### 2012-02-21 keiths, fixed popup window not opening correctly.
+				my $content = $value;
+				if ($gurl) {
+					$content = a({target=>"Graph-$node", onClick=>"viewwndw(\'$node\',\'$gurl\',$C->{win_width},$C->{win_height})"},"$value");
+				}
+				elsif ($url) {
+					$content = a({href=>$url},$value);
+				}
+				
+				my $printData = 1;
+				$printData = 0 if $k eq "customer" and not tableExists('Customers');
+				$printData = 0 if $k eq "businessService" and not tableExists('BusinessServices');
+				$printData = 0 if $k eq "serviceStatus" and not tableExists('ServiceStatus');
+				$printData = 0 if $k eq "location" and not tableExists('Locations');
+				
+				if ( $printData ) {
+					push @out,Tr(td({class=>'info Plain'}, escapeHTML($title)),
+											 td({class=>'info Plain',style=>getBGColor($color)},$content));
+				}
 			}
+			
 			# display events for this one node - also close one if asked to
 			if (my %nodeevents = loadAllEvents(node => $node))
 			{

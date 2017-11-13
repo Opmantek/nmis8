@@ -27,36 +27,50 @@
 #  http://support.opmantek.com/users/
 #
 # *****************************************************************************
-# Auto configure to the <nmis-base>/lib
+use strict;
+
 use FindBin;
 use lib "$FindBin::Bin/../lib";
 
-use strict;
+use CGI qw(:standard *table *Tr *td *form *Select *div);
+
 use NMIS;
 use func;
-
-use Data::Dumper;
-$Data::Dumper::Indent = 1;
-
-use CGI qw(:standard *table *Tr *td *form *Select *div);
+use Auth;
 
 my $q = new CGI; # This processes all parameters passed via GET and POST
 my $Q = $q->Vars; # values in hash
-my $C;
 
-if (!($C = loadConfTable(conf=>$Q->{conf},debug=>$Q->{debug}))) { exit 1; };
+my $C = loadConfTable(conf=>$Q->{conf},debug=>$Q->{debug});
+die "failed to load configuration!\n" if (!$C or ref($C) ne "HASH" or !keys %$C);
 
-# widget default on, only off if explicitely set to off
-my $wantwidget = !getbool($Q->{widget},"invert");
-my$widget = $wantwidget ? "true" : "false";
+#======================================================================
+
+# if somehow someone defines refresh disable it.
+if ( defined $Q->{refresh} ) {
+	delete $Q->{refresh};
+}
+
+my $widget = getbool($Q->{widget},"invert") ? 'false' : 'true';
+$Q->{expand} = "true" if ($widget eq "true");
+
+### unless told otherwise, and this is not JQuery call, widget is false!
+if ( not defined $Q->{widget} and not defined $ENV{HTTP_X_REQUESTED_WITH} ) {
+	$widget = "false";
+}
+
+if ( not defined $ENV{HTTP_X_REQUESTED_WITH} ) {
+	$widget = "false";
+}
+
+my $wantwidget = ($widget eq "true");
 
 my $formid = 'nodeconf';
 
 # Before going any further, check to see if we must handle
 # an authentication login or logout request
-
-# NMIS Authentication module
-use Auth;
+# if arguments present, then called from command line
+if ( @ARGV ) { $C->{auth_require} = 0; } # bypass auth
 
 # variables used for the security mods
 my $headeropts = {type => 'text/html', expires => 'now'};
@@ -149,8 +163,6 @@ sub displayNodemenu
 	displayNodeConf(node=>$Q->{node}) if $Q->{node} ne "";
 
 	print end_td,end_Tr,end_table;
-
-	htmlElementValues();
 
 	pageEnd if (!$wantwidget);
 
@@ -465,12 +477,27 @@ sub updateNodeConf {
 			# event, collect and threshold are special:
 			# value "unchanged" means remove the override
 			if (($source =~ /^(collect|event|threshold)_/ and $Q->{$source} eq "unchanged")
-					or !$Q->{$source})	# others: no value given means remove
+					# others: no value given means remove
+					or !defined($Q->{$source})
+					or $Q->{$source} eq "")
 			{
 				delete $thisintfover->{$target};
 			}
 			else
 			{
+				# speed in and out are a bit more equal than others, too:
+				# if present they must be positive integers
+				if ($source =~ /^speed(In|Out)?_/)
+				{
+					my $theval = $Q->{$source};
+
+					if (int($theval) ne $theval or $theval <= 0)
+					{
+						print header(-status => 400, %$headeropts),
+						"Validation error for $source: '$theval' is not a positive integer!";
+						return undef;
+					}
+				}
 				$thisintfover->{$target} = $Q->{$source};
 			}
 		}

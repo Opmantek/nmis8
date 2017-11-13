@@ -27,8 +27,16 @@
 #     20 => {
 #      	 IF => { 'node.name' => ['nodeA','nodeB'] },
 #      	 systemHealth => { 
-#            jnxDestinationClassUsage => 'true',
-#            jnxSourceClassUsage => 'true',
+#            Juniper_CoS => 'true',  # Turn on the Juniper CoS section
+
+#as these system health items are in this model but we don't want them on we need to explicitly turn them off as we would in the default section.
+#            jnxDestinationClassUsage => 'false',  
+#            jnxSourceClassUsage => 'false',
+#			 ifTable => 'false',
+#             mplsL3VpnVrf => 'false',
+#             mplsL3VpnIfConf => 'false',
+#             mplsVpnInterface => 'false',
+#             mplsL3VpnVrfRT => 'false',
 #      	 },
 #      },
 #     
@@ -36,12 +44,18 @@
 		 
 #		 600 => {
 #			 IF => { 'node.group' => '/Core/', 
-#			 'node.nodeModel' => 'JuniperRouter',  },
+#			 'node.nodeModel' => '/JuniperRouter/',  }, # note needs to be regex for nodeModel
 #			 
 #			 systemHealth => { 
-#				Juniper_CoS => 'true',
-#                jnxDestinationClassUsage => 'true',
+#                jnxDestinationClassUsage => 'true', #enable SCU and DCU
 #                jnxSourceClassUsage => 'true',
+
+#				Juniper_CoS => 'false',  # we just want DCU and SCU so we need to explicitly turn this off.
+#			    ifTable => 'false',
+#               mplsL3VpnVrf => 'false',
+#               mplsL3VpnIfConf => 'false',
+#               mplsVpnInterface => 'false',
+#               mplsL3VpnVrfRT => 'false',
 #			 },
 #		 },
      

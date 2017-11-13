@@ -32,8 +32,7 @@ use Auth;
 use NMIS::UUID;
 
 my $C = loadConfTable();
-# variables used for the security mods
-my $AU = Auth->new(conf => $C);  # Auth::new will reap init values from NMIS::config
+my $AU = Auth->new(conf => $C);
 
 # Calling program needs to do auth, then set the ENVIRONMENT before this is called.
 $AU->SetUser($ENV{'NMIS_USER'});
@@ -41,8 +40,6 @@ $AU->SetUser($ENV{'NMIS_USER'});
 my @groups = ();
 my $GT = loadGroupTable();
 foreach (sort split(',',$C->{group_list})) { push @groups, $_ if $AU->InGroup($_); }
-
-my @pollingpolicies = ("default", sort keys %{ loadGenericTable("Polling-Policy") || {}});
 
 my @nodes = ();
 my $LNT = loadLocalNodeTable(); # load from file or db
@@ -66,8 +63,12 @@ my $uuid = getUUID();
 
 	 { uuid => { header => 'UUID',display => 'header,readonly',value => ["$uuid"] }},
 
-	 { host => { mandatory => 'true', header => 'Host Name/IP Address',display => 'header,text',value => [""] }},
-	 { group => { mandatory => 'true', header => 'Group',display => 'header,popup',value => [ @groups] }},
+	 { host => { mandatory => 'true', header => 'Host Name/IP Address',display => 'header,text',value => [""],
+							 # nmis doesn't support ipv6 yet
+							 validate => { "resolvable" => [ 4 ] } }
+	 },
+	 { group => { mandatory => 'true', header => 'Group',display => 'header,popup',value => [ @groups],
+								validate => { "onefromlist" => undef } } },
 	 { community => { mandatory => 'true', header => 'SNMP Community',display => 'text',value => ["$C->{default_communityRO}"] }},
 
 	 { wmi => { special=>'separator', header => "WMI Options", } },
@@ -78,46 +79,60 @@ my $uuid = getUUID();
 	 { customer => { header => 'Customer',display => 'header,popup',value => [ sort keys %{loadGenericTable('Customers')}] }},
 	 { businessService => { header => 'Business Service',display => 'header,scrolling',value => [ sort keys %{loadGenericTable('BusinessServices')} ] }},
 	 { serviceStatus => { header => 'Service Status',display => 'popup',value => [ sort keys %{loadGenericTable('ServiceStatus')} ] }},
-
-	 { extra_options => { special => 'separator', header => 'Name and URL for additional node information'}},
-	 { node_context_name => { header => 'Node Context Name',display => 'text',value => ["Node Context"] }},
-	 { node_context_url => { header => 'Node Context URL',display => 'text',value => ["https://somelink.com/map/thing/"] }},
-
-	 { extra_options => { special => 'separator', header => 'Name and URL for remote management connection'}},
+	 { extra_options => { special => 'separator', header => 'Remote Connection'}},
 	 { remote_connection_name => { header => 'Remote Connection Name',display => 'text',value => ["SSH to Node"] }},
 	 { remote_connection_url => { header => 'Remote Connection URL',display => 'text',value => ["ssh://\$host"] }},
-
 	 { extra_options => { special => 'separator', header => 'Extra Options'}},
 	 { display_name => { header => "Display Name", display => "header,text", value => [""] }},
 	 { notes => { header => 'Notes',display => 'header,textbox',value => [""] }},
-	 { roleType => { header => 'Role Type', display => 'popup',value => [ split(/\s*,\s*/, $C->{roletype_list}) ] }},
-	 { netType => { header => 'Net Type', display => 'popup',value => [ split(/\s*,\s*/, $C->{nettype_list}) ] }},
-	 { location => { header => 'Location',display => 'header,popup',value => [ sort keys %{loadGenericTable('Locations')}] }},
+	 { roleType => { header => 'Role Type', display => 'popup', value => [ split(/\s*,\s*/, $C->{roletype_list}) ],
+									 validate => { "onefromlist" => undef }  }},
+	 { netType => { header => 'Net Type', display => 'popup',value => [ split(/\s*,\s*/, $C->{nettype_list}) ],
+									validate => { "onefromlist" => undef }  }},
+	 { location => { header => 'Location',display => 'header,popup',value => [ sort keys %{loadGenericTable('Locations')}],
+									 validate => { "onefromlist" => undef }  }},
 	 { advanced_options => { special => 'separator', header => 'Advanced Options'}},
-	 { polling_policy => { header => "Polling Policy", display => 'header,popup', value => [@pollingpolicies]}},
-	 { model => { header => 'Model',display => 'popup',value => [@models] }},
-	 { active => { header => 'Active',display => 'header,popup',value => ["true", "false"] }},
-	 { ping => { header => 'Ping', display => 'header,popup',value => ["true", "false"] }},
-	 { collect => { header => 'Collect',display => 'header,popup',value => ["true", "false"] }},
-	 { cbqos => { header => 'CBQoS',display => 'popup',value => ["none", "input", "output", "both"] }},
-	 { calls=> {  header => 'Modem Calls', display => 'popup',value => ["false", "true"] }},
-	 { threshold => { header => 'Threshold', display => 'popup',value => ["true", "false"] }},
-	 { webserver => { header => 'Web Server', display => 'popup',value => ["false", "true"] }},
-	 { depend =>{ header => 'Depend', display => 'header,scrolling',value => [ "N/A", @nodes ] }},
-	 { services => { header => 'Services', display => 'header,scrolling',value => ["", sort keys %{loadServicesTable()}] }},
-	 { timezone => { header => 'Time Zone',display => 'text',value => ["0"] }},
+	 { model => { header => 'Model',display => 'popup',value => [@models],
+								validate => { "onefromlist" => undef }  }},
+	 { active => { header => 'Active',display => 'header,popup',value => ["true", "false"],
+								 validate => { "onefromlist" => undef }  }},
+	 { ping => { header => 'Ping', display => 'header,popup',value => ["true", "false"],
+							 validate => { "onefromlist" => undef }  }},
+	 { collect => { header => 'Collect',display => 'header,popup',value => ["true", "false"],
+									validate => { "onefromlist" => undef }  }},
+	 { cbqos => { header => 'CBQoS',display => 'popup',value => ["none", "input", "output", "both"],
+								validate => { "onefromlist" => undef }  }},
+	 { calls=> {  header => 'Modem Calls', display => 'popup',value => ["false", "true"],
+								validate => { "onefromlist" => undef }  }},
+	 { threshold => { header => 'Threshold', display => 'popup',value => ["true", "false"],
+										validate => { "onefromlist" => undef }  }},
+	 { webserver => { header => 'Web Server', display => 'popup',value => ["false", "true"],
+										validate => { "onefromlist" => undef }  }},
+	 { depend =>{ header => 'Depend', display => 'header,scrolling',value => [ "N/A", @nodes ],
+								validate => { "multifromlist" => undef } }},
+	 { services => { header => 'Services', display => 'header,scrolling',
+									 value => ["", sort keys %{loadServicesTable()}],
+										validate => { "multifromlist" => undef } }},
+	 { timezone => { header => 'Time Zone',display => 'text',value => ["0"],
+									 validate => { regex => qr/^([+-]?\d{1,2}(:\d{1,2})?)?$/ } } },
 	 { extra_options => { special => 'separator', header => 'SNMP Settings'}},
-	 { version => { header => 'SNMP Version',display => 'popup',value => ["snmpv2c","snmpv1","snmpv3"] }},
-	 { max_msg_size => { header => "SNMP Max Message Size", display => 'text', value => ["$C->{snmp_max_msg_size}"] }},
-	 { max_repetitions => { header => "SNMP Max Repetitions", display => "text", value => ["0"] }},
-	 { port => { header => 'SNMP Port', display => 'text',value => ["161"] }},
+	 { version => { header => 'SNMP Version',display => 'popup',value => ["snmpv2c","snmpv1","snmpv3"],
+									validate => { "onefromlist" => undef } }},
+	 { max_msg_size => { header => "SNMP Max Message Size", display => 'text', value => ["$C->{snmp_max_msg_size}"],
+											 validate => { 'int' => [ 484, 65535 ] } } },
+	 { max_repetitions => { header => "SNMP Max Repetitions", display => "text", value => ["0"],
+													validate => { 'int' => [ 0, 1000 ] } } },
+	 { port => { header => 'SNMP Port', display => 'text',value => ["161"],
+							 validate => { 'int' => [ 1, 65535 ] } }},
 	 { username => { header => 'SNMP Username',display => 'text',value => ["$C->{default_username}"] }},
 	 { context => { header => 'SNMP Context',display => 'text',value => [""] }},
 	 { authpassword => { header => 'SNMP Auth Password',display => 'text',value => ["$C->{default_authpassword}"] }},
 	 { authkey => { header => 'SNMP Auth Key',display => 'text',value => ["$C->{default_authkey}"] }},
-	 { authprotocol => { header => 'SNMP Auth Proto',display => 'popup',value => ['md5','sha'] }},
+	 { authprotocol => { header => 'SNMP Auth Proto',display => 'popup',value => ['md5','sha'],
+											 validate => { "onefromlist" => undef } }},
 	 { privpassword => { header => 'SNMP Priv Password',display => 'text',value => ["$C->{default_privpassword}"] }},
 	 { privkey => { header => 'SNMP Priv Key',display => 'text',value => ["$C->{default_privkey}"] }},
-	 { privprotocol => { header => 'SNMP Priv Proto',display => 'popup',value => ['des','aes','3des'] }},
+	 { privprotocol => { header => 'SNMP Priv Proto',display => 'popup',value => ['des','aes','3des'],
+											 validate => { "onefromlist" => undef }  }},
 	]
 		);

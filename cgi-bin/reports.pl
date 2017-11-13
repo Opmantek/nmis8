@@ -1383,7 +1383,6 @@ sub outageReport
 	my $datestamp_end = returnDateStamp($end);
 
 	my $NT = loadNodeTable();
-	my $OT = loadOutageTable();
 
 	my $index;
 	my %logreport;
