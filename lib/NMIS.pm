@@ -531,6 +531,8 @@ sub loadNodeSummary {
 		for my $srv (keys %{$ST}) {
 			## don't process server localhost for opHA2
 			next if $srv eq "localhost";
+			
+			my $server_priority = $ST->{$srv}{server_priority} || 5;
 
 			my $slavenodesum = "nmis-$srv-nodesum";
 			dbg("Processing Slave $srv for $slavenodesum");
@@ -539,8 +541,18 @@ sub loadNodeSummary {
 				my $NS = loadTable(dir=>'var',name=>$slavenodesum);
 				for my $node (keys %{$NS}) {
 					if ( $group eq "" or $group eq $NS->{$node}{group} ) {
-						for (keys %{$NS->{$node}}) {
-							$SUM->{$node}{$_} = $NS->{$node}{$_};
+						if ( not exists $SUM->{$node}
+								or $SUM->{$node}{server} eq $srv
+								or ( exists $SUM->{$node}
+									and $SUM->{$node}{server_priority}
+									and $SUM->{$node}{server_priority} < $server_priority
+									)
+						) {
+							for (keys %{$NS->{$node}}) {
+								$SUM->{$node}{$_} = $NS->{$node}{$_};
+							}
+							$SUM->{$node}{server_priority} = $server_priority;
+							$SUM->{$node}{server} = $srv;
 						}
 					}
 				}
@@ -549,9 +561,6 @@ sub loadNodeSummary {
 	}
 	return $SUM;
 }
-
-
-
 
 # this is the most official reporter of node status, and should be
 # used instead of just looking at local system info nodedown
