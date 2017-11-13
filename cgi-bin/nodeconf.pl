@@ -46,13 +46,13 @@ die "failed to load configuration!\n" if (!$C or ref($C) ne "HASH" or !keys %$C)
 
 #======================================================================
 
-my $widget = getbool($Q->{widget},"invert") ? 'false' : 'true';
-$Q->{expand} = "true" if ($widget eq "true");
-
 # if somehow someone defines refresh disable it.
 if ( defined $Q->{refresh} ) {
 	delete $Q->{refresh};
 }
+
+my $widget = getbool($Q->{widget},"invert") ? 'false' : 'true';
+$Q->{expand} = "true" if ($widget eq "true");
 
 ### unless told otherwise, and this is not JQuery call, widget is false!
 if ( not defined $Q->{widget} and not defined $ENV{HTTP_X_REQUESTED_WITH} ) {
