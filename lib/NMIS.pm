@@ -27,7 +27,7 @@
 #
 # *****************************************************************************
 package NMIS;
-our $VERSION = "8.6.2a";
+our $VERSION = "8.6.2b";
 
 use NMIS::uselib;
 use lib "$NMIS::uselib::rrdtool_lib";
@@ -49,7 +49,7 @@ use JSON::XS 2.01;
 use File::Basename;
 use File::Copy;
 use Clone;
-use List::Util;
+use List::Util 1.33;
 use CGI qw();												# very ugly but createhrbuttons needs it :(
 use NMIS::UUID;
 
@@ -378,20 +378,24 @@ sub checkNodeName {
 
 #==================================================================
 
-# this small helper takes an optional section and a require config item name,
-# and returns the structure info for that item from loadCfgTable
+# this small helper looks for a display/validation rule entry in a table-xyz datastructure
+# and returns the structure info for that item
+# args: item name (required),
+# section (optional, if not given all sections are trawled)
+# table (optional live structure, if not given the Config table is loaded)
+#
 # returns: hashref (keys display, value etc.) or undef if not found
 sub findCfgEntry
 {
 	my (%args) = @_;
-	my ($section,$item) = @args{qw(section item)};
+	my ($section,$item, $meta) = @args{qw(section item table)};
 
-	my $meta = loadCfgTable();
-	for my $maybesection (defined $section? ($section) : keys %$meta)
+	$meta ||= loadCfgTable();
+	for my $maybesection (defined $section? ($section) : sort keys %$meta)
 	{
 		for my $entry (@{$meta->{$maybesection}})
 		{
-			if ($entry->{$item})
+			if (exists($entry->{$item}))
 			{
 				return $entry->{$item};
 			}
@@ -400,290 +404,36 @@ sub findCfgEntry
 	return undef;
 }
 
-# this returns an almost config-like structure that describes the well-known config keys,
-# how to display them and what options they have
-# args: none!
-sub loadCfgTable {
+# this loads a Table-<sometable> config structure (for the gui)
+# and returns the <sometable> substructure - outermost is always hash,
+# substructure is usually an array (except for Table-Config, which is one level deeper)
+#
+# args: table name (e.g. Nodes), defaults to "Config",
+# user (optional, if given will be set in %ENV for any dynamic tables that need it)
+#
+# returns: (array or hash)ref or undef on error
+sub loadCfgTable
+{
 	my %args = @_;
 
-	my $table = $args{table}; # fixme ignored, has no function
+	my $tablename = $args{table} || "Config";
 
-	my %Cfg = (
-  	'online' => [
-				{ 'nmis_docs_online' => { display => 'text', value => ['https://community.opmantek.com/']}},
-		],
+	# some tables contain complex code, call auth methods  etc,
+	# and need to know who the originator is
+	my $oldcontext = $ENV{"NMIS_USER"};
+	if (my $usercontext = $args{user})
+	{
+		$ENV{"NMIS_USER"} = $usercontext;
+	}
+	my $goodies = loadGenericTable("Table-$tablename");
+	$ENV{"NMIS_USER"} = $oldcontext; # let's not leave a mess behind.
 
-  	'modules' => [
-				{ 'display_opmaps_widget' => { display => 'popup', value => ["true", "false"]}},
-		],
-
-  	'directories' => [
-				{ '<nmis_base>' => { display => 'text', value => ['/usr/local/nmis']}},
-				{ '<nmis_bin>' => { display => 'text', value => ['<nmis_base>/bin']}},
-				{ '<nmis_cgi>' => { display => 'text', value => ['<nmis_base>/cgi-bin']}},
-				{ '<nmis_conf>' => { display => 'text', value => ['<nmis_base>/conf']}},
-				{ '<nmis_data>' => { display => 'text', value => ['<nmis_base>']}},
-				{ '<nmis_logs>' => { display => 'text', value => ['<nmis_base>/logs']}},
-				{ '<nmis_menu>' => { display => 'text', value => ['<nmis_base>/menu']}},
-				{ '<nmis_models>' => { display => 'text', value => ['<nmis_base>/models']}},
-				{ '<nmis_var>' => { display => 'text', value => ['<nmis_base>/var']}},
-				{ '<menu_base>' => { display => 'text', value => ['<nmis_base>/menu']}},
-				{ 'database_root' => { display => 'text', value => ['<nmis_data>/database']}},
-				{ 'log_root' => { display => 'text', value => ['<nmis_logs>']}},
-				{ 'mib_root' => { display => 'text', value => ['<nmis_base>/mibs']}},
-				{ 'report_root' => { display => 'text', value => ['<nmis_data>/htdocs/reports']}},
-				{ 'script_root' => { display => 'text', value => ['<nmis_conf>/scripts']}},
-				{ 'web_root' => { display => 'text', value => ['<nmis_data>/htdocs']}}
-		],
-
-		'system' => [
-			{ 'group_list' => { display => 'text', value => ['']}},
-			{ 'roletype_list' => { display => 'text', value => ['']}},
-			{ 'nettype_list' => { display => 'text', value => ['']}},
-			{ 'nodetype_list' => { display => 'text', value => ['']}},
-			{ 'nmis_host' => { display => 'text', value => ['localhost']}},
-				{ 'domain_name' => { display => 'text', value => ['']}},
-				{ 'cache_summary_tables' => { display => 'popup', value => ["true", "false"]}},
-				{ 'cache_var_tables' => { display => 'popup', value => ["true", "false"]}},
-				{ 'page_refresh_time' => { display => 'text', value => ['60']}},
-				{ 'os_posix' => { display => 'popup', value => ["true", "false"]}},
-				{ 'os_cmd_read_file_reverse' => { display => 'text', value => ['tac']}},
-				{ 'os_cmd_file_decompress' => { display => 'text', value => ['gzip -d -c']}},
-				{ 'os_kernelname' => { display => 'text', value => ['']}},
-				{ 'os_fileperm' => { display => 'text', value => ['0775']}},
-				{ 'report_files_max' => { display => 'text', value => ['60']}},
-				{ 'loc_sysLoc_format' => { display => 'text', value => ['']}},
-				{ 'loc_from_DNSloc' => { display => 'popup', value => ["true", "false"]}},
-				{ 'loc_from_sysLoc' => { display => 'popup', value => ["true", "false"]}},
-				{ 'cbqos_cm_collect_all' => { display => 'popup', value => ["true", "false"]}},
-				{ 'buttons_in_logs' => { display => 'popup', value => ["true", "false"]}},
-				{ 'node_button_in_logs' => { display => 'popup', value => ["true", "false"]}},
-				{ 'page_bg_color_full' => { display => 'popup', value => ["true", "false"]}},
-				{ 'http_req_timeout' => { display => 'text', value => ['30']}},
-				{ 'ping_timeout' => { display => 'text', value => ['500']}},
-				{ 'server_name' => { display => 'text', value => ['localhost']}},
-				{ 'response_time_threshold' => { display => 'text', value => ['3']}},
-				{ 'nmis_user' => { display => 'text', value => ['nmis']}},
-				{ 'nmis_group' => { display => 'text', value => ['nmis']}},
-				{ 'fastping_timeout' => { display => 'text', value => ['300']}},
-				{ 'fastping_packet' => { display => 'text', value => ['56']}},
-				{ 'fastping_retries' => { display => 'text', value => ['3']}},
-				{ 'fastping_count' => { display => 'text', value => ['3']}},
-				{ 'fastping_sleep' => { display => 'text', value => ['60']}},
-				{ 'fastping_node_poll' => { display => 'text', value => ['300']}},
-				{ 'ipsla_collect_time' => { display => 'text', value => ['60']}},
-				{ 'ipsla_bucket_interval' => { display => 'text', value => ['180']}},
-				{ 'ipsla_extra_buckets' => { display => 'text', value => ['5']}},
-				{ 'ipsla_mthread' => { display => 'popup', value => ["true", "false"]}},
-				{ 'ipsla_maxthreads' => { display => 'text', value => ['10']}},
-				{ 'ipsla_mthreaddebug' => { display => 'popup', value => ["false", "true"]}},
-				{ 'ipsla_dnscachetime' => { display => 'text', value => ['3600']}},
-				{ 'ipsla_control_enable_other' => { display => 'popup', value => ["true", "false"]}},
-				{ 'fastping_timeout' => { display => 'text', value => ['300']}},
-				{ 'fastping_packet' => { display => 'text', value => ['56']}},
-				{ 'fastping_retries' => { display => 'text', value => ['3']}},
-				{ 'fastping_count' => { display => 'text', value => ['3']}},
-				{ 'fastping_sleep' => { display => 'text', value => ['60']}},
-				{ 'fastping_node_poll' => { display => 'text', value => ['300']}},
-				{ 'default_graphtype' => { display => 'text', value => ['abits']}},
-				{ 'ping_timeout' => { display => 'text', value => ['300']}},
-				{ 'ping_packet' => { display => 'text', value => ['56']}},
-				{ 'ping_retries' => { display => 'text', value => ['3']}},
-				{ 'ping_count' => { display => 'text', value => ['3']}},
-				{ 'global_collect' => { display => 'popup', value => ["true", "false"]}},
-				{ 'wrap_node_names' => { display => 'popup', value => ["false", "true"]}},
-				{ 'nmis_summary_poll_cycle' => { display => 'popup', value => ["true", "false"]}},
-				{ 'snpp_server' => { display => 'text', value => ['<server_name>']}},
-				{ 'snmp_timeout' => { display => 'text', value => ['5']}},
-				{ 'snmp_retries' => { display => 'text', value => ['1']}},
-				{ 'snmp_stop_polling_on_error' => { display => 'popup', value => ["false", "true"]}},
-		],
-
-  	'url' => [
-				{ '<url_base>' => { display => 'text', value => ['/nmis8']}},
-				{ '<cgi_url_base>' => { display => 'text', value => ['/cgi-nmis8']}},
-				{ '<menu_url_base>' => { display => 'text', value => ['/menu8']}},
-				{ 'web_report_root' => { display => 'text', value => ['<url_base>/reports']}}
-
-		],
-
-		'tools' => [
-				{ 'view_ping' => { display => 'popup', value => ["true", "false"]}},
-				{ 'view_trace' => { display => 'popup', value => ["true", "false"]}},
-				{ 'view_telnet' => { display => 'popup', value => ["true", "false"]}},
-				{ 'view_mtr' => { display => 'popup', value => ["true", "false"]}},
-				{ 'view_lft' => { display => 'popup', value => ["true", "false"]}}
-		],
-
-		'files' => [
-				{ 'styles' => { display => 'text', value => ['<url_base>/nmis.css']}},
-				{ 'syslog_log' => { display => 'text', value => ['<nmis_logs>/cisco.log']}},
-				{ 'event_log' => { display => 'text', value => ['<nmis_logs>/event.log']}},
-				{ 'outage_log' => { display => 'text', value => ['<nmis_logs>/outage.log']}},
-				{ 'help_file' => { display => 'text', value => ['<url_base>/help.pod.html']}},
-				{ 'nmis' => { display => 'text', value => ['<cgi_url_base>/nmiscgi.pl']}},
-				{ 'nmis_log' => { display => 'text', value => ['<nmis_logs>/nmis.log']}}
-		],
-
-		'email' => [
-			{ 'mail_server' => { display => 'text', value => ['mail.domain.com']}},
-			{ 'mail_domain' => { display => 'text', value => ['domain.com']}},
-			{ 'mail_from' => { display => 'text', value => ['nmis@domain.com']}},
-			{ 'mail_combine' => { display => 'popup', value => ['true','false']}},
-			{ 'mail_from' => { display => "text", value => ['nmis@yourdomain.com']}},
-			{	'mail_use_tls' => { display => 'popup', value => ['true','false']}},
-			{ 'mail_server_port' => { display => "text", value => ['25']}},
-			{ 'mail_server_ipproto' => { display => "popup", value => ['','ipv4','ipv6']}},
-			{ 'mail_user' => { display => "text", value => ['your mail username']}},
-			{ 'mail_password' => { display => "text", value => ['']}},
-		],
-
-		'menu' => [
-				{ 'menu_title' => { display => 'text', value => ['NMIS']}},
-				{ 'menu_types_active' => { display => 'popup', value => ["true", "false"]}},
-				{ 'menu_types_full' => { display => 'popup', value => ["true", "false", "defer"]}},
-				{ 'menu_types_foldout' => { display => 'popup', value => ["true", "false"]}},
-				{ 'menu_groups_active' => { display => 'popup', value => ["true", "false"]}},
-				{ 'menu_groups_full' => { display => 'popup', value => ["true", "false", "defer"]}},
-				{ 'menu_groups_foldout' => { display => 'popup', value => ["true", "false"]}},
-				{ 'menu_vendors_active' => { display => 'popup', value => ["true", "false"]}},
-				{ 'menu_vendors_full' => { display => 'popup', value => ["true", "false", "defer"]}},
-				{ 'menu_vendors_foldout' => { display => 'popup', value => ["true", "false"]}},
-				{ 'menu_maxitems' => { display => 'text', value => ['30']}},
-				{ 'menu_suspend_link' => { display => 'popup', value => ["true", "false"]}},
-				{ 'menu_start_page_id' => { display => 'text', value => ['']}}
-		],
-
-		'icons' => [
-				{ 'normal_net_icon' => { display => 'text', value => ['<menu_url_base>/img/network-green.gif']}},
-				{ 'arrow_down_green' => { display => 'text', value => ['<menu_url_base>/img/arrow_down_green.gif']}},
-				{ 'arrow_up_big' => { display => 'text', value => ['<menu_url_base>/img/bigup.gif']}},
-				{ 'logs_icon' => { display => 'text', value => ['<menu_url_base>/img/logs.jpg']}},
-				{ 'mtr_icon' => { display => 'text', value => ['<menu_url_base>/img/mtr.jpg']}},
-				{ 'arrow_up' => { display => 'text', value => ['<menu_url_base>/img/arrow_up.gif']}},
-				{ 'help_icon' => { display => 'text', value => ['<menu_url_base>/img/help.jpg']}},
-				{ 'telnet_icon' => { display => 'text', value => ['<menu_url_base>/img/telnet.jpg']}},
-				{ 'back_icon' => { display => 'text', value => ['<menu_url_base>/img/back.jpg']}},
-				{ 'lft_icon' => { display => 'text', value => ['<menu_url_base>/img/lft.jpg']}},
-				{ 'fatal_net_icon' => { display => 'text', value => ['<menu_url_base>/img/network-red.gif']}},
-				{ 'trace_icon' => { display => 'text', value => ['<menu_url_base>/img/trace.jpg']}},
-				{ 'nmis_icon' => { display => 'text', value => ['<menu_url_base>/img/nmis.jpg']}},
-				{ 'summary_icon' => { display => 'text', value => ['<menu_url_base>/img/summary.jpg']}},
-				{ 'banner_image' => { display => 'text', value => ['<menu_url_base>/img/NMIS_Logo.gif']}},
-				{ 'map_icon' => { display => 'text', value => ['<menu_url_base>/img/australia-line.gif']}},
-				{ 'minor_net_icon' => { display => 'text', value => ['<menu_url_base>/img/network-yellow.gif']}},
-				{ 'arrow_down_big' => { display => 'text', value => ['<menu_url_base>/img/bigdown.gif']}},
-				{ 'ping_icon' => { display => 'text', value => ['<menu_url_base>/img/ping.jpg']}},
-				{ 'unknown_net_icon' => { display => 'text', value => ['<menu_url_base>/img/network-white.gif']}},
-				{ 'doc_icon' => { display => 'text', value => ['<menu_url_base>/img/doc.jpg']}},
-				{ 'arrow_down' => { display => 'text', value => ['<menu_url_base>/img/arrow_down.gif']}},
-				{ 'arrow_up_red' => { display => 'text', value => ['<menu_url_base>/img/arrow_up_red.gif']}},
-				{ 'major_net_icon' => { display => 'text', value => ['<menu_url_base>/img/network-amber.gif']}},
-				{ 'critical_net_icon' => { display => 'text', value => ['<menu_url_base>/img/network-red.gif']}}
-		],
-
-		'authentication' => [
-				{ 'auth_method_1' => { display => 'popup', value => ['apache','htpasswd','radius','tacacs','ldap','ldaps','ms-ldap']}},
-				{ 'auth_method_2' => { display => 'popup', value => ['apache','htpasswd','radius','tacacs','ldap','ldaps','ms-ldap']}},
-				{ 'auth_expire' => { display => 'text', value => ['+20min']}},
-				{ 'auth_htpasswd_encrypt' => { display => 'popup', value => ['crypt','md5','plaintext']}},
-				{ 'auth_htpasswd_file' => { display => 'text', value => ['<nmis_conf>/users.dat']}},
-				{ 'auth_ldap_server' => { display => 'text', value => ['']}},
-				{ 'auth_ldaps_server' => { display => 'text', value => ['']}},
-				{ 'auth_ldap_attr' => { display => 'text', value => ['']}},
-				{ 'auth_ldap_context' => { display => 'text', value => ['']}},
-				{ 'auth_ms_ldap_server' => { display => 'text', value => ['']}},
-				{ 'auth_ms_ldap_dn_acc' => { display => 'text', value => ['']}},
-				{ 'auth_ms_ldap_dn_psw' => { display => 'text', value => ['']}},
-				{ 'auth_ms_ldap_base' => { display => 'text', value => ['']}},
-				{ 'auth_ms_ldap_attr' => { display => 'text', value => ['']}},
-				{ 'auth_radius_server' => { display => 'text', value => ['']}},
-				{ 'auth_radius_secret' => { display => 'text', value => ['secret']}},
-				{ 'auth_tacacs_server' => { display => 'text', value => ['']}},
-				{ 'auth_tacacs_secret' => { display => 'text', value => ['secret']}},
-				{ 'auth_web_key' => { display => 'text', value => ['thisismysecretkey']}}
-		],
-
-		'escalation' => [
-				{ 'escalate0' => { display => 'text', value => ['300']}},
-				{ 'escalate1' => { display => 'text', value => ['900']}},
-				{ 'escalate2' => { display => 'text', value => ['1800']}},
-				{ 'escalate3' => { display => 'text', value => ['2400']}},
-				{ 'escalate4' => { display => 'text', value => ['3000']}},
-				{ 'escalate5' => { display => 'text', value => ['3600']}},
-				{ 'escalate6' => { display => 'text', value => ['7200']}},
-				{ 'escalate7' => { display => 'text', value => ['10800']}},
-				{ 'escalate8' => { display => 'text', value => ['21600']}},
-				{ 'escalate9' => { display => 'text', value => ['43200']}},
-				{ 'escalate10' => { display => 'text', value => ['86400']}}
-		],
-
-		'daemons' => [
-				{ 'daemon_ipsla_active' => { display => 'popup', value => ['true','false']}},
-				{ 'daemon_ipsla_filename' => { display => 'text', value => ['ipslad.pl']}},
-				{ 'daemon_fping_active' => { display => 'popup', value => ['true','false']}},
-				{ 'daemon_fping_filename' => { display => 'text', value => ['fpingd.pl']}}
-		],
-
-		'metrics' => [
-				{ 'weight_availability' => { display => 'text', value => ['0.1']}},
-				{ 'weight_int' => { display => 'text', value => ['0.2']}},
-				{ 'weight_mem' => { display => 'text', value => ['0.1']}},
-				{ 'weight_cpu' => { display => 'text', value => ['0.1']}},
-				{ 'weight_reachability' => { display => 'text', value => ['0.3']}},
-				{ 'weight_response' => { display => 'text', value => ['0.2']}},
-				{ 'metric_health' => { display => 'text', value => ['0.4']}},
-				{ 'metric_availability' => { display => 'text', value => ['0.2']}},
-				{ 'metric_reachability' => { display => 'text', value => ['0.4']}}
-		],
-
-		'graph' => [
-				{ 'graph_amount' => { display => 'text', value => ['48']}},
-				{ 'graph_unit' => { display => 'text', value => ['hours']}},
-				{ 'graph_factor' => { display => 'text', value => ['2']}},
-				{ 'graph_width' => { display => 'text', value => ['700']}},
-				{ 'graph_height' => { display => 'text', value => ['250']}},
-				{ 'graph_split' => { display => 'popup', value => ['true','false']}},
-				{ 'win_width' => { display => 'text', value => ['835']}},
-				{ 'win_height' => { display => 'text', value => ['570']}}
-		],
-
-		'tables NMIS4' => [
-				{ 'Interface_Table' => { display => 'text', value => ['']}},
-				{ 'Interface_Key' => { display => 'text', value => ['']}},
-				{ 'Escalation_Table' => { display => 'text', value => ['']}},
-				{ 'Escalation_Key' => { display => 'text', value => ['']}},
-				{ 'Locations_Table' => { display => 'text', value => ['']}},
-				{ 'Locations_Key' => { display => 'text', value => ['']}},
-				{ 'Nodes_Table' => { display => 'text', value => ['']}},
-				{ 'Nodes_Key' => { display => 'text', value => ['']}},
-				{ 'Users_Table' => { display => 'text', value => ['']}},
-				{ 'Users_Key' => { display => 'text', value => ['']}},
-				{ 'Contacts_Table' => { display => 'text', value => ['']}},
-				{ 'Contacts_Key' => { display => 'text', value => ['']}}
- 			],
-
-		'mibs' => [
-				{ 'full_mib' => { display => 'text', value => ['nmis_mibs.oid']}}
-		],
-
-		'database' => [
-				{ 'db_events_sql' => { display => 'popup', value => ['true','false']}},
-				{ 'db_nodes_sql' => { display => 'popup', value => ['true','false']}},
-				{ 'db_users_sql' => { display => 'popup', value => ['true','false']}},
-				{ 'db_locations_sql' => { display => 'popup', value => ['true','false']}},
-				{ 'db_contacts_sql' => { display => 'popup', value => ['true','false']}},
-				{ 'db_privmap_sql' => { display => 'popup', value => ['true','false']}},
-				{ 'db_escalations_sql' => { display => 'popup', value => ['true','false']}},
-				{ 'db_services_sql' => { display => 'popup', value => ['true','false']}},
-				{ 'db_iftypes_sql' => { display => 'popup', value => ['true','false']}},
-				{ 'db_access_sql' => { display => 'popup', value => ['true','false']}},
-				{ 'db_logs_sql' => { display => 'popup', value => ['true','false']}},
-				{ 'db_links_sql' => { display => 'popup', value => ['true','false']}}
-		]
-	);
-
-	return \%Cfg;
+	if (ref($goodies) ne "HASH" or !keys %$goodies)
+	{
+		logMsg("ERROR, failed to load Table-$tablename");
+		return undef;
+	}
+	return $goodies->{$tablename};
 }
 
 sub loadRMENodes {
@@ -2179,7 +1929,7 @@ sub update_outage
 		if (!$doesitparse);
 
 		$parsedtimes{$check} = $doesitparse;
-		# for one-offs let's store the parsed value 
+		# for one-offs let's store the parsed value
 		# as it could have been a relative input like "now + 2 days"...
 		if ($freq eq "once")
 		{
@@ -2208,7 +1958,12 @@ sub update_outage
 				return { error => "invalid selector content for \"$cat.$onesel\"!" }
 				if (ref($catsel->{$onesel}) and ref($catsel->{$onesel}) ne "ARRAY");
 
-				if (defined $catsel->{$onesel})
+				if (ref($catsel->{$onesel}) eq "ARRAY")
+				{
+					# fix up any holes if item N was deleted but N+1... exist
+					$newrec{selector}->{$cat}->{$onesel} = [ grep( defined($_), @{$catsel->{$onesel}}) ];
+				}
+				elsif (defined $catsel->{$onesel})
 				{
 					$newrec{selector}->{$cat}->{$onesel} = $catsel->{$onesel};
 				}
@@ -2421,8 +2176,14 @@ sub remove_outage
 }
 
 # find outages, all or filtered
-# args: filter (optional, hashref of outage properties
-# to check - no filtering by selector FIXME
+# args: filter (optional, hashref of outage properties => check values)
+# note: filters are verbatim/passive/inert, ie. checked against the
+# raw outage schedule - NOT evaluated with any nodes' nodeinfo/models etc!
+#
+# filter properties: id, description, change_id, frequency/start/end,
+# options.nostats, selector.node.X, selector.config.Y - must be given in dotted form!
+# filter check values can be: qr// or plain string/number.
+# for array selectors one or more elems must match for the filter to match.
 #
 # returns: hashref of success/error, outages (=array of matching outages)
 sub find_outages
@@ -2433,21 +2194,37 @@ sub find_outages
 	my $data = loadTable(dir => "conf", name => "Outages");
 	$data //= {};
 
-	# filter by id?
-	if (my $thisid = $filter->{id})
-	{
-		# no matching result is not an error
-		return { success => 1, outages => [ grep($_->{id} eq $thisid, values %$data) ] };
-	}
-	# fixme add other filter criteria
+	# unfiltered?
+	return { success => 1, outages => [ values %$data ] }
+	if (!keys %$filter);
 
-	return { success => 1, outages => [ values %$data ] };
+	my @matches;
+ SCRATCHMONKEY:
+	for my $candidate (values %$data)
+	{
+		for my $filterprop (keys %$filter)
+		{
+			my ($have, $diag) = func::follow_dotted($candidate, $filterprop);
+			next SCRATCHMONKEY if ($diag); # requested thing not present or wrong structure
+			# none of the array elems match? (or the one and only thing doesn't?
+			my @maybes = (ref($have) eq "ARRAY")? @$have: ($have);
+
+			my $expected = $filter->{$filterprop};
+			next SCRATCHMONKEY if ( List::Util::none { ref($expected) eq "Regexp"?
+																										 ($_ =~ $expected) :
+																										 ($_ eq $expected) } (@maybes) );
+		}
+		push @matches, $candidate;	# survived!
+	}
+
+	return { success => 1, outages => \@matches };
 }
 
 # find active/future/past outages for a given context,
 # ie. one node and a time
 #
-# args: node or uuid, time (a unix timestamp, fractional is ok); all required
+# args: node or uuid or a live and init'd sys object
+# time (a unix timestamp, fractional is ok); all required
 # returns: hashref, with keys success/error, past, current, future: arrays (can be empty)
 #
 # current: outages that fully apply - these are amended with actual_start/actual_end unix TS,
@@ -2459,12 +2236,13 @@ sub check_outages
 {
 	my (%args) = @_;
 	my $when = $args{time};
+	my $S = $args{sys};						#  optional
 
 	return { error => "cannot check outages without valid time argument!" }
 	if (!$when or $when !~ /^\d+(\.d+)?$/);
 
-	return { error => "cannot check outages without node or uuid argument!" }
-	if (!$args{node} and !$args{uuid});
+	return { error => "cannot check outages without node, uuid or sys argument!" }
+	if (!$args{node} and !$args{uuid} and ref($S) ne "Sys");
 
 	my $outagedata = loadTable(dir => "conf", name => "Outages");
 	$outagedata //= {};
@@ -2474,22 +2252,32 @@ sub check_outages
 
 	# get the data for selectors
 	my $C = loadConfTable;	# cached
-	my $LNT = loadLocalNodeTable();
+
 	my $who;
-	if ($args{uuid})
+	if (ref($S) eq "Sys")	# that has all info ready...
 	{
-		$who = (grep($_->{uuid} eq $args{uuid}, values %$LNT))[0]; # at most one
-		return { error => "no node with uuid \"$args{uuid}\" exists!" } if (!$who);
-		$who = Clone::clone($who);	# no polluting of lnt with nodeModel
+		$who = Clone::clone($S->ndcfg->{node}); # but let's not mess up sys datastructures
+		$who->{nodeModel} = $S->ndinfo->{system}->{nodeModel};
 	}
 	else
 	{
-		$who = Clone::clone($LNT->{ $args{node} }); # no polluting of lnt with nodeModel
-		return { error => "no node named \"$args{node}\" exists!" } if (!$who);
+		my $LNT = loadLocalNodeTable();
+		if ($args{uuid})
+		{
+			$who = (grep($_->{uuid} eq $args{uuid}, values %$LNT))[0]; # at most one
+			return { error => "no node with uuid \"$args{uuid}\" exists!" } if (!$who);
+			$who = Clone::clone($who);	# no polluting of lnt with nodeModel
+		}
+		else
+		{
+			$who = Clone::clone($LNT->{ $args{node} }); # no polluting of lnt with nodeModel
+			return { error => "no node named \"$args{node}\" exists!" } if (!$who);
+		}
+
+		# also pull the node info for the nodeModel property
+		my $ninfo = loadNodeInfoTable( $who->{name} );
+		$who->{nodeModel} = $ninfo->{system}->{nodeModel};
 	}
-	# also pull the node info for the nodeModel property
-	my $ninfo = loadNodeInfoTable( $who->{name} );
-	$who->{nodeModel} = $ninfo->{system}->{nodeModel};
 
 	my (@future,@past,@current);
 	for my $outid (keys %$outagedata)
@@ -2672,6 +2460,8 @@ sub outageCheck
 
 	foreach my $nd ( split(/,/,$NT->{$node}{depend}) )
 	{
+		# ignore nonexistent stuff, defaults and circular self-dependencies
+		next if ($nd =~ m!^(N/A|$node)?$!);
 		my $depoutages = check_outages(node => $nd, time => $time);
 		if (!$depoutages->{success})
 		{
@@ -4152,12 +3942,16 @@ sub checkEvent
 		{
 			$event =~ s/down/Up/i;
 		}
+		elsif ($event =~ /\Wopen($|\W)/i)
+		{
+			$event =~ s/(\W)open($|\W)/$1Closed$2/i;
+		}
 
 		# event was renamed/inverted/massaged, need to get the right control record
 		# this is likely not needed
 		$thisevent_control = $events_config->{$event} || { Log => "true", Notify => "true", Status => "true"};
 
-		$details .= " Time=$outage";
+		$details .= ($details? " " : "") . "Time=$outage";
 
 		($level,$log,$syslog) = getLevelLogEvent(sys=>$S, event=>$event, level=>'Normal');
 
@@ -4291,7 +4085,7 @@ sub notify
 
 		my ($otg,$outageinfo) = outageCheck(node=>$node,time=>time());
 		if ($otg eq 'current') {
-			$details .= " outage_current=true change=$outageinfo->{change_id}";
+			$details .= ($details? " ":""). "outage_current=true change=$outageinfo->{change_id}";
 		}
 
 		# Create and store this new event; record whether stateful or not

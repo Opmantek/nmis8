@@ -106,7 +106,7 @@ sub viewOutage
 	pageStartJscript(title => $title, refresh => 86400) if (!$wantwidget);
 
 	my $NT = loadNodeTable();
-	my $res = NMIS::find_outages(node => $node); # or all
+	my $res = NMIS::find_outages(); # attention: cannot filter by affected node
 	if (!$res->{success})
 	{
 		$Q->{error} = "Cannot find outages: $res->{error}";
@@ -201,9 +201,10 @@ sub viewOutage
 
 	for my $outage (@outages)
 	{
-		my ($status,$color);
 
-		# no coloring/status for recurring ones
+		# no coloring/status for anything but non-recurring+current ones
+		my ($status,$color) = ($outage->{frequency},"white");
+
 		if ($outage->{frequency} eq "once")
 		{
 			if ($time >= $outage->{end})
@@ -214,19 +215,12 @@ sub viewOutage
 			elsif ($time < $outage->{start})
 			{
 				$status = "pending";
-				$color = "#FFFF00";
 			}
 			else
 			{
 				$status = 'current';
 				$color = "#00FF00";
 			}
-
-		}
-		else
-		{
-			$status = $outage->{frequency};
-			$color = "white";
 		}
 
 		# very rough stringification of the of the selector

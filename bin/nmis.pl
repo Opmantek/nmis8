@@ -904,6 +904,19 @@ sub doUpdate
 	my $NI = $S->ndinfo;
 	my $NC = $S->ndcfg;
 
+	# look for any current outages with options.nostats set,
+	# and set a marker in nodeinfo so that updaterrd writes nothing but 'U'
+	my $outageres = NMIS::check_outages(sys => $S, time => time);
+	if (!$outageres->{success})
+	{
+		logMsg("ERROR Failed to check outage status for $name: $outageres->{error}");
+	}
+	else
+	{
+		$NI->{admin}->{outage_nostats} = ( List::Util::any { ref($_->{options}) eq "HASH"
+																														 && $_->{options}->{nostats} } @{$outageres->{current}} )? 1 : 0;
+	}
+
 	if (!getbool($nvp{force}))
 	{
 		$S->readNodeView; # from prev. run, but only if force isn't active
@@ -1112,6 +1125,22 @@ sub doServices
 
 	my $S = Sys->new;
 	$S->init(name => $name);
+	my $NI = $S->ndinfo;
+
+	# look for any current outages with options.nostats set,
+	# and set a marker in nodeinfo so that updaterrd writes nothing but 'U'
+	my $outageres = NMIS::check_outages(sys => $S, time => time);
+	if (!$outageres->{success})
+	{
+		logMsg("ERROR Failed to check outage status for $name: $outageres->{error}");
+	}
+	else
+	{
+		$NI->{admin}->{outage_nostats} = ( List::Util::any { ref($_->{options}) eq "HASH"
+																														 && $_->{options}->{nostats} }
+																			 @{$outageres->{current}}) ? 1:0;
+	}
+
 	dbg("node=$name ".join(" ", map { "$_=".$S->ndinfo->{system}->{$_} } (qw(group nodeType nodedown snmpdown wmidown))));
 
 	$S->readNodeView;							# init does not load the node view, but runservices updates view data!
@@ -1181,6 +1210,20 @@ sub doCollect
 	my $NI = $S->ndinfo;
 	my $NC = $S->ndcfg;
 	$S->readNodeView;  # s->init does NOT load that, but we need it as we're overwriting some view info
+
+	# look for any current outages with options.nostats set,
+	# and set a marker in nodeinfo so that updaterrd writes nothing but 'U'
+	my $outageres = NMIS::check_outages(sys => $S, time => time);
+	if (!$outageres->{success})
+	{
+		logMsg("ERROR Failed to check outage status for $name: $outageres->{error}");
+	}
+	else
+	{
+		$NI->{admin}->{outage_nostats} = ( List::Util::any { ref($_->{options}) eq "HASH"
+																														 && $_->{options}->{nostats} }
+																			 @{$outageres->{current}} ) ? 1 : 0;
+	}
 
 	# run an update if no update poll time is known
 	if ( !exists($NI->{system}{last_update}) or !$NI->{system}{last_update})
@@ -3300,8 +3343,10 @@ sub updateNodeInfo
 	my $time_marker = $args{time_marker} || time;
 
 	info("Starting Update Node Info, node $S->{name}");
-	# clear the node reset indication from the last run
-	$NI->{system}->{node_was_reset}=0;
+	# clear any node reset indication from the last run
+	delete $NI->{admin}->{node_was_reset};
+	# node reset marker is now under admin
+	delete $NI->{system}->{node_was_reset};
 
 	# save what we need now for check of this node
 	my $sysObjectID = $NI->{system}{sysObjectID};
@@ -3401,9 +3446,9 @@ sub updateNodeInfo
 						 details => "Old_sysUpTime=$sysUpTime New_sysUpTime=$NI->{system}{sysUpTime}",
 						 context => { type => "node" } );
 
-			# now stash this info in the node info object, to ensure we insert one set of U's into the rrds
+			# now stash this info in the node info object, to ensure we insert ONE set of U's into the rrds
 			# so that no spikes appear in the graphs
-			$NI->{system}{node_was_reset}=1;
+			$NI->{admin}->{node_was_reset}=1;
 		}
 
 		$V->{system}{sysUpTime_value} = $NI->{system}{sysUpTime};
@@ -5947,43 +5992,48 @@ sub runAlerts
 
 							my $level=$CA->{$sect}{$alrt}{level};
 
-							# check the thresholds
-							# fixed thresholds to fire at level not one off, and threshold falling was just wrong.
+							# check the thresholds, in appropriate order
+							# report normal if below level for warning (for threshold-rising, or above for threshold-falling)
+							# debug-warn and ignore a level definition for 'Normal' - overdefined and buggy!
 							if ( $CA->{$sect}{$alrt}{type} =~ /^threshold/ )
 							{
-									if ( $CA->{$sect}{$alrt}{type} eq "threshold-rising" ) {
-											if ( $test_value <= $CA->{$sect}{$alrt}{threshold}{Normal} ) {
-													$test_result = 0;
-													$level = "Normal";
-											}
-											else {
-													my @levels = qw(Fatal Critical Major Minor Warning);
-													foreach my $lvl (@levels) {
-															if ( $test_value >= $CA->{$sect}{$alrt}{threshold}{$lvl} ) {
-																	$test_result = 1;
-																	$level = $lvl;
-																	last;
-															}
-													}
-											}
-									}
-									elsif ( $CA->{$sect}{$alrt}{type} eq "threshold-falling" ) {
-											if ( $test_value >= $CA->{$sect}{$alrt}{threshold}{Normal} ) {
-													$test_result = 0;
-													$level = "Normal";
-											}
-											else {
-													my @levels = qw(Warning Minor Major Critical Fatal);
-													foreach my $lvl (@levels) {
-															if ( $test_value <= $CA->{$sect}{$alrt}{threshold}{$lvl} ) {
-																	$test_result = 1;
-																	$level = $lvl;
-																	last;
-															}
-													}
-											}
-									}
-									info("alert result: Normal=$CA->{$sect}{$alrt}{threshold}{Normal} test_value=$test_value test_result=$test_result level=$level",2);
+								dbg("Warning: ignoring deprecated threshold level Normal for alert \"$alrt\"!")
+										if (defined($CA->{$sect}->{$alrt}->{threshold}->{'Normal'}));
+
+								my @matches;
+								# to disable particular levels, set their value to the same as the desired one
+								# comparison code looks for all matches and picks the worst/highest severity match
+								if ( $CA->{$sect}{$alrt}{type} eq "threshold-rising" )
+								{
+									# from not-bad to very-bad, for skipping skippable levels
+									@matches = grep( $test_value >= $CA->{$sect}->{$alrt}->{threshold}->{$_},
+																	 (qw(Warning Minor Major Critical Fatal)));
+								}
+								elsif ( $CA->{$sect}{$alrt}{type} eq "threshold-falling" )
+								{
+									# from not-bad to very bad, again, same rationale
+									@matches = grep($test_value <= $CA->{$sect}->{$alrt}->{threshold}->{$_},
+																	(qw(Warning Minor Major Critical Fatal)));
+								}
+								else
+								{
+									logMsg("ERROR: skipping unknown alert type \"$CA->{$sect}{$alrt}{type}\"!");
+									next;
+								}
+
+								# no matches for above threshold (for rising)? then "Normal"
+								# ditto for matches below threshold (for falling)
+								if (!@matches)
+								{
+									$level = "Normal";
+									$test_result = 0;
+								}
+								else
+								{
+									$level = $matches[-1]; # we want the highest severity/worst matching one
+									$test_result = 1;
+								}
+								info("alert result: test_value=$test_value test_result=$test_result level=$level",2);
 							}
 
 							# and now save the result, for both tests and thresholds (source of level is the only difference)
@@ -6114,8 +6164,7 @@ sub HandleNodeDown
 # performs various node health status checks
 # optionally! updates rrd
 # args: sys, delayupdate (default: 0),
-# if delayupdate is set, this DOES NOT update the
-#type 'health' rrd (to be done later, with total polltime)
+# if delayupdate is set, this DOES NOT update the type 'health' rrd (to be done later, with total polltime)
 # returns: reachability data (hashref)
 sub runReach
 {
@@ -6242,7 +6291,27 @@ sub runReach
 
 	# the REAL node name is required, NOT the lowercased variant!
 	my ($outage,undef) = outageCheck(node => $S->{name}, time=>time());
-	dbg("Outage for $S->{name} is $outage");
+	dbg("Outage status for $S->{name} is ". ($outage || "<none>"));
+	$reach{outage} = $outage eq "current"? 1 : 0;
+	# raise a planned outage event, or close it
+	if ($outage eq "current")
+	{
+		notify(sys=>$S,
+					 event=> "Planned Outage Open",
+					 level => "Warning",
+					 element => "",
+					 details=> "",				# filled in by notify
+					 context => { type => "node" }, );
+
+	}
+	else
+	{
+		checkEvent(sys=>$S, event=>"Planned Outage Open",
+							 level=> "Normal",
+							 element=> "",
+							 details=> "" );
+	}
+
 	# Health should actually reflect a combination of these values
 	# ie if response time is high health should be decremented.
 	if ( $pingresult == 100 and $snmpresult == 100 ) {
@@ -6512,7 +6581,13 @@ sub runReach
 	}
 
 	$reach{health} = ($reach{health} > 100) ? 100 : $reach{health};
+
+	# massaged result with rrd metadata
 	my %reachVal;
+
+	$reachVal{outage} =  { value => $reach{outage},
+												 option => "gauge,0:1" };
+
 	$reachVal{reachability}{value} = $reach{reachability};
 	$reachVal{availability}{value} = $reach{availability};
 	$reachVal{responsetime}{value} = $reach{responsetime};
@@ -7249,7 +7324,7 @@ LABEL_ESC:
 		# if an planned outage is in force, keep writing the start time of any unack event to the current start time
 		# so when the outage expires, and the event is still current, we escalate as if the event had just occured
 		my ($outage,undef) = outageCheck(node=>$thisevent->{node},time=>time());
-		dbg("Outage for $thisevent->{node} is $outage");
+		dbg("Outage status for $thisevent->{node} is ". ($outage || "<none>"));
 		if ( $outage eq "current" and getbool($thisevent->{ack},"invert") )
 		{
 			$thisevent->{startdate} = time();
