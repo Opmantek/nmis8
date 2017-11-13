@@ -44,9 +44,26 @@ my $Q = $q->Vars; # values in hash
 my $C = loadConfTable(conf=>$Q->{conf},debug=>$Q->{debug});
 die "failed to load configuration!\n" if (!$C or ref($C) ne "HASH" or !keys %$C);
 
-# widget default on, only off if explicitely set to off
-my $wantwidget = !getbool($Q->{widget},"invert");
-my$widget = $wantwidget ? "true" : "false";
+#======================================================================
+
+my $widget = getbool($Q->{widget},"invert") ? 'false' : 'true';
+$Q->{expand} = "true" if ($widget eq "true");
+
+# if somehow someone defines refresh disable it.
+if ( defined $Q->{refresh} ) {
+	delete $Q->{refresh};
+}
+
+### unless told otherwise, and this is not JQuery call, widget is false!
+if ( not defined $Q->{widget} and not defined $ENV{HTTP_X_REQUESTED_WITH} ) {
+	$widget = "false";
+}
+
+if ( not defined $ENV{HTTP_X_REQUESTED_WITH} ) {
+	$widget = "false";
+}
+
+my $wantwidget = ($widget eq "true");
 
 my $formid = 'nodeconf';
 
