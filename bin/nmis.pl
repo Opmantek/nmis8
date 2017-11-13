@@ -6030,7 +6030,7 @@ sub runAlerts
 								}
 								else
 								{
-									$level = @matches[-1]; # we want the highest severity/worst matching one
+									$level = $matches[-1]; # we want the highest severity/worst matching one
 									$test_result = 1;
 								}
 								info("alert result: test_value=$test_value test_result=$test_result level=$level",2);
