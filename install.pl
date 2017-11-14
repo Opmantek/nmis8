@@ -69,7 +69,7 @@ umask(0022);
 
 my $nmisModules;			# local modules used in our scripts
 
-die $usage if ( $ARGV[0] =~ /^-{\?|h|-help$/i );
+die $usage if ( $ARGV[0] =~ /^-(\?|h|-help)$/i );
 # let's prefer std -X flags, fall back to word=value style
 my (%options, %oldstyle);
 die $usage if (!getopts("yldt:", \%options));
@@ -121,6 +121,23 @@ for  my $line (<G>)
 }
 close G;
 logInstall("Installation of NMIS $nmisversion on host '$hostname' started at ".scalar localtime(time));
+
+# safeguard against local::lib breaking system-wide module installation for cpan'ables
+
+# if PERL5LIB was set, remove all its members from @INC or the module availabilty test will
+# look in the wrong places
+if (defined $ENV{PERL_LOCAL_LIB_ROOT})
+{
+	logInstall("clearing local::lib config items");
+	for my $dontwantpath (split(/:/,$ENV{PERL5LIB}))
+	{
+		@INC = grep($_ ne $dontwantpath, @INC); # bit inefficient but good enough
+	}
+	for my $dontwant (qw(PERL_LOCAL_LIB_ROOT PERL5LIB PERL_MM_OPT PERL_MB_OPT))
+	{
+		delete $ENV{$dontwant};
+	}
+}
 
 # there are some slight but annoying differences
 my ($osflavour,$osmajor,$osminor,$ospatch,$osiscentos);
