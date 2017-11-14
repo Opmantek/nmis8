@@ -2114,8 +2114,7 @@ sub _abs_time
 			}
 		}
 	}
-	# inputs may have a time component (required for daily, optional for the others)
-	# format: hh:mm(:ss)?, with 00:00 meaning day before and 24:00 day after
+
 	if ($frequency eq "daily")
 	{
 		$dt = $dt->truncate(to => "day");
@@ -2124,6 +2123,9 @@ sub _abs_time
 	{
 		return undef if !$dt;
 	}
+
+	# all inputs must have a time component
+	# format: hh:mm(:ss)?, with 00:00 meaning day before and 24:00 day after
 
 	if ($rel =~ /^\s*(\d+):(\d+)(:(\d+))?\s*$/)
 	{
@@ -2138,7 +2140,7 @@ sub _abs_time
 	}
 	else
 	{
-		return $frequency eq "daily"? undef : $dt->epoch; # hhmm is optional only for non-dailies
+		return undef; # hh:mm(:ss)? is required
 	}
 }
 
@@ -2251,12 +2253,12 @@ sub find_outages
 }
 
 # find active/future/past outages for a given context,
-# ie. one node and a time - or potential outages, if only 
+# ie. one node and a time - or potential outages, if only
 # given time.
 #
 # args: time (a unix timestamp, fractional is ok, required),
 # node or uuid or a live and init'd sys object (optional),
-# 
+#
 # returns: hashref, with keys success/error, past, current, future: arrays (can be empty)
 #
 # current: outages that fully apply - these are amended with actual_start/actual_end unix TS,
@@ -2314,7 +2316,7 @@ sub check_outages
 		my $maybeout = $outagedata->{$outid};
 
 		# let's check all selectors, iff there is something to check against
-		if ($who)									
+		if ($who)
 		{
 			my $rulematches = 1;
 			for my $selcat (qw(config node))
@@ -2325,10 +2327,10 @@ sub check_outages
 				{
 					my $actual = ($selcat eq "config"?
 												$C->{$propname} : $who->{$propname});
-					
+
 					# choices can be: regex, or fixed string, or array of fixed strings
 					my $expected = $maybeout->{selector}->{$selcat}->{$propname};
-					
+
 					# list of precise matches
 					if (ref($expected) eq "ARRAY")
 					{
@@ -2346,7 +2348,7 @@ sub check_outages
 					{
 						$rulematches = 0 if ($actual ne $expected);
 					}
-					
+
 					last if (!$rulematches);
 				}
 				last if (!$rulematches);
@@ -2383,9 +2385,14 @@ sub check_outages
 			my $start = _abs_time(relative => $maybeout->{start},
 														frequency => $maybeout->{frequency},
 														base => $when);
+			return { error => "outage \"$outid\" has invalid start \"$maybeout->{start}\"!" }
+			if (!defined $start);
+
 			my $end = _abs_time(relative => $maybeout->{end},
 													frequency => $maybeout->{frequency},
 													base => $when);
+			return { error => "outage \"$outid\" has invalid end \"$maybeout->{end}\"!" }
+			if (!defined $end);
 
 			# start after end? (e.g. daily, start 1400, end 0200) -> start must go back one interval
 			# (or end would have to go forward one)
