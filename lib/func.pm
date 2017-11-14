@@ -138,10 +138,10 @@ use Exporter;
 
 
 # cache table
-my $C_cache = undef; # configuration table cache
+my $C_cache = undef; # that's the configuration structure cache
 my $C_modtime = undef;
 my %Table_cache;
-my $Config_cache = undef;
+my $Config_cache = undef;				# that's the configuration name, e.g. Config.
 my $confdebug = 0;
 my $nmis_var;
 my $nmis_conf;
@@ -210,20 +210,20 @@ sub getCGIForm {
 	}
 	return %FORM;
 }
- 
+
 sub convertIfName {
 	my $ifName = shift;
-	
+
 	# new configuration option to handle customers with conflicting names, e.g. Gig0/0.1 and Gig0/0/1
 	my $preserve_dot_in_ifdescr = getbool($C_cache->{preserve_dot_in_ifdescr});
-	
+
 	if ( $preserve_dot_in_ifdescr ) {
 		$ifName =~ s/[^A-Za-z0-9_.]+/-/g;
 	}
 	else {
 		$ifName =~ s/\W+/-/g;
 	}
-	
+
 	$ifName =~ s/\-$//g;
 	$ifName = lc($ifName);
 	return $ifName
@@ -3022,6 +3022,46 @@ sub follow_dotted
 	return ($value, 0);
 }
 
+# append activity audit information to the one textual audit.log
+# expects that the configuration has been loaded with loadConfTable!
+#
+# args: when (=unix ts), who (=user),
+# what (=operation), where (=context), how (=success/failure/warning,info), details
+# all required except when and details; all freeform except when,
+# which must be numeric (but may be fractional)
+#
+# returns undef if ok, error otherwise
+sub audit_log
+{
+	my (%args) = @_;
+	return "no config loaded, cannot determine log directory!" if (!$C_cache);
+
+	for my $musthave (qw(who what where how))
+	{
+		return "Missing argument \"$musthave\"!" if (!$args{$musthave});
+	}
+	$args{details} ||= 'N/A';
+
+	my $auditlogfile = $C_cache->{'<nmis_logs>'}."/audit.log";
+
+	# format is tab-delimited, any tabs in input are removed
+	# order: ts, who, what, where, how, details
+  my @output = (  returnDateStamp($args{when}||time),
+									map { s/\t+//g; $_ } (@args{qw(who what where how details)}) );
+
+	open(F, ">>$auditlogfile") or return "cannot open $auditlogfile for writing: $!";
+	flock(F, LOCK_EX) or  return "cannot lock $auditlogfile: $!";
+	# add helpful header if file was empty
+	print F "# when\t\t\twho\twhat\twhere\thow\tdetails\n" if (! -s $auditlogfile);
+
+	print F join("\t", @output),"\n";
+	close(F);
+
+	# fixme should handle errors at some point...
+	my $res = setFileProtDiag(file => $auditlogfile);
+
+	return undef;
+}
 
 
 1;

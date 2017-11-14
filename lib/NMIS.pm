@@ -531,7 +531,7 @@ sub loadNodeSummary {
 		for my $srv (keys %{$ST}) {
 			## don't process server localhost for opHA2
 			next if $srv eq "localhost";
-			
+
 			my $server_priority = $ST->{$srv}{server_priority} || 5;
 
 			my $slavenodesum = "nmis-$srv-nodesum";
@@ -1893,6 +1893,8 @@ sub loadEnterpriseTable {
 #
 # args: id IFF updating,
 # frequency/start/end/description/change_id/options/selector,
+# meta (hash, optional, for audit logging, keys user and details. if missing, user will
+#  be set from os user of the current process)
 # returns: hashref, keys success/error, id
 sub update_outage
 {
@@ -1902,6 +1904,9 @@ sub update_outage
 	# lock and load existing outages,
 	# create new one or update existing one,
 	# save and unlock
+
+	my $meta = ref($args{meta}) eq "HASH"? $args{meta} : {};
+	$meta->{user} ||= (getpwuid($<))[0];
 
 	my (%newrec, $op_create);
 	my $outid = $args{id};
@@ -2004,6 +2009,10 @@ sub update_outage
 	$data->{$outid} = \%newrec;
 	writeTable(dir => "conf", name => "Outages", handle => $fh, data => $data);
 
+	func::audit_log(who => $meta->{user},
+									what => ($op_create? "create_outage" : "update_outage"),
+									where => $outid, how => "ok", defails => $meta->{details}, when => undef);
+
 	return { success => 1, id => $outid};
 }
 
@@ -2029,7 +2038,9 @@ sub upgrade_outages
 														start => $orec->{start},
 														end => $orec->{end},
 														change_id => $orec->{change},
-														selector => { node => { name => $orec->{node} } });
+														selector => { node => { name => $orec->{node} } },
+														meta => { user => ((getpwuid($<))[0]), # normally that's root
+																			details => "automatic upgrade_outages" }		);
 		if (!$res->{success})
 		{
 			close $fh;
@@ -2161,7 +2172,7 @@ sub _prev_next_interval
 }
 
 # remove existing outage
-# args: id
+# args: id, optional meta (for audit logging, keys user, details)
 # returns: hashrev, keys success/error
 sub remove_outage
 {
@@ -2170,6 +2181,9 @@ sub remove_outage
 
 	return { error => "cannot remove outage without id argument!" }
 	if (!$id);
+
+	my $meta = ref($args{meta}) eq "HASH"? $args{meta} : {};
+	$meta->{user} ||= (getpwuid($<))[0];
 
 	# lock and load the outages,
 	# delete the indicated one,
@@ -2180,6 +2194,13 @@ sub remove_outage
 
 	delete $data->{$id};
 	writeTable(dir => "conf", name => "Outages", handle => $fh, data => $data);
+
+	func::audit_log(who => $meta->{user},
+									what => "remove_outage",
+									where => $id,
+									how => "ok",
+									defails => $meta->{details},
+									when => undef);
 
 	return { success => 1};
 }
