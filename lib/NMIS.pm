@@ -2251,10 +2251,12 @@ sub find_outages
 }
 
 # find active/future/past outages for a given context,
-# ie. one node and a time
+# ie. one node and a time - or potential outages, if only 
+# given time.
 #
-# args: node or uuid or a live and init'd sys object
-# time (a unix timestamp, fractional is ok); all required
+# args: time (a unix timestamp, fractional is ok, required),
+# node or uuid or a live and init'd sys object (optional),
+# 
 # returns: hashref, with keys success/error, past, current, future: arrays (can be empty)
 #
 # current: outages that fully apply - these are amended with actual_start/actual_end unix TS,
@@ -2271,9 +2273,6 @@ sub check_outages
 	return { error => "cannot check outages without valid time argument!" }
 	if (!$when or $when !~ /^\d+(\.d+)?$/);
 
-	return { error => "cannot check outages without node, uuid or sys argument!" }
-	if (!$args{node} and !$args{uuid} and ref($S) ne "Sys");
-
 	my $outagedata = loadTable(dir => "conf", name => "Outages");
 	$outagedata //= {};
 	# no outages, no problem
@@ -2289,7 +2288,7 @@ sub check_outages
 		$who = Clone::clone($S->ndcfg->{node}); # but let's not mess up sys datastructures
 		$who->{nodeModel} = $S->ndinfo->{system}->{nodeModel};
 	}
-	else
+	elsif ($args{uuid} or $args{node})
 	{
 		my $LNT = loadLocalNodeTable();
 		if ($args{uuid})
@@ -2314,20 +2313,22 @@ sub check_outages
 	{
 		my $maybeout = $outagedata->{$outid};
 
-		# let's check all selectors
-		my $rulematches = 1;
-		for my $selcat (qw(config node))
+		# let's check all selectors, iff there is something to check against
+		if ($who)									
 		{
-			if (ref($maybeout->{selector}->{$selcat}) eq "HASH")
+			my $rulematches = 1;
+			for my $selcat (qw(config node))
 			{
+				next if (ref($maybeout->{selector}->{$selcat}) ne "HASH");
+
 				for my $propname (keys %{$maybeout->{selector}->{$selcat}})
 				{
 					my $actual = ($selcat eq "config"?
 												$C->{$propname} : $who->{$propname});
-
+					
 					# choices can be: regex, or fixed string, or array of fixed strings
 					my $expected = $maybeout->{selector}->{$selcat}->{$propname};
-
+					
 					# list of precise matches
 					if (ref($expected) eq "ARRAY")
 					{
@@ -2345,13 +2346,14 @@ sub check_outages
 					{
 						$rulematches = 0 if ($actual ne $expected);
 					}
+					
+					last if (!$rulematches);
 				}
 				last if (!$rulematches);
 			}
-			last if (!$rulematches);
+			# didn't survive all selector rules? note that no selectors === match
+			next if (!$rulematches);
 		}
-		# didn't survive all selector rules? note that no selectors === match
-		next if (!$rulematches);
 
 		# how about the time?
 		my $intime;

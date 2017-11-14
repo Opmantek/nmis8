@@ -65,8 +65,8 @@ create: creates new outage schedule
 update: updates existing outage schedule
  only the given outage.A, outage.X.Y properties are changed.
 
-check: reports which outages would apply
- for one or all nodes, at the given time (or now)
+check: reports which outages would apply at the 
+ given time (or now) and  for one node (if given) or all nodes
 \n\n";
 
 my $create_help = qq|Supported Arguments for Outage Creation:
@@ -264,8 +264,8 @@ elsif ($args{act} eq "create")
 }
 elsif ($args{act} eq "check")
 {
-	my $node = $args{node};
-	my $uuid = $args{uuid};				# option
+	my $node = $args{node};				# optional
+	my $uuid = $args{uuid};				# optional
 	my $when = $args{time} || time;
 	if ($when !~ /^\d+(\.\d+)?$/)
 	{
@@ -281,7 +281,9 @@ elsif ($args{act} eq "check")
 		$node = (grep($_->{uuid} eq $uuid, values %$LNT))[0]->{name};
 	}
 
-	print "\nRelevant outages for node $node, at time "
+	print "\nRelevant outages"
+			.($node? " for node $node, ":"")
+			." at time "
 			.localtime($when).":\n";
 
 	for (["Past:", "past"], ["Future:", "future"], ["Current: ", "current" ])
