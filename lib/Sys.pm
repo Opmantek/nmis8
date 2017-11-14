@@ -1855,6 +1855,12 @@ sub writeNodeInfo
 	delete $self->{info}{view_system};
 	delete $self->{info}{view_interface};
 
+	# add legacy compat info, for opCharts which accesses
+	# lastUpdatePoll (which is set on type=update!) and lastUpdateSec (which is set on type=poll!)
+	# note that there's also the independent lastCollectPoll, but that is not set/used everywhere.
+	$self->{info}->{system}->{lastUpdateSec} = 	$self->{info}->{system}->{last_poll};
+	$self->{info}->{system}->{lastUpdatePoll} = 	$self->{info}->{system}->{last_update};
+
 	my $ext = getExtension(dir=>'var');
 
 	my $name = ($self->{node} ne "") ? "$self->{node}-node" : 'nmis-system';
