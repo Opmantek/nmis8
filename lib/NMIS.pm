@@ -531,7 +531,7 @@ sub loadNodeSummary {
 		for my $srv (keys %{$ST}) {
 			## don't process server localhost for opHA2
 			next if $srv eq "localhost";
-			
+
 			my $server_priority = $ST->{$srv}{server_priority} || 5;
 
 			my $slavenodesum = "nmis-$srv-nodesum";
@@ -1893,6 +1893,8 @@ sub loadEnterpriseTable {
 #
 # args: id IFF updating,
 # frequency/start/end/description/change_id/options/selector,
+# meta (hash, optional, for audit logging, keys user and details. if missing, user will
+#  be set from os user of the current process)
 # returns: hashref, keys success/error, id
 sub update_outage
 {
@@ -1902,6 +1904,9 @@ sub update_outage
 	# lock and load existing outages,
 	# create new one or update existing one,
 	# save and unlock
+
+	my $meta = ref($args{meta}) eq "HASH"? $args{meta} : {};
+	$meta->{user} ||= (getpwuid($<))[0];
 
 	my (%newrec, $op_create);
 	my $outid = $args{id};
@@ -2004,6 +2009,10 @@ sub update_outage
 	$data->{$outid} = \%newrec;
 	writeTable(dir => "conf", name => "Outages", handle => $fh, data => $data);
 
+	func::audit_log(who => $meta->{user},
+									what => ($op_create? "create_outage" : "update_outage"),
+									where => $outid, how => "ok", defails => $meta->{details}, when => undef);
+
 	return { success => 1, id => $outid};
 }
 
@@ -2029,7 +2038,9 @@ sub upgrade_outages
 														start => $orec->{start},
 														end => $orec->{end},
 														change_id => $orec->{change},
-														selector => { node => { name => $orec->{node} } });
+														selector => { node => { name => $orec->{node} } },
+														meta => { user => ((getpwuid($<))[0]), # normally that's root
+																			details => "automatic upgrade_outages" }		);
 		if (!$res->{success})
 		{
 			close $fh;
@@ -2103,8 +2114,7 @@ sub _abs_time
 			}
 		}
 	}
-	# inputs may have a time component (required for daily, optional for the others)
-	# format: hh:mm(:ss)?, with 00:00 meaning day before and 24:00 day after
+
 	if ($frequency eq "daily")
 	{
 		$dt = $dt->truncate(to => "day");
@@ -2113,6 +2123,9 @@ sub _abs_time
 	{
 		return undef if !$dt;
 	}
+
+	# all inputs must have a time component
+	# format: hh:mm(:ss)?, with 00:00 meaning day before and 24:00 day after
 
 	if ($rel =~ /^\s*(\d+):(\d+)(:(\d+))?\s*$/)
 	{
@@ -2127,7 +2140,7 @@ sub _abs_time
 	}
 	else
 	{
-		return $frequency eq "daily"? undef : $dt->epoch; # hhmm is optional only for non-dailies
+		return undef; # hh:mm(:ss)? is required
 	}
 }
 
@@ -2161,7 +2174,7 @@ sub _prev_next_interval
 }
 
 # remove existing outage
-# args: id
+# args: id, optional meta (for audit logging, keys user, details)
 # returns: hashrev, keys success/error
 sub remove_outage
 {
@@ -2170,6 +2183,9 @@ sub remove_outage
 
 	return { error => "cannot remove outage without id argument!" }
 	if (!$id);
+
+	my $meta = ref($args{meta}) eq "HASH"? $args{meta} : {};
+	$meta->{user} ||= (getpwuid($<))[0];
 
 	# lock and load the outages,
 	# delete the indicated one,
@@ -2180,6 +2196,13 @@ sub remove_outage
 
 	delete $data->{$id};
 	writeTable(dir => "conf", name => "Outages", handle => $fh, data => $data);
+
+	func::audit_log(who => $meta->{user},
+									what => "remove_outage",
+									where => $id,
+									how => "ok",
+									defails => $meta->{details},
+									when => undef);
 
 	return { success => 1};
 }
@@ -2230,10 +2253,12 @@ sub find_outages
 }
 
 # find active/future/past outages for a given context,
-# ie. one node and a time
+# ie. one node and a time - or potential outages, if only
+# given time.
 #
-# args: node or uuid or a live and init'd sys object
-# time (a unix timestamp, fractional is ok); all required
+# args: time (a unix timestamp, fractional is ok, required),
+# node or uuid or a live and init'd sys object (optional),
+#
 # returns: hashref, with keys success/error, past, current, future: arrays (can be empty)
 #
 # current: outages that fully apply - these are amended with actual_start/actual_end unix TS,
@@ -2250,9 +2275,6 @@ sub check_outages
 	return { error => "cannot check outages without valid time argument!" }
 	if (!$when or $when !~ /^\d+(\.d+)?$/);
 
-	return { error => "cannot check outages without node, uuid or sys argument!" }
-	if (!$args{node} and !$args{uuid} and ref($S) ne "Sys");
-
 	my $outagedata = loadTable(dir => "conf", name => "Outages");
 	$outagedata //= {};
 	# no outages, no problem
@@ -2268,7 +2290,7 @@ sub check_outages
 		$who = Clone::clone($S->ndcfg->{node}); # but let's not mess up sys datastructures
 		$who->{nodeModel} = $S->ndinfo->{system}->{nodeModel};
 	}
-	else
+	elsif ($args{uuid} or $args{node})
 	{
 		my $LNT = loadLocalNodeTable();
 		if ($args{uuid})
@@ -2293,12 +2315,14 @@ sub check_outages
 	{
 		my $maybeout = $outagedata->{$outid};
 
-		# let's check all selectors
-		my $rulematches = 1;
-		for my $selcat (qw(config node))
+		# let's check all selectors, iff there is something to check against
+		if ($who)
 		{
-			if (ref($maybeout->{selector}->{$selcat}) eq "HASH")
+			my $rulematches = 1;
+			for my $selcat (qw(config node))
 			{
+				next if (ref($maybeout->{selector}->{$selcat}) ne "HASH");
+
 				for my $propname (keys %{$maybeout->{selector}->{$selcat}})
 				{
 					my $actual = ($selcat eq "config"?
@@ -2324,13 +2348,14 @@ sub check_outages
 					{
 						$rulematches = 0 if ($actual ne $expected);
 					}
+
+					last if (!$rulematches);
 				}
 				last if (!$rulematches);
 			}
-			last if (!$rulematches);
+			# didn't survive all selector rules? note that no selectors === match
+			next if (!$rulematches);
 		}
-		# didn't survive all selector rules? note that no selectors === match
-		next if (!$rulematches);
 
 		# how about the time?
 		my $intime;
@@ -2360,9 +2385,14 @@ sub check_outages
 			my $start = _abs_time(relative => $maybeout->{start},
 														frequency => $maybeout->{frequency},
 														base => $when);
+			return { error => "outage \"$outid\" has invalid start \"$maybeout->{start}\"!" }
+			if (!defined $start);
+
 			my $end = _abs_time(relative => $maybeout->{end},
 													frequency => $maybeout->{frequency},
 													base => $when);
+			return { error => "outage \"$outid\" has invalid end \"$maybeout->{end}\"!" }
+			if (!defined $end);
 
 			# start after end? (e.g. daily, start 1400, end 0200) -> start must go back one interval
 			# (or end would have to go forward one)

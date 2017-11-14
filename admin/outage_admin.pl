@@ -65,8 +65,8 @@ create: creates new outage schedule
 update: updates existing outage schedule
  only the given outage.A, outage.X.Y properties are changed.
 
-check: reports which outages would apply
- for one or all nodes, at the given time (or now)
+check: reports which outages would apply at the 
+ given time (or now) and  for one node (if given) or all nodes
 \n\n";
 
 my $create_help = qq|Supported Arguments for Outage Creation:
@@ -107,6 +107,8 @@ my $infolevel = setDebug($args{info});
 my $confname = $args{conf} || "Config";
 
 my $wantquiet = getbool($args{quiet});
+
+my ($thislogin) = getpwuid($<); # only first field is of interest
 
 # get us a common config first
 my $config = loadConfTable(conf=>$confname,
@@ -171,7 +173,7 @@ elsif ($args{act} eq "delete")
 	my $outid = $args{"id"};
 	die "Cannot delete outage without id argument!\n\n$usage\n" if (!$outid);
 
-	my $res = NMIS::remove_outage(id => $outid);
+	my $res = NMIS::remove_outage(id => $outid, meta => { user => $thislogin });
 	die "failed to remove outage: $res->{error}\n" if (!$res->{success});
 }
 # show one outage structure in flattened form
@@ -223,7 +225,7 @@ elsif ($args{act} eq "update")
 	die "No changes for outage \"$outid\"!\n" if (!$dosomething);
 
 	$updateme->{id} = $outid;			# bsts...
-	$res = NMIS::update_outage(%$updateme);
+	$res = NMIS::update_outage(%$updateme, meta => { user => $thislogin });
 	die "Failed to update \"$outid\": $res->{error}\n" if (!$res->{success});
 }
 elsif ($args{act} eq "create")
@@ -253,7 +255,7 @@ elsif ($args{act} eq "create")
 				if (@{$clash->{outages}});
 	}
 
-	my $res = NMIS::update_outage(%createme);
+	my $res = NMIS::update_outage(%createme, meta => { user => $thislogin });
 	die "Failed to create: $res->{error}\n" if (!$res->{success});
 
 	# print the created id if not quiet, and without fluff if not tty
@@ -262,8 +264,8 @@ elsif ($args{act} eq "create")
 }
 elsif ($args{act} eq "check")
 {
-	my $node = $args{node};
-	my $uuid = $args{uuid};				# option
+	my $node = $args{node};				# optional
+	my $uuid = $args{uuid};				# optional
 	my $when = $args{time} || time;
 	if ($when !~ /^\d+(\.\d+)?$/)
 	{
@@ -279,7 +281,9 @@ elsif ($args{act} eq "check")
 		$node = (grep($_->{uuid} eq $uuid, values %$LNT))[0]->{name};
 	}
 
-	print "\nRelevant outages for node $node, at time "
+	print "\nRelevant outages"
+			.($node? " for node $node, ":"")
+			." at time "
 			.localtime($when).":\n";
 
 	for (["Past:", "past"], ["Future:", "future"], ["Current: ", "current" ])

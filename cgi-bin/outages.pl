@@ -329,6 +329,7 @@ sub doaddOutage {
 																change_id => $change,
 																start => $start,
 																end => $end,
+																meta => { user => $AU->User },
 																selector => { node =>
 																							{ name =>
 																										(@nodes > 1? \@nodes : $nodes[0]) } }); # array only if more than one
@@ -346,7 +347,7 @@ sub dodeleteOutage {
 
 	$Q->{node} = '';							# fixme what is that for?
 
-	my $res = NMIS::remove_outage(id => $Q->{id});
+	my $res = NMIS::remove_outage(id => $Q->{id}, meta => { user => $AU->User } );
 	if (!$res->{success})
 	{
 		$Q->{error} = "Failed to delete outage $Q->{id}: $res->{error}";
