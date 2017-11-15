@@ -248,8 +248,9 @@ libio-socket-ssl-perl libwww-perl libnet-smtp-ssl-perl libnet-smtps-perl
 libcrypt-unixcrypt-perl libcrypt-rijndael-perl libuuid-tiny-perl libproc-processtable-perl libdigest-sha-perl
 libnet-ldap-perl libnet-snpp-perl libdbi-perl libtime-modules-perl
 libsoap-lite-perl libauthen-simple-radius-perl libauthen-tacacsplus-perl
-libauthen-sasl-perl rrdtool librrds-perl libsys-syslog-perl libtest-deep-perl dialog libui-dialog-perl libcrypt-des-perl libdigest-hmac-perl libclone-perl
-libexcel-writer-xlsx-perl libmojolicious-perl libdatetime-perl libnet-ip-perl));
+libauthen-sasl-perl rrdtool librrds-perl libsys-syslog-perl libtest-deep-perl dialog libcrypt-des-perl libdigest-hmac-perl libclone-perl
+libexcel-writer-xlsx-perl libmojolicious-perl libdatetime-perl 
+libnet-ip-perl libscalar-list-utils-perl));
 
 	my @rhpackages = (qw(perl-core autoconf automake gcc cvs cairo cairo-devel
 pango pango-devel glib glib-devel libxml2 libxml2-devel gd gd-devel
@@ -260,7 +261,7 @@ perl-libwww-perl perl-Net-DNS perl-Digest-SHA
 perl-DBI perl-Net-SMTPS perl-Net-SMTP-SSL perl-CGI net-snmp-perl perl-Proc-ProcessTable perl-Authen-SASL
 perl-Crypt-PasswdMD5 perl-Crypt-Rijndael perl-Net-SNPP perl-Net-SNMP perl-GD rrdtool
 rrdtool-perl perl-Test-Deep dialog
-perl-Excel-Writer-XLSX Net-IP
+perl-Excel-Writer-XLSX perl-Net-IP perl-DateTime
  perl-Digest-HMAC perl-Crypt-DES perl-Clone perl-ExtUtils-CBuilder
 ));
 
@@ -278,6 +279,9 @@ perl-Excel-Writer-XLSX Net-IP
 	# stretch ships with these packages
 	push @debpackages, (qw(libproc-queue-perl libstatistics-lite-perl libtime-moment-perl ))
 			if ($osflavour eq "debian" and $osmajor >= 9);
+	# stretch no longer ships with this package...
+	push @debpackages, "libui-dialog-perl" 
+			if ($osflavour ne "debian" or $osmajor <= 8);
 
 	my $pkgmgr = $osflavour eq "redhat"? "YUM": ($osflavour eq "debian" or $osflavour eq "ubuntu")? "APT": undef;
 	my $pkglist = $osflavour eq "redhat"? \@rhpackages : ($osflavour eq "debian" or $osflavour eq "ubuntu")? \@debpackages: undef;
