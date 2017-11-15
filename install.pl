@@ -262,8 +262,9 @@ perl-DBI perl-Net-SMTPS perl-Net-SMTP-SSL perl-CGI net-snmp-perl perl-Proc-Proce
 perl-Crypt-PasswdMD5 perl-Crypt-Rijndael perl-Net-SNPP perl-Net-SNMP perl-GD rrdtool
 rrdtool-perl perl-Test-Deep dialog
 perl-Excel-Writer-XLSX perl-Net-IP perl-DateTime
- perl-Digest-HMAC perl-Crypt-DES perl-Clone perl-ExtUtils-CBuilder
-));
+perl-Digest-HMAC perl-Crypt-DES perl-Clone perl-ExtUtils-CBuilder
+perl-ExtUtils-ParseXS perl-ExtUtils-MakeMaker perl-Test-Fatal perl-Test-Number-Delta
+perl-Test-Requires ));
 
 	# perl-Time-modules no longer a/v in rh/centos7
 	push @rhpackages, ($osflavour eq "redhat" && $osmajor < 7)?
