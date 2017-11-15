@@ -511,6 +511,10 @@ sub loadNodeSummary {
 	my $SUM;
 
 	my $nodesum = "nmis-nodesum";
+	
+	# logically if I am a standalone server or I am a master I can use this.
+	my $master_server_priority = $C->{master_server_priority} || 1;
+
 	# I should now have an up to date file, if I don't log a message
 	if (existFile(dir=>'var',name=>$nodesum) ) {
 		dbg("Loading $nodesum");
@@ -519,6 +523,9 @@ sub loadNodeSummary {
 			if ( $group eq "" or $group eq $NS->{$node}{group} ) {
 				for (keys %{$NS->{$node}}) {
 					$SUM->{$node}{$_} = $NS->{$node}{$_};
+				}
+				if ( not defined $SUM->{$node}{server_priority} ) {
+					$SUM->{$node}{server_priority} = $master_server_priority;
 				}
 			}
 		}
