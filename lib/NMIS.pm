@@ -511,7 +511,7 @@ sub loadNodeSummary {
 	my $SUM;
 
 	my $nodesum = "nmis-nodesum";
-	
+
 	# logically if I am a standalone server or I am a master I can use this.
 	my $master_server_priority = $C->{master_server_priority} || 1;
 
@@ -2230,7 +2230,8 @@ sub find_outages
 	my (%args) = @_;
 	my $filter = ref($args{filter}) eq "HASH"? $args{filter} : {};
 
-	my $data = loadTable(dir => "conf", name => "Outages");
+	my $data = loadTable(dir => "conf", name => "Outages")
+			if (existFile(dir => "conf", name => "Outages")); # or we get lots of log noise
 	$data //= {};
 
 	# unfiltered?
@@ -2282,7 +2283,8 @@ sub check_outages
 	return { error => "cannot check outages without valid time argument!" }
 	if (!$when or $when !~ /^\d+(\.d+)?$/);
 
-	my $outagedata = loadTable(dir => "conf", name => "Outages");
+	my $outagedata = loadTable(dir => "conf", name => "Outages")
+			if (existFile(dir => "conf", name => "Outages"));
 	$outagedata //= {};
 	# no outages, no problem
 	return { success => 1, future => [], past => [], current => [] }
