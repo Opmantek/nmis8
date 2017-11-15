@@ -249,7 +249,7 @@ libcrypt-unixcrypt-perl libcrypt-rijndael-perl libuuid-tiny-perl libproc-process
 libnet-ldap-perl libnet-snpp-perl libdbi-perl libtime-modules-perl
 libsoap-lite-perl libauthen-simple-radius-perl libauthen-tacacsplus-perl
 libauthen-sasl-perl rrdtool librrds-perl libsys-syslog-perl libtest-deep-perl dialog libcrypt-des-perl libdigest-hmac-perl libclone-perl
-libexcel-writer-xlsx-perl libmojolicious-perl libdatetime-perl 
+libexcel-writer-xlsx-perl libmojolicious-perl libdatetime-perl
 libnet-ip-perl libscalar-list-utils-perl));
 
 	my @rhpackages = (qw(perl-core autoconf automake gcc cvs cairo cairo-devel
@@ -281,7 +281,7 @@ perl-Test-Requires ));
 	push @debpackages, (qw(libproc-queue-perl libstatistics-lite-perl libtime-moment-perl ))
 			if ($osflavour eq "debian" and $osmajor >= 9);
 	# stretch no longer ships with this package...
-	push @debpackages, "libui-dialog-perl" 
+	push @debpackages, "libui-dialog-perl"
 			if ($osflavour ne "debian" or $osmajor <= 8);
 
 	my $pkgmgr = $osflavour eq "redhat"? "YUM": ($osflavour eq "debian" or $osflavour eq "ubuntu")? "APT": undef;
@@ -1512,8 +1512,8 @@ EOF
 	$nmisModules->{"Crypt::DES"} = { file => "MODULE NOT FOUND", type => "use", by => "lib/snmp.pm" };
 	$nmisModules->{"Digest::HMAC"} = { file => "MODULE NOT FOUND", type => "use", by => "lib/snmp.pm" };
 
-	# these are critical for getting mojolicious installed, as centos 6 perl has a much too old perl
-	# these modules are in core since 5.19 or thereabouts
+	# most of these are critical for getting mojolicious installed, as centos 6
+	# has a much too old perl. many of these modules are in core since 5.19 or thereabouts
 
 	$nmisModules->{"IO::Socket::IP"} = { file => "MODULE NOT FOUND", type  => "use",
 																			 by => "lib/Auth.pm", priority => 99 };
@@ -1534,6 +1534,10 @@ EOF
 	$nmisModules->{"Test::More"} = { file => "MODULE NOT FOUND", type  => "use",
 																	 by => "lib/Auth.pm", minversion => "0.96", priority => 100 };
 
+	# and time::moment doesn't install cleanly if extutils::parsexs isn't fully installed first
+	$nmisModules->{"ExtUtils::ParseXS"} = { file => "MODULE NOT FOUND", type  => "use",
+																		 by => "lib/Auth.pm", minversion => "3.18",
+																		 priority => 100 };
 
 	# now determine if installed or not.
 	# sort by the required cpan sequencing (no priority is last)
