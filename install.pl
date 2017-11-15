@@ -1579,7 +1579,7 @@ sub moduleVersion
 	open FH,"<$mFile" or return 'FileNotFound';
 	while (<FH>)
 	{
-		if (/^\s*((our|my)\s+\$|\$(\w+::)*)VERSION\s*=\s*['"]?\s*[vV]?([0-9\.]+)\s*['"]?s*;/)
+		if (/^\s*((our|my)\s+\$|\$(\w+::)*)VERSION\s*=\s*['"]?\s*[vV]?([0-9\._]+)\s*['"]?s*;/)
 		{
 			close FH;
 			return $4;
