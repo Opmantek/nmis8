@@ -29,19 +29,19 @@
 #  http://support.opmantek.com/users/
 #
 # *****************************************************************************
+use strict;
+our $VERSION = "8.6.2G";
 
 # Auto configure to the <nmis-base>/lib
 use FindBin;
 use lib "$FindBin::Bin/../lib";
 
-# 
-use strict;
 use func;
 
 my $confFile = "/usr/local/nmis8/conf/Config.nmis";
 
 print <<EO_TEXT;
-This script will update your running NMIS Config with the latest defaults, especially JQuery.
+This script will update your running NMIS Config with the latest defaults.
 
 EO_TEXT
 
@@ -73,6 +73,16 @@ else {
 
 backupFile(file => $ARGV[0], backup => "$ARGV[0].backup");
 
+# patch in outages as the after status
+my @curfields = split(/,/, $conf->{system}->{network_viewNode_field_list});
+if (!grep($_ eq "outage", @curfields))
+{
+	$conf->{system}->{network_viewNode_field_list} = join("," ,
+																												$curfields[0], 
+																												"outage", 
+																												@curfields[1..$#curfields]);
+}
+
 $conf->{"system"}->{"nmis_executable"} = '(/(bin|admin|install/scripts|conf/scripts)/[a-zA-Z0-9_\\.-]+|\\.pl|\\.sh)$';
 
 $conf->{'authentication'}{'auth_user_name_regex'} = "[\\w \\-\\.\\@\\`\\']+";
@@ -82,6 +92,8 @@ $conf->{'system'}{'threshold_period-health'} = "-4 hours";
 $conf->{'system'}{'threshold_period-pkts'} = "-5 minutes";
 $conf->{'system'}{'threshold_period-pkts_hc'} = "-5 minutes";
 $conf->{'system'}{'threshold_period-interface'} = "-5 minutes";
+
+
 
 $conf->{'system'}{'log_node_configuration_events'} = "false";
 
