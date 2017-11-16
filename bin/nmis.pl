@@ -38,7 +38,7 @@ use Cwd qw();
 use Time::HiRes;								# also needed by nmis::timing, but bsts
 use Socket;
 use Net::SNMP qw(oid_lex_sort);
-use Proc::ProcessTable;
+use Proc::ProcessTable 0.53;
 use Proc::Queue ':all';
 use Data::Dumper;
 use File::Find;

@@ -27,7 +27,7 @@
 #
 # *****************************************************************************
 package func;
-our $VERSION = "1.6.0";
+our $VERSION = "1.6.1";
 
 use strict;
 use Fcntl qw(:DEFAULT :flock :mode);
@@ -44,7 +44,7 @@ use List::Util 1.33;						# older versions have no usable any()
 use version 0.77;
 
 use JSON::XS;
-use Proc::ProcessTable;
+use Proc::ProcessTable 0.53;
 
 use Data::Dumper;
 $Data::Dumper::Indent=1;
