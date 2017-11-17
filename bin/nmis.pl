@@ -72,12 +72,11 @@ if ( @ARGV == 1 && $ARGV[0] eq "--version" )
 	exit 0;
 }
 
-# Variables for command line munging
-my %nvp = getArguements(@ARGV);
+my $cmdargs = func::get_args_multi(@ARGV);
 
 # load configuration table, memorize startup time
 my $starttime = Time::HiRes::time;
-my $C = loadConfTable(conf=>$nvp{conf},debug=>$nvp{debug},info=>$nvp{info});
+my $C = loadConfTable(conf => $cmdargs->{conf}, debug=>$cmdargs->{debug}, info=>$cmdargs->{info});
 die "nmis cannot operate without config!\n" if (ref($C) ne "HASH");
 
 # and the status of the database dir, as reported by the selftest - 0 bad, 1 ok, undef unknown
@@ -127,21 +126,31 @@ if (-f $lockoutfile or getbool($C->{global_collect},"invert"))
 	}
 }
 
-# all arguments are now stored in nvp (name value pairs)
-my $type		= lc $nvp{type};
-my $node		= $nvp{node};
-my $rmefile		= $nvp{rmefile};
-my $runGroup	= $nvp{group};
-my $sleep	= $nvp{sleep};
+# let's consume all the supported command line arguments
+# operation type
+my $type		= lc($cmdargs->{type});
+# cisco import file
+my $rmefile		= $cmdargs->{rmefile};
 
-### 2012-12-03 keiths, adding some model testing and debugging options.
-my $model		= getbool($nvp{model});
+# these can be empty, an array or a single node name
+my $nodeselect		= $cmdargs->{node};
+my $groupselect	= $cmdargs->{group};
+my $forceoverride = getbool($cmdargs->{force}); # ignore the polling policy, ignore old nodeinfo files for update
+my $simulate = getbool($cmdargs->{simulate});		# for purge_files
+
+my $sleep	= $cmdargs->{sleep};
+my $ignorerunning = getbool($cmdargs->{ignore_running}); # to kill or not to kill, that is the question
+
+# model-related debug flag
+my $model		= getbool($cmdargs->{model});
+my $wantsystemcron = getbool($cmdargs->{system}); # for printCrontab
 
 # multiprocessing: commandline overrides config
-my $mthread	= (exists $nvp{mthread}? $nvp{mthread} : $C->{nmis_mthread}) || 0;
-my $maxThreads = (exists $nvp{maxthreads}? $nvp{maxthreads} : $C->{nmis_maxthreads}) || 1;
+my $mthread	= (exists $cmdargs->{mthread}? $cmdargs->{mthread} : $C->{nmis_mthread}) || 0;
+my $maxThreads = (exists $cmdargs->{maxthreads}? $cmdargs->{maxthreads} : $C->{nmis_maxthreads}) || 1;
+my $mthreadDebug=$cmdargs->{mthreaddebug}; # cmdline only for this debugging flag
 
-my $mthreadDebug=$nvp{mthreaddebug}; # cmdline only for this debugging flag
+
 
 
 # park the list of collect/update plugins globally
@@ -179,8 +188,9 @@ NMIS version $NMIS::VERSION
 # and for outages
 &NMIS::upgrade_outages;
 
-if ($type =~ /^(collect|update|services)$/) {
-	runThreads(type=>$type, node=>$node, mthread=>$mthread, mthreadDebug=>$mthreadDebug);
+if ($type =~ /^(collect|update|services)$/)
+{
+	runThreads(type=>$type, nodeselect=>$nodeselect, groupselect=>$groupselect, mthread=>$mthread, mthreadDebug=>$mthreadDebug);
 }
 elsif ( $type eq "escalate") { runEscalate(); printRunTime(); } # included in type=collect
 elsif ( $type eq "config" ) { checkConfig(change => "true"); }
@@ -191,7 +201,19 @@ elsif ( $type eq "apache24" ) { printApache24(); }
 elsif ( $type eq "crontab" ) { printCrontab(); }
 elsif ( $type eq "summary" ) { nmisSummary(); printRunTime(); } # MIGHT be included in type=collect
 elsif ( $type eq "rme" ) { loadRMENodes($rmefile); }
-elsif ( $type eq "threshold" ) { runThreshold($node); printRunTime(); } # USUALLY included in type=collect
+elsif ( $type eq "threshold" )
+{
+	my @cand = expand_candidate_list($nodeselect, $groupselect);
+	if (@cand)
+	{
+		map { runThreshold($_); } (@cand);
+	}
+	else
+	{
+		runThreshold();
+	}
+	printRunTime();
+}
 elsif ( $type eq "master" ) { nmisMaster(); printRunTime(); } # MIGHT be included in type=collect
 elsif ( $type eq "groupsync" ) { sync_groups(); }
 elsif ( $type eq "purge" ) { my $error = purge_files(); die "$error\n" if $error; }
@@ -201,22 +223,57 @@ exit;
 
 #=========================================================================================
 
+# convert node selection and group selection into list of nodes
+# args: nodeselect and groupselect
+# node and group select are cumulative
+#
+# returns: list of nodes, or empty list if no args; dies on errors
+sub expand_candidate_list
+{
+	my ($nodesel, $groupsel) = @_;
+	my @cands;
+
+	return () if (!$nodesel and !$groupsel);
+
+	my $LNT = loadLocalNodeTable();
+	for my $maybe ((ref($nodesel) eq "ARRAY")? @$nodesel: $nodesel? ($nodesel) : ())
+	{
+		die "node \"$maybe\" does not exist!\n" if (ref($LNT->{$maybe}) ne "HASH");
+		push @cands, $maybe;
+	}
+
+	my @maybegroups = ref($groupsel) eq "ARRAY"? @$groupsel: $groupsel? ($groupsel) : ();
+	if (@maybegroups)
+	{
+		my @bygroup;
+		for my $maybe (keys %$LNT)
+		{
+			push @bygroup, $maybe if (List::Util::any { $LNT->{$maybe}->{group} eq $_ } (@maybegroups));
+		}
+		die "no nodes match groups \"".join(", ", @maybegroups)."\"!\n" if (!@bygroup);
+		push @cands, @bygroup;
+	}
+	return @cands;
+}
+
 # run collection-type functions, possibly spread across multiple processes
 sub	runThreads
 {
 	my %args = @_;
 	my $type = $args{type};
-	my $node_select = $args{'node'};
 	my $mthread = getbool($args{mthread});
 	my $mthreadDebug = getbool($args{mthreadDebug});
 
 	dbg("Starting, operation is $type");
 
+	# returns empty list if unfiltered
+	my @candnodes = expand_candidate_list($args{nodeselect}, $args{groupselect});
+
 	# do a selftest and cache the result, but not too often
 	# this takes about five seconds (for the process stats)
 	# however, DON'T do one if nmis is run in handle-just-this-node mode, which is usually a debugging exercise
 	# which shouldn't be delayed at all. ditto for (possibly VERY) frequent type=services
-	if (!$node_select and $type ne "services")
+	if (!@candnodes and $type ne "services")
 	{
 		info("Ensuring correct permissions on conf and model directories...");
 		setFileProtDirectory($C->{'<nmis_conf>'}, 1); # do recurse
@@ -369,13 +426,11 @@ sub	runThreads
 
 	my (@list_of_handled_nodes,		# for any after_x_plugin() functions
 			@todo_nodes,							# for the actual update/polling work
-			@cand_nodes,
 			%whichflavours);					# attempt smmp, wmi or both
 
 	# what to work on? one named node, or the nodes that are members of a given group or all nodes
 	# iff active and the polling policy agrees, that is...
-	@cand_nodes = $node_select? $node_select
-			: $runGroup? grep($_->{group} eq $runGroup, keys %$NT) : sort keys %$NT;
+	@candnodes = sort keys %$NT if (!@candnodes);
 
 
 	# get the polling policies and translate into seconds (for rrd file options)
@@ -404,14 +459,14 @@ sub	runThreads
 
 	if ($type eq "update" or $type eq "services")
 	{
-		@todo_nodes = grep(getbool($NT->{$_}->{active}), @cand_nodes);
+		@todo_nodes = grep(getbool($NT->{$_}->{active}), @candnodes);
 	}
 	else
 	{
 		# find out what nodes are due as per polling policy - also honor force,
 		# and any in-progress polling that hasn't finished yet...
 		my $now = time;
-		for my $maybe (@cand_nodes)
+		for my $maybe (@candnodes)
 		{
 			next if (ref($NT->{$maybe}) ne "HASH" or !getbool($NT->{$maybe}->{active}));
 			# save it back for the xyz-node file, and cgi-bin/network...
@@ -432,7 +487,7 @@ sub	runThreads
 															keys %$otherprocesses);
 			map { $problematic{$maybe} = $_; } (@isinprogress);
 
-			if (!getbool($nvp{force}) and @isinprogress)
+			if (!$forceoverride and @isinprogress)
 			{
 				# there should be at most one, we ignore any unexpected others
 				my $otherstart = $otherprocesses->{ $isinprogress[0] }->{start};
@@ -462,7 +517,7 @@ sub	runThreads
 				push @todo_nodes, $maybe;
 				$whichflavours{$maybe}->{wmi} = $whichflavours{$maybe}->{snmp} = 1; # and ignore the last-xyz markers
 			}
-			elsif (getbool($nvp{force}))
+			elsif ($forceoverride)
 			{
 				dbg("force is enabled, Node $maybe will be polled at $now");
 				push @todo_nodes, $maybe;
@@ -557,7 +612,7 @@ sub	runThreads
 
 		# if this is a collect and if told to ignore running processes (ignore_running=1/t),
 		# then only warn about processes and don't shoot them.
-		if ($type eq "collect" and getbool($nvp{ignore_running}))
+		if ($type eq "collect" and $ignorerunning)
 		{
 			for my $pid (keys %$otherprocesses)
 			{
@@ -629,8 +684,8 @@ sub	runThreads
 				my @methodargs = ( name => $onenode,
 													 policy => $intervals{$NT->{$onenode}->{polling_policy} || "default"} );
 				# try both flavours if force is on
-				push @methodargs, (wantsnmp => getbool($nvp{force}) ||  $whichflavours{$onenode}->{snmp},
-													 wantwmi => getbool($nvp{force}) || $whichflavours{$onenode}->{wmi})
+				push @methodargs, (wantsnmp => $forceoverride ||  $whichflavours{$onenode}->{snmp},
+													 wantwmi => $forceoverride || $whichflavours{$onenode}->{wmi})
 						if ($type eq "collect"); # flavours irrelevant for update
 				&$meth(@methodargs);
 
@@ -655,8 +710,8 @@ sub	runThreads
 			my @methodargs = ( name => $onenode,
 												 policy => $intervals{$NT->{$onenode}->{polling_policy} || "default"} );
 			# try both flavours if force is on
-			push @methodargs, (wantsnmp => getbool($nvp{force}) ||  $whichflavours{$onenode}->{snmp},
-												 wantwmi => getbool($nvp{force}) || $whichflavours{$onenode}->{wmi},)
+			push @methodargs, (wantsnmp => $forceoverride ||  $whichflavours{$onenode}->{snmp},
+												 wantwmi => $forceoverride || $whichflavours{$onenode}->{wmi},)
 					if ($type eq "collect"); # flavours irrelevant for update
 			&$meth(@methodargs);
 			alarm(0) if ($maxruntime);
@@ -722,7 +777,7 @@ sub	runThreads
 			if (!getbool($C->{threshold_poll_cycle},"invert") )
 			{
 				dbg("Starting runThreshold (for all selected nodes)");
-				runThreshold($node_select);
+				map { runThreshold($_) } (@candnodes);
 			}
 			else
 			{
@@ -887,7 +942,7 @@ sub doUpdate
 	# loads old node info (unless force is active), and the DEFAULT(!) model (always!),
 	# and primes the sys object for snmp/wmi ops
 
-	if (!$S->init(name=>$name, update=>'true', force => $nvp{force}))
+	if (!$S->init(name=>$name, update=>'true', force => $forceoverride))
 	{
 		logMsg("ERROR ($name) init failed: ".$S->status->{error}); # fixme: why isn't this terminal?
 	}
@@ -917,7 +972,7 @@ sub doUpdate
 																														 && $_->{options}->{nostats} } @{$outageres->{current}} )? 1 : 0;
 	}
 
-	if (!getbool($nvp{force}))
+	if (!$forceoverride)
 	{
 		$S->readNodeView; # from prev. run, but only if force isn't active
 	}
@@ -943,7 +998,7 @@ sub doUpdate
 		# failed already?
 		if ($S->status->{snmp_error})
 		{
-			logMsg("ERROR SNMP session open to $node failed: ".$S->status->{snmp_error});
+			logMsg("ERROR SNMP session open to $name failed: ".$S->status->{snmp_error});
 			$S->disable_source("snmp");
 		}
 
@@ -1251,7 +1306,7 @@ sub doCollect
 		# failed already?
 		if ($S->status->{snmp_error})
 		{
-			logMsg("ERROR SNMP session open to $node failed: ".$S->status->{snmp_error});
+			logMsg("ERROR SNMP session open to $name failed: ".$S->status->{snmp_error});
 			$S->disable_source("snmp");
 		}
 
@@ -3989,7 +4044,7 @@ sub getIntfData
 
 			### 2012-08-14 keiths, logic here to verify an event exists and the interface is up.
 			### this was causing events to be cleared when interfaces were collect true, oper=down, admin=up
-			if ( eventExist($node, "Interface Down", $IF->{$index}{ifDescr}) and $IF->{$index}{ifOperStatus} =~ /up|ok|dormant/ ) {
+			if ( eventExist($nodename, "Interface Down", $IF->{$index}{ifDescr}) and $IF->{$index}{ifOperStatus} =~ /up|ok|dormant/ ) {
 				checkEvent(sys=>$S,event=>"Interface Down",level=>"Normal",element=>$IF->{$index}{ifDescr},details=>$IF->{$index}{Description});
 			}
 		}
@@ -8454,11 +8509,9 @@ sub checkConfig
 # (= with the extra 'root' user column)
 sub printCrontab
 {
-	my $C = loadConfTable();
+	dbg(" Crontab Config for NMIS for config file=$C->{conf}",3);
 
-	dbg(" Crontab Config for NMIS for config file=$nvp{conf}",3);
-
-	my $usercol = getbool($nvp{system})? "\troot\t" : '';
+	my $usercol = $wantsystemcron? "\troot\t" : '';
 
 	print qq|
 # if you DON'T want any NMIS cron mails to go to root,
@@ -8577,10 +8630,7 @@ ScriptAlias $C->{'<cgi_url_base>'}/ "$C->{'<nmis_cgi>'}/"
 
 sub printApache
 {
-
-	my $C = loadConfTable();
-
-	dbg(" Apache HTTPD Config for NMIS for config file=$nvp{conf}",3);
+	dbg(" Apache HTTPD Config for NMIS for config file=$C->{conf}",3);
 
 	print <<EO_TEXT;
 
@@ -8707,8 +8757,8 @@ command line options are:
       groupsync Check all nodes and add any missing groups to the configuration
       purge     Remove old files, or print them if simulate=true
   [conf=<file name>]     Optional alternate configuation file in conf directory
-  [node=<node name>]     Run operations on a single node;
-  [group=<group name>]   Run operations on all nodes in the named group;
+  [node=name1 node=name2...] Run operations on specific nodes only
+  [group=name1 group=name2...]  Run operations on nodes in the named groups only
   [force=true|false]     Makes operations run from scratch, ignoring interval policies
   [debug=true|false|0-9] default=false - Show debugging information
   [rmefile=<file name>]  RME file to import.
@@ -9509,7 +9559,7 @@ sub sync_groups
 	dbg("table Local Node loaded",2);
 
 	# reread the config with a lock and unflattened
-	my $fn = $C->{'<nmis_conf>'}."/".($nvp{conf}||"Config").".nmis";
+	my $fn = $C->{'<nmis_conf>'}."/".($C->{conf}||"Config").".nmis";
 	my ($rawC,$fh) = readFiletoHash(file => $fn, lock => 'true');
 
 	return "Error: failed to read config $fn!" if (!$rawC or !keys %$rawC);
@@ -9543,7 +9593,7 @@ sub sync_groups
 # this is a maintenance command for removing old, broken or unwanted files,
 # replaces and extends the old admin/nmis_file_cleanup.sh
 #
-# args: none, but checks nvp simulate (default: false, if true only prints
+# args: none, but checks simulate (default: false, if true only prints
 # what it would do)
 # returns: undef if ok, error message otherwise
 sub purge_files
@@ -9616,7 +9666,6 @@ sub purge_files
 			description => "Old JSON log files",
 		},
 			);
-	my $simulate = getbool($nvp{simulate});
 
 	for my $rule (@purgatory)
 	{

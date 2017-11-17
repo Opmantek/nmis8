@@ -27,7 +27,7 @@
 #
 # *****************************************************************************
 package func;
-our $VERSION = "1.6.1";
+our $VERSION = "2.0.0";
 
 use strict;
 use Fcntl qw(:DEFAULT :flock :mode);
@@ -190,12 +190,47 @@ sub getArguements {
 	my (%nvp, $name, $value, $line, $i);
 	for ($i=0; $i <= $#argue; ++$i) {
 	        if ($argue[$i] =~ /.+=/) {
-	                ($name,$value) = split("=",$argue[$i]);
+	                ($name,$value) = split("=",$argue[$i],2);
 	                $nvp{$name} = $value;
 	        }
-	        else { print "Invalid command argument: $argue[$i]\n"; }
+	        else { print STDERR "Invalid command argument: $argue[$i]\n"; }
 	}
 	return %nvp;
+}
+
+# like getArguements, but arrayify multiple occurrences of a parameter
+# args: list of key=values to parse
+# returns: hashref (hashREF!)
+# complaints go to STDERR
+sub get_args_multi
+{
+	my @argue = @_;
+	my %hash;
+
+	for my $item (@argue)
+	{
+		if ( $item !~ /^.+=/ )
+		{
+			print STDERR "Invalid command argument \"$item\"\n";
+			next;
+		}
+
+		my ( $name, $value ) = split( /\s*=\s*/, $item, 2 );
+		if ( ref( $hash{$name} ) eq "ARRAY" )
+		{
+			push @{$hash{$name}}, $value;
+		}
+		elsif ( exists $hash{$name} )
+		{
+			my @list = ( $hash{$name}, $value );
+			$hash{$name} = \@list;
+		}
+		else
+		{
+			$hash{$name} = $value;
+		}
+	}
+	return \%hash;
 }
 
 sub getCGIForm {
