@@ -222,8 +222,15 @@ SELinux needs extensive configuration to work properly.\n
 In its default configuration it is known to interfere with NMIS,
 and we do therefore recommend that you disable SELinux for NMIS.
 
-See \"man 8 selinux\" for details.\n";
-			&input_ok;
+See \"man 8 selinux\" for details.
+
+\n";
+			if ("CONTINUE" ne input_str("Type CONTINUE to continue regardless of SELinux, or any other key to abort: ",
+																	undef, undef))
+			{
+				echolog("\n\nAborting installation because of SELinux state.");
+				exit 1;
+			}
 		}
 	}
 	else
@@ -1705,13 +1712,14 @@ sub input_yn
 	}
 }
 
-# question, default answer, whether we want confirmation or not
-# returns string in question
+# print question, return answer (or undef in unattended mode)
+# args: prompt, default (default none), confirmation (default false)
+# returns response string
 sub input_str
 {
 	my ($query, $default, $wantconfirmation) = @_;
 
-	print "$query [default: $default]: ";
+	print $default? "$query [default: $default]" : $query;
 	if ($noninteractive)
 	{
 		print " (auto-default)\n\n";
@@ -1721,13 +1729,14 @@ sub input_str
 	{
 		while (1)
 		{
-			my $result = $default;
+			my $result;
 
-			print "\nEnter new value or hit <Enter> to accept default: ";
+			print "\nEnter your response or hit <Enter> to accept default: ";
 			my $input = <STDIN>;
 			chomp $input;
 			logInstall("User input for \"$query\": \"$input\"");
-			$result = $input if ($input ne '');
+
+			$result = $input ne ''? $input: $default;
 
 			if ($wantconfirmation)
 			{
