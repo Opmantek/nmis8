@@ -551,31 +551,49 @@ sub doNodeUpdate {
 									-value=>'Ok'))));
 
 	print "<pre>\n";
-	print "Running update on node $node - Please wait.....\n\n\n";
+	print escapeHTML("Running update on node $node - Please wait...\n\n\n");
 
-	open(PIPE, "$C->{'<nmis_bin>'}/nmis.pl type=update node=$node info=true force=true 2>&1 |");
+	my $pid = open(PIPE, "-|");
+	if (!defined $pid)
+	{
+		print "Error: cannot fork: $!\n";
+	}
+	elsif (!$pid)
+	{
+		# child
+		open(STDERR, ">&STDOUT"); # stderr to go to stdout, too.
+		exec("$C->{'<nmis_bin>'}/nmis.pl","type=update", "node=$node", "info=true", "force=true");
+		die "Failed to exec: $!\n";
+	}
 	select((select(PIPE), $| = 1)[0]);			# unbuffer pipe
-	select((select(STDOUT), $| = 1)[0]);			# unbuffer pipe
+	select((select(STDOUT), $| = 1)[0]);		# unbuffer stdout
 
 	while ( <PIPE> ) {
-		print ;
+		print escapeHTML($_);
+	}
+	close(PIPE);
+	print "\n</pre><pre>\n";
+	print escapeHTML("Running collect on node $node - Please wait.....\n\n\n");
+
+	$pid = open(PIPE, "-|");
+	if (!defined $pid)
+	{
+		print "Error: cannot fork: $!\n";
+	}
+	elsif (!$pid)
+	{
+		# child
+		open(STDERR, ">&STDOUT"); # stderr to go to stdout, too.
+		exec("$C->{'<nmis_bin>'}/nmis.pl","type=collect", "node=$node", "info=true");
+		die "Failed to exec: $!\n";
+	}
+	select((select(PIPE), $| = 1)[0]);			# unbuffer pipe
+
+	while ( <PIPE> ) {
+		print escapeHTML($_);
 	}
 	close(PIPE);
 	print "\n</pre>\n";
-
-	print "<pre>\n";
-	print "Running collect on node $node - Please wait.....\n\n\n";
-
-	open(PIPE, "$C->{'<nmis_bin>'}/nmis.pl type=collect node=$node info=true 2>&1 |");
-	select((select(PIPE), $| = 1)[0]);			# unbuffer pipe
-	select((select(STDOUT), $| = 1)[0]);			# unbuffer pipe
-
-	while ( <PIPE> ) {
-		print ;
-	}
-	close(PIPE);
-	print "\n</pre>\n";
-
 
 	print table(Tr(td({class=>'header'},"Completed web user initiated update of $node"),
 				td(button(-name=>'button',
