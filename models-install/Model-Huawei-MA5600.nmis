@@ -79,7 +79,7 @@
     },
   },
   'systemHealth' => {
-    'sections' => 'hwMusaBoard,hwGponStats,entityMib,ifTable,Service_Port,GPON_Device',
+    'sections' => 'hwMusaBoard,hwGponStats,entityMib,ifTable,Service_Port,GPON_Device,GPON_Device_IP',
     'rrd' => {
       'hwMusaBoard' => {
         'indexed' => 'true',
@@ -397,11 +397,41 @@
         }
       },     
 
+      'GPON_Device_IP' => {
+        'indexed' => 'hwGponDeviceOntIpAddress',
+        'index_regex' => '\.(\d+\.\d+.\d+)$',
+        'index_oid' => '1.3.6.1.4.1.2011.6.128.1.1.2.49.1.2',
+        'headers' => 'hwGponDeviceOntIpAddress,hwGponDeviceOntNetMask,hwGponDeviceOntPhyAddress,hwGponDeviceOntNetGateway',
+        'snmp' => {
+          'hwGponDeviceOntIpAddress' => {
+            'oid' => '1.3.6.1.4.1.2011.6.128.1.1.2.49.1.2',
+            'title' => 'IP',
+            'title_export' => 'IP',
+          },
+          'hwGponDeviceOntNetMask' => {
+            'oid' => '1.3.6.1.4.1.2011.6.128.1.1.2.49.1.3',
+            'title' => 'Subnet Mask',
+            'title_export' => 'Subnet Mask',
+          },        
+          'hwGponDeviceOntPhyAddress' => {
+            'oid' => '1.3.6.1.4.1.2011.6.128.1.1.2.49.1.4',
+            'title' => 'Physical Address',
+            'title_export' => 'Physical Address',
+          },          
+          'hwGponDeviceOntNetGateway' => {
+            'oid' => '1.3.6.1.4.1.2011.6.128.1.1.2.49.1.5',
+            'title' => 'Default Gateway',
+            'title_export' => 'Default Gateway',
+          },
+        }
+      },   
+
+
       'GPON_Device' => {
         'indexed' => 'hwGponDeviceOntSn',
         'index_regex' => '\.(\d+\.\d+)$',
         'index_oid' => '1.3.6.1.4.1.2011.6.128.1.1.2.43.1.3',
-        'headers' => 'hwGponDeviceOntSn,hwGponDeviceOntPassword,hwGponDeviceOntLineProfName,hwGponDeviceOntServiceProfName,hwGponDeviceOntDespt,hwGponDeviceOntEntryStatus,hwGponDeviceOntControlActive,hwGponDeviceOntMainSoftVer,hwGponDeviceOntControlRanging,hwGponDeviceOntControlLastUpTime,hwGponDeviceOntControlLastDownTime,hwGponDeviceOntControlLastDownCause,hwGponDeviceOntControlBatteryCurStatus,hwGponDeviceOntIpAddress,hwGponDeviceOntNetMask,hwGponDeviceOntNetGateway,hwGponOntOpticalDdmTemperature,hwGponOntOpticalDdmBiasCurrent,hwGponOntOpticalDdmTxPower,hwGponOntOpticalDdmRxPower,hwGponOntOpticalDdmVoltage,hwXponOntInfoMemoryOccupation,hwXponOntInfoProductDescription',
+        'headers' => 'hwGponDeviceOntSn,hwGponDeviceOntPassword,hwGponDeviceOntLineProfName,hwGponDeviceOntServiceProfName,hwGponDeviceOntDespt,hwGponDeviceOntEntryStatus,hwGponDeviceOntControlActive,hwGponDeviceOntMainSoftVer,hwGponDeviceOntControlRanging,hwGponDeviceOntControlLastUpTime,hwGponDeviceOntControlLastDownTime,hwGponDeviceOntControlLastDownCause,hwGponDeviceOntControlBatteryCurStatus,hwGponOntOpticalDdmTemperature,hwGponOntOpticalDdmBiasCurrent,hwGponOntOpticalDdmTxPower,hwGponOntOpticalDdmRxPower,hwGponOntOpticalDdmVoltage,hwXponOntInfoMemoryOccupation,hwXponOntInfoProductDescription',
         'snmp' => {
           'hwGponDeviceOntSn' => {
             'oid' => '1.3.6.1.4.1.2011.6.128.1.1.2.43.1.3',
@@ -484,21 +514,6 @@
               '4' => 'supportButInvalid',
               '-1' => 'unknownStatus',
             },
-          },
-          'hwGponDeviceOntIpAddress' => {
-            'oid' => '1.3.6.1.4.1.2011.6.128.1.1.2.49.1.2',
-            'title' => 'IP',
-            'title_export' => 'IP',
-          },
-          'hwGponDeviceOntNetMask' => {
-            'oid' => '1.3.6.1.4.1.2011.6.128.1.1.2.49.1.3',
-            'title' => 'Subnet Mask',
-            'title_export' => 'Subnet Mask',
-          },
-          'hwGponDeviceOntNetGateway' => {
-            'oid' => '1.3.6.1.4.1.2011.6.128.1.1.2.49.1.5',
-            'title' => 'Default Gateway',
-            'title_export' => 'Default Gateway',
           },
           'hwGponOntOpticalDdmTemperature' => {
             'oid' => '1.3.6.1.4.1.2011.6.128.1.1.2.51.1.1',
