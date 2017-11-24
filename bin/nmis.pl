@@ -532,12 +532,20 @@ sub	runThreads
 				# that last try - otherwise try one now
 				my $nexttry = ($lasttry && ($now - $lasttry) <= 30*86400)? ($lasttry + 86400 * 0.95) : $now;
 
-				# do we less noisy logging of this pretty dire situation? for now let's err on the side of caution/noise...
-				logMsg("Node $maybe has no valid nodeModel, never polled successfully, demoted to frequency once daily, last attempt $lasttry, next $nexttry");
 				if ($nexttry <= $now)
 				{
 					push @todo_nodes, $maybe;
 					$whichflavours{$maybe}->{wmi} = $whichflavours{$maybe}->{snmp} = 1;
+				}
+				else
+				{
+					# log this pretty dire situation but not too noisy - with a default poll every minute this
+					# will log the issue once an hour
+					my $goodtimes = int((($now - $lasttry) % 3600) / 60);
+					my $msg = "Node $maybe has no valid nodeModel, never polled successfully, "
+							 . "demoted to frequency once daily, last attempt $lasttry, next $nexttry";
+					logMsg($msg) if ($goodtimes == 0);
+					dbg($msg);
 				}
 			}
 			# logic for collect now or later: candidate if no past successful collect whatsoever,
