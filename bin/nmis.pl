@@ -523,12 +523,17 @@ sub	runThreads
 				push @todo_nodes, $maybe;
 				$whichflavours{$maybe}->{wmi} = $whichflavours{$maybe}->{snmp} = 1; # and ignore the last-xyz markers
 			}
-			# nodes that have not been pollable since forever: run at most once hourly
+			# nodes that have not been pollable since forever: run at most once daily
 			elsif (!$ninfo->{system}->{nodeModel} or $ninfo->{system}->{nodeModel} eq "Model")
 			{
 				my $lasttry = $ninfo->{system}->{last_poll} // 0;
-				my $nexttry = ($lasttry && ($now - $lasttry) <= 30*86400)? ($lasttry + 3600 * 0.95) : $now;
-				dbg("Node $maybe has no valid nodeModel, never polled successfully, demoting to hourly check, last attempt $lasttry, next $nexttry");
+
+				# was polling attempted at all and in the last 30 days? then once daily from
+				# that last try - otherwise try one now
+				my $nexttry = ($lasttry && ($now - $lasttry) <= 30*86400)? ($lasttry + 86400 * 0.95) : $now;
+
+				# do we less noisy logging of this pretty dire situation? for now let's err on the side of caution/noise...
+				logMsg("Node $maybe has no valid nodeModel, never polled successfully, demoted to frequency once daily, last attempt $lasttry, next $nexttry");
 				if ($nexttry <= $now)
 				{
 					push @todo_nodes, $maybe;
