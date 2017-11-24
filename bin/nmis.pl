@@ -5304,6 +5304,8 @@ hrSWRunType hrSWRunPerfCPU hrSWRunPerfMem))
 			}
 			# keep all services for display (not rrd!)
 			$NI->{services} = \%services;
+			# and update the timestamp of this most recent snmp service poll operation
+			$NI->{system}->{last_poll_snmp_services} = time;
 
 			# now clear events that applied to processes that no longer exist
 			my %nodeevents = loadAllEvents(node => $NI->{system}->{name});

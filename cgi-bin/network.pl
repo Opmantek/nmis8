@@ -2627,7 +2627,10 @@ sub viewServiceList {
 								. ", status=$NI->{system}{status_summary}"));
 	}
 
-	print Tr(th({class=>'title',colspan=>'7'},"List of Services on node $NI->{system}{name}"));
+	print Tr(th({class=>'title',colspan=>'7'},
+							"List of Services on node $NI->{system}{name}".
+							($NI->{system}->{last_poll_snmp_services}?
+							 (" (at ".returnDateStamp($NI->{system}->{last_poll_snmp_services}).")") : "")));
 
     #'AppleMobileDeviceService.exe:1756' => {
     #  'hrSWRunStatus' => 'running',
