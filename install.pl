@@ -691,7 +691,12 @@ or remove it and install from scratch.\n\n";
 	if (input_yn("Do you want to take a backup of your current NMIS install?\n(RRD data is NOT included!)"))
 	{
 		my $backupFile = getBackupFileName();
-		execPrint("tar -C $site -czf ~/$backupFile ./admin ./bin ./cgi-bin ./conf ./install ./lib ./menu ./mibs ./models");
+
+		my $apacheconfig = $osflavour eq "redhat"?
+				"/etc/httpd/conf.d/nmis.conf" : ($osflavour eq "debian" or $osflavour eq "ubuntu")?
+				"/etc/apache2/sites-available/nmis.conf" : undef;
+
+		execPrint("tar -C $site -czf ~/$backupFile ./admin ./bin ./cgi-bin ./conf ./install ./lib ./menu ./mibs ./models /etc/cron.d/nmis /etc/logrotate.d/nmis $apacheconfig");
 		echolog("Backup of NMIS install was created in ~/$backupFile\n");
 	}
 
