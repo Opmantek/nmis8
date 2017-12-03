@@ -1890,8 +1890,8 @@ sub getNodeInfo
 		}
 		else
 		{
-			$NI->{system}->{host_addr} = '';
-			$V->{system}{host_addr_value} = "N/A";
+			$NI->{system}->{host_addr} = ''; # leave the system data clean...
+			$V->{system}{host_addr_value} = $NI->{system}{host}; # ...but give network.pl something to show
 			$V->{system}{host_addr_title} = 'IP Address';
 		}
 	}
