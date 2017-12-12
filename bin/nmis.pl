@@ -199,7 +199,9 @@ elsif ( $type eq "links" ) { runLinks(); } # included in type=update
 elsif ( $type eq "apache" ) { printApache(); }
 elsif ( $type eq "apache24" ) { printApache24(); }
 elsif ( $type eq "crontab" ) { printCrontab(); }
-elsif ( $type eq "summary" ) { nmisSummary(); printRunTime(); } # MIGHT be included in type=collect
+elsif ( $type eq "summary" ) { nmisSummary(); # MIGHT be included in type=collect
+															 runMetrics();	# included in type=collect
+															 printRunTime(); }
 elsif ( $type eq "rme" ) { loadRMENodes($rmefile); }
 elsif ( $type eq "threshold" )
 {
@@ -8058,6 +8060,14 @@ sub runMetrics
 {
 	my %args = @_;
 	my $S = $args{sys};
+
+	# prime the global sys object if none given
+	if (ref($S) ne "Sys")
+	{
+		$S = Sys->new;
+		$S->init;
+	}
+
 	my $NI = $S->ndinfo;
 
 	my $GT = loadGroupTable();
