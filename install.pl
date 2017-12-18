@@ -1290,6 +1290,9 @@ if ($lrver =~ /^logrotate (\d+\.\d+\.\d+)/m)
 		if (input_yn("OK to install updated log rotation configuration file\n\t$lrfile in /etc/logrotate.d?"))
 		{
 			safecopy($lrfile,$lrtarget);
+			# recent versions of logrotate reject all files 
+			# with perms other than 0644 or 0444
+			chmod(0644,$lrtarget);
 		}
 		else
 		{
