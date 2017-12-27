@@ -9690,6 +9690,13 @@ sub purge_files
 			location => $C->{json_logs},
 			description => "Old JSON log files",
 		},
+		{
+			minage => $C->{purge_jsonlog_after} || 30*86400,
+			also_empties => 1,
+			ext => qr/\.json/,
+			location => $C->{config_logs},
+			description => "Old node configuration JSON log files",
+		},
 			);
 
 	for my $rule (@purgatory)
