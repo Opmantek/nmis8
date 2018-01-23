@@ -199,9 +199,12 @@ elsif ( $type eq "links" ) { runLinks(); } # included in type=update
 elsif ( $type eq "apache" ) { printApache(); }
 elsif ( $type eq "apache24" ) { printApache24(); }
 elsif ( $type eq "crontab" ) { printCrontab(); }
-elsif ( $type eq "summary" ) { nmisSummary(); # MIGHT be included in type=collect
-															 runMetrics();	# included in type=collect
-															 printRunTime(); }
+elsif ( $type eq "summary" )  {
+	# both of these internally enforce at most one concurrent run
+	nmisSummary(); # MIGHT be included in type=collect
+	runMetrics();	# included in type=collect
+	printRunTime();
+}
 elsif ( $type eq "rme" ) { loadRMENodes($rmefile); }
 elsif ( $type eq "threshold" )
 {
@@ -6927,10 +6930,21 @@ sub nmisMaster
 
 #=========================================================================================
 
-# preload all summary stats - for metric update and dashboard display.
+# preload all summary stats - for metric update and dashboard display
 sub nmisSummary
 {
 	my %args = @_;
+
+	# check that there are no other running/stuck/delayed summary processes
+	my $others = func::find_nmis_processes(config => $C,
+																				 type => 'summary');
+	if (keys %$others)
+	{
+		logMsg("ERROR other type=summary processes running (".join(", ", keys %$others)."), aborting operation.");
+		info("ERROR other type=summary processes running (".join(", ", keys %$others)."), aborting operation.");
+		return;
+	}
+	$0	= "nmis-".$C->{conf}."-summary";
 
 	my $pollTimer = NMIS::Timing->new;
 
@@ -8054,6 +8068,17 @@ sub runMetrics
 {
 	my %args = @_;
 	my $S = $args{sys};
+
+	# check that there are no other running/stuck/delayed summary processes
+	my $others = func::find_nmis_processes(config => $C,
+																				 type => 'metrics');
+	if (keys %$others)
+	{
+		logMsg("ERROR other type=metrics processes running (".join(", ", keys %$others)."), aborting operation.");
+		info("ERROR other type=metrics processes running (".join(", ", keys %$others)."), aborting operation.");
+		return;
+	}
+	$0 = "nmis-".$C->{conf}."-metrics";
 
 	# prime the global sys object if none given
 	if (ref($S) ne "Sys")
