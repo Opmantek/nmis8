@@ -255,7 +255,7 @@ libio-socket-ssl-perl libwww-perl libnet-smtp-ssl-perl libnet-smtps-perl
 libcrypt-unixcrypt-perl libcrypt-rijndael-perl libuuid-tiny-perl libproc-processtable-perl libdigest-sha-perl
 libnet-ldap-perl libnet-snpp-perl libdbi-perl libtime-modules-perl
 libsoap-lite-perl libauthen-simple-radius-perl libauthen-tacacsplus-perl
-libauthen-sasl-perl rrdtool librrds-perl libsys-syslog-perl libtest-deep-perl dialog libcrypt-des-perl libdigest-hmac-perl libclone-perl
+libauthen-sasl-perl rrdtool librrds-perl libtest-deep-perl dialog libcrypt-des-perl libdigest-hmac-perl libclone-perl
 libexcel-writer-xlsx-perl libmojolicious-perl libdatetime-perl
 libnet-ip-perl libscalar-list-utils-perl libtest-requires-perl libtest-fatal-perl libtest-number-delta-perl
 
@@ -286,12 +286,17 @@ perl-Test-Requires ));
 		push @rhpackages, "perl-CGI";
 	}
 
-	# stretch ships with these packages
-	push @debpackages, (qw(libproc-queue-perl libstatistics-lite-perl libtime-moment-perl ))
+	# stretch/9 ships with these packages that jessie/8 didn't
+	push @debpackages, (qw(libproc-queue-perl libstatistics-lite-perl libtime-moment-perl libgd-perl ))
 			if ($osflavour eq "debian" and $osmajor >= 9);
-	# stretch no longer ships with this package...
-	push @debpackages, "libui-dialog-perl"
-			if ($osflavour ne "debian" or $osmajor <= 8);
+	# ubuntu 16.04.3 lts does have a different subset
+	push @debpackages, (qw(libproc-queue-perl libstatistics-lite-perl libgd-perl ))
+			if ($osflavour eq "ubuntu" and $osmajor >= 16);
+
+	# stretch no longer ships with these packages...but ubuntu 16.04.3 lts does
+	push @debpackages, "libui-dialog-perl libsys-syslog-perl libgd-gd2-perl"
+			if (($osflavour eq "debian" and $osmajor <= 8)
+					or ($osflavour eq "ubuntu" and $osmajor <= 16));
 
 	my $pkgmgr = $osflavour eq "redhat"? "YUM": ($osflavour eq "debian" or $osflavour eq "ubuntu")? "APT": undef;
 	my $pkglist = $osflavour eq "redhat"? \@rhpackages : ($osflavour eq "debian" or $osflavour eq "ubuntu")? \@debpackages: undef;
