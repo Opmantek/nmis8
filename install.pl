@@ -289,14 +289,13 @@ perl-Test-Requires ));
 	# stretch/9 ships with these packages that jessie/8 didn't
 	push @debpackages, (qw(libproc-queue-perl libstatistics-lite-perl libtime-moment-perl libgd-perl ))
 			if ($osflavour eq "debian" and $osmajor >= 9);
+	# stretch no longer ships with these packages...
+	push @debpackages, (qw(libui-dialog-perl libsys-syslog-perl))
+			if ($osflavour eq "debian" and $osmajor <= 8);
 	# ubuntu 16.04.3 lts does have a different subset
-	push @debpackages, (qw(libproc-queue-perl libstatistics-lite-perl libgd-perl ))
+	push @debpackages, (qw(libproc-queue-perl libstatistics-lite-perl libgd-perl libui-dialog-perl))
 			if ($osflavour eq "ubuntu" and $osmajor >= 16);
 
-	# stretch no longer ships with these packages...but ubuntu 16.04.3 lts does
-	push @debpackages, "libui-dialog-perl libsys-syslog-perl"
-			if (($osflavour eq "debian" and $osmajor <= 8)
-					or ($osflavour eq "ubuntu" and $osmajor <= 16));
 
 	my $pkgmgr = $osflavour eq "redhat"? "YUM": ($osflavour eq "debian" or $osflavour eq "ubuntu")? "APT": undef;
 	my $pkglist = $osflavour eq "redhat"? \@rhpackages : ($osflavour eq "debian" or $osflavour eq "ubuntu")? \@debpackages: undef;
