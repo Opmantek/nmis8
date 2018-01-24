@@ -879,6 +879,28 @@ else
 		if (input_yn("OK to set the FastPing/Ping timeouts to the new default of 5000ms?"))
 		{
 			execPrint("$site/admin/patch_config.pl -b -n $site/conf/Config.nmis /system/fastping_timeout=5000 /system/ping_timeout=5000");
+			echolog("\n");
+		}
+
+		# offer to setup nmis-omk sso, if it's safe to do so
+		# ie: if omk is present, no sso is configured for omk or nmis,
+		# and the current cookie flavour is the (pretty unsafe old-style) 'nmis'
+		if (-d "/usr/local/omk")
+		{
+			my %nmisconfig = do "$site/conf/Config.nmis";
+			my %omkconfig = do "/usr/local/omk/conf/opCommon.nmis";
+			if (keys %nmisconfig
+					&& $nmisconfig{authentication}->{auth_cookie_flavour} eq "nmis"
+					&& keys %omkconfig
+					&& !$omkconfig{authentication}->{auth_sso_domain}
+					&& !$nmisconfig{authentication}->{auth_sso_domain}
+					&& input_yn("OK to enable authentication cookie sharing (SSO) with Opmantek applications?"))
+			{
+				my $mustsharethis = $omkconfig{omkd}->{omkd_secrets}->[0];
+
+				printBanner("Enabling NMIS-OMK Single-Sign-On");
+				execPrint("$site/admin/patch_config.pl -b $site/conf/Config.nmis /authentication/auth_web_key=$mustsharethis /authentication/auth_cookie_flavour=omk");
+			}
 		}
 
 		# move config/cache files to new locations where necessary
@@ -1290,7 +1312,7 @@ if ($lrver =~ /^logrotate (\d+\.\d+\.\d+)/m)
 		if (input_yn("OK to install updated log rotation configuration file\n\t$lrfile in /etc/logrotate.d?"))
 		{
 			safecopy($lrfile,$lrtarget);
-			# recent versions of logrotate reject all files 
+			# recent versions of logrotate reject all files
 			# with perms other than 0644 or 0444
 			chmod(0644,$lrtarget);
 		}
