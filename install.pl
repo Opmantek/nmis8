@@ -248,7 +248,7 @@ my $can_use_web;
 if ($osflavour)
 {
 	my @debpackages = (qw(autoconf automake gcc make libcairo2 libcairo2-dev libglib2.0-dev
-libpango1.0-dev libxml2 libxml2-dev libgd-gd2-perl libnet-ssleay-perl
+libpango1.0-dev libxml2 libxml2-dev libnet-ssleay-perl
 libcrypt-ssleay-perl apache2 fping nmap snmp snmpd snmptrapd libnet-snmp-perl
 libcrypt-passwdmd5-perl libjson-xs-perl libnet-dns-perl
 libio-socket-ssl-perl libwww-perl libnet-smtp-ssl-perl libnet-smtps-perl
@@ -294,7 +294,7 @@ perl-Test-Requires ));
 			if ($osflavour eq "ubuntu" and $osmajor >= 16);
 
 	# stretch no longer ships with these packages...but ubuntu 16.04.3 lts does
-	push @debpackages, "libui-dialog-perl libsys-syslog-perl libgd-gd2-perl"
+	push @debpackages, "libui-dialog-perl libsys-syslog-perl"
 			if (($osflavour eq "debian" and $osmajor <= 8)
 					or ($osflavour eq "ubuntu" and $osmajor <= 16));
 
