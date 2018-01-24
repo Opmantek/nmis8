@@ -190,6 +190,8 @@ if (!getbool($nvp{"foreground"}))
 open(PID, ">$pidfile") or die "Could not create $pidfile: $!\n";
 print PID $$;
 close PID;
+setFileProtDiag(file => $pidfile);
+
 debug("daemon started");
 logMsg("INFO daemon fpingd started, pidfile $pidfile created with pid: $$");
 
