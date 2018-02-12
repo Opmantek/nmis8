@@ -199,7 +199,12 @@ elsif ( $type eq "links" ) { runLinks(); } # included in type=update
 elsif ( $type eq "apache" ) { printApache(); }
 elsif ( $type eq "apache24" ) { printApache24(); }
 elsif ( $type eq "crontab" ) { printCrontab(); }
-elsif ( $type eq "summary" ) { nmisSummary(); printRunTime(); } # MIGHT be included in type=collect
+elsif ( $type eq "summary" )  {
+	# both of these internally enforce at most one concurrent run
+	nmisSummary(); # MIGHT be included in type=collect
+	runMetrics();	# included in type=collect
+	printRunTime();
+}
 elsif ( $type eq "rme" ) { loadRMENodes($rmefile); }
 elsif ( $type eq "threshold" )
 {
@@ -355,22 +360,9 @@ sub	runThreads
 	}
 	my $C = loadConfTable();		# config table from cache
 
-	# check if the fping results look sensible
-	# compare nr of pingable active nodes against the fping results
-	if (getbool($C->{daemon_fping_active}))
-	{
-		my $pt = loadTable(dir=>'var',name=>'nmis-fping'); # load fping table in cache
-		my $cnt_pt = keys %{$pt};
-
-		my $active_ping = grep(getbool($_->{active}) && getbool($_->{ping}), values %{$NT});
-
-		# missing more then 10 nodes that should have been pinged?
-		if ($cnt_pt+10 < $active_ping)
-		{
-			logMsg("ERROR fping table missing too many entries, count fping=$cnt_pt count nodes=$active_ping");
-			$C->{daemon_fping_failed} = 'true'; # remember for runPing
-		}
-	}
+	# load the fping results now and cache them for all child processes
+	my $pt = loadTable(dir=>'var',name=>'nmis-fping')
+			if (getbool($C->{daemon_fping_active}));
 	dbg("all relevant tables loaded");
 
 	my $debug = $C->{debug};
@@ -523,16 +515,29 @@ sub	runThreads
 				push @todo_nodes, $maybe;
 				$whichflavours{$maybe}->{wmi} = $whichflavours{$maybe}->{snmp} = 1; # and ignore the last-xyz markers
 			}
-			# nodes that have not been pollable since forever: run at most once hourly
+			# nodes that have not been pollable since forever: run at most once daily
 			elsif (!$ninfo->{system}->{nodeModel} or $ninfo->{system}->{nodeModel} eq "Model")
 			{
 				my $lasttry = $ninfo->{system}->{last_poll} // 0;
-				my $nexttry = ($lasttry && ($now - $lasttry) <= 30*86400)? ($lasttry + 3600 * 0.95) : $now;
-				dbg("Node $maybe has no valid nodeModel, never polled successfully, demoting to hourly check, last attempt $lasttry, next $nexttry");
+
+				# was polling attempted at all and in the last 30 days? then once daily from
+				# that last try - otherwise try one now
+				my $nexttry = ($lasttry && ($now - $lasttry) <= 30*86400)? ($lasttry + 86400 * 0.95) : $now;
+
 				if ($nexttry <= $now)
 				{
 					push @todo_nodes, $maybe;
 					$whichflavours{$maybe}->{wmi} = $whichflavours{$maybe}->{snmp} = 1;
+				}
+				else
+				{
+					# log this pretty dire situation but not too noisy - with a default poll every minute this
+					# will log the issue once an hour
+					my $goodtimes = int((($now - $lasttry) % 3600) / 60);
+					my $msg = "Node $maybe has no valid nodeModel, never polled successfully, "
+							 . "demoted to frequency once daily, last attempt $lasttry, next $nexttry";
+					logMsg($msg) if ($goodtimes == 0);
+					dbg($msg);
 				}
 			}
 			# logic for collect now or later: candidate if no past successful collect whatsoever,
@@ -1442,7 +1447,7 @@ sub doCollect
 	return;
 }
 
-# normaly a daemon fpingd.pl is running (if set in NMIS config) and stores the result in var/fping.xxxx
+# normaly a daemon fpingd.pl is running permanently and stores ping result in var/nmis-fping.json
 # if node info missing then ping.pm is used
 # returns: 1 if pingable, 0 otherwise
 sub runPing
@@ -1465,26 +1470,32 @@ sub runPing
 	$V->{system}{status_title} = 'Node Status';
 	$V->{system}{status_color} = '#0F0';
 
+	my $nodename = $S->{name};
+
 	if (getbool($NC->{node}{ping}))
 	{
-		my $PT;
-		# use fastping info if its meant to be available, and actually is
+		my ($PT, $didfallback);
+
+		my $staleafter = $C->{daemon_fping_maxage} || 900;
+		# use fastping info if available and not stale
 		if ( getbool($C->{daemon_fping_active})
-				 && ($PT = loadTable(dir=>'var',name=>'nmis-fping'))
-				 && exists($PT->{$NC->{node}{name}}{loss}) )
+				 && ($PT = loadTable(dir=>'var',name=>'nmis-fping')) # cached
+				 && ref($PT->{$nodename}) eq "HASH"									 # record present
+				 && (time - $PT->{$nodename}->{lastping}) < $staleafter	 # and not stale, 15 minutes seems ample
+				)
 		{
 			# copy values
-			$ping_avg = $PT->{$NC->{node}{name}}{avg};
-			$ping_loss = $PT->{$NC->{node}{name}}{loss};
+			($ping_min, $ping_avg, $ping_max, $ping_loss) = @{$PT->{$nodename}}{"min","avg","max","loss"};
 			$pingresult = ($ping_loss < 100)? 100 : 0;
-			info("INFO ($S->{name}) PING min/avg/max = $ping_min/$ping_avg/$ping_max ms loss=$ping_loss%");
+			info("INFO ($nodename) PING min/avg/max = $ping_min/$ping_avg/$ping_max ms loss=$ping_loss%");
 		}
 		else
 		{
-			# fallback to OLD system
-			logMsg("INFO ($S->{name}) using standard ping system, no ping info of daemon fpingd")
+			# fallback to OLD/internal system
+			$didfallback = 1;
+			# but warn about that only if not in update
+			logMsg("INFO ($nodename) using internal ping system, daemon fpingd had no or oudated information")
 					if (getbool($C->{daemon_fping_active})
-							and !getbool($C->{daemon_fping_failed})
 							and !getbool($S->{update})); # fixme: unclean access to internal property
 
 			my $retries = $C->{ping_retries} ? $C->{ping_retries} : 3;
@@ -1492,37 +1503,38 @@ sub runPing
 			my $packet = $C->{ping_packet} ? $C->{ping_packet} : 56 ;
 			my $host = $NC->{node}{host};			# ip name/adress of node
 
-			info("Starting $S->{name} ($host) with timeout=$timeout retries=$retries packet=$packet");
+			info("Starting internal ping of ($nodename = $host) with timeout=$timeout retries=$retries packet=$packet");
 
 			( $ping_min, $ping_avg, $ping_max, $ping_loss) = ext_ping($host, $packet, $retries, $timeout );
 			$pingresult = defined $ping_min ? 100 : 0;		# ping_min is undef if unreachable.
 		}
 		# at this point ping_{min,avg,max,loss} and pingresult are all set
 
-		# in the fpingd case all up/down events are handled by it
-		if (!getbool($C->{daemon_fping_active}))
+		# in the fpingd case all up/down events are handled by it, otherwise we need to do that here
+		# this includes the case of a faulty fpingd
+		if ($didfallback)
 		{
 			if ($pingresult)
 			{
 				# up
 				# are the nodedown status and event db out of sync?
-				if ( not getbool($NI->{system}{nodedown}) and eventExist($NI->{system}{name}, "Node Down", "") )
+				if ( not getbool($NI->{system}{nodedown}) and eventExist($nodename, "Node Down", "") )
 				{
 					my $result = checkEvent(sys=>$S,event=>"Node Down",level=>"Normal",element=>"",details=>"Ping failed");
-					info("Fixing Event DB error: $S->{name}, Event DB says Node Down but nodedown said not.");
+					info("Fixing Event DB error: $nodename, Event DB says Node Down but nodedown said not.");
 				}
 				else
 				{
 					# note: up event is handled regardless of snmpdown/pingonly/snmponly, which the
 					# frontend nodeStatus() takes proper care of.
-					info("$S->{name} is PINGABLE min/avg/max = $ping_min/$ping_avg/$ping_max ms loss=$ping_loss%");
+					info("$nodename is PINGABLE min/avg/max = $ping_min/$ping_avg/$ping_max ms loss=$ping_loss%");
 					HandleNodeDown(sys => $S, type => "node", up => 1, details=>"Ping avg=$ping_avg loss=$ping_loss%");
 				}
 			}
 			else
 			{
 				# down - log if not already down
-				logMsg("ERROR ($S->{name}) ping failed") if (!getbool($NI->{system}{nodedown}));
+				logMsg("ERROR ($nodename) ping failed") if (!getbool($NI->{system}{nodedown}));
 				HandleNodeDown(sys => $S, type => "node", details => "Ping failed");
 			}
 		}
@@ -1538,7 +1550,7 @@ sub runPing
 	}
 	else
 	{
-		info("$S->{name} ping not requested");
+		info("($nodename) not configured for pinging");
 		$RI->{pingresult} = $pingresult = 100; # results for sub runReach
 		$RI->{pingavg} = 0;
 		$RI->{pingloss} = 0;
@@ -1877,8 +1889,8 @@ sub getNodeInfo
 		}
 		else
 		{
-			$NI->{system}->{host_addr} = '';
-			$V->{system}{host_addr_value} = "N/A";
+			$NI->{system}->{host_addr} = ''; # leave the system data clean...
+			$V->{system}{host_addr_value} = $NI->{system}{host}; # ...but give network.pl something to show
 			$V->{system}{host_addr_title} = 'IP Address';
 		}
 	}
@@ -5291,6 +5303,8 @@ hrSWRunType hrSWRunPerfCPU hrSWRunPerfMem))
 			}
 			# keep all services for display (not rrd!)
 			$NI->{services} = \%services;
+			# and update the timestamp of this most recent snmp service poll operation
+			$NI->{system}->{last_poll_snmp_services} = time;
 
 			# now clear events that applied to processes that no longer exist
 			my %nodeevents = loadAllEvents(node => $NI->{system}->{name});
@@ -6916,10 +6930,21 @@ sub nmisMaster
 
 #=========================================================================================
 
-# preload all summary stats - for metric update and dashboard display.
+# preload all summary stats - for metric update and dashboard display
 sub nmisSummary
 {
 	my %args = @_;
+
+	# check that there are no other running/stuck/delayed summary processes
+	my $others = func::find_nmis_processes(config => $C,
+																				 type => 'summary');
+	if (keys %$others)
+	{
+		logMsg("ERROR other type=summary processes running (".join(", ", keys %$others)."), aborting operation.");
+		info("ERROR other type=summary processes running (".join(", ", keys %$others)."), aborting operation.");
+		return;
+	}
+	$0	= "nmis-".$C->{conf}."-summary";
 
 	my $pollTimer = NMIS::Timing->new;
 
@@ -8043,6 +8068,25 @@ sub runMetrics
 {
 	my %args = @_;
 	my $S = $args{sys};
+
+	# check that there are no other running/stuck/delayed summary processes
+	my $others = func::find_nmis_processes(config => $C,
+																				 type => 'metrics');
+	if (keys %$others)
+	{
+		logMsg("ERROR other type=metrics processes running (".join(", ", keys %$others)."), aborting operation.");
+		info("ERROR other type=metrics processes running (".join(", ", keys %$others)."), aborting operation.");
+		return;
+	}
+	$0 = "nmis-".$C->{conf}."-metrics";
+
+	# prime the global sys object if none given
+	if (ref($S) ne "Sys")
+	{
+		$S = Sys->new;
+		$S->init;
+	}
+
 	my $NI = $S->ndinfo;
 
 	my $GT = loadGroupTable();
@@ -8275,25 +8319,44 @@ sub runLinks
 
 #=========================================================================================
 
-# starts up fpingd and/or opslad
+# starts up fpingd and/or opslad if desired and none present
+# args: none
+# returns: nothing
 sub runDaemons
 {
-
 	my $C = loadConfTable();
+
+	# nothing to do, let's not waste any time on checking
+	return 	if (!getbool($C->{daemon_fping_active})
+							&& !getbool($C->{daemon_ipsla_active}));
 
 	dbg("Starting");
 
-	# get process table of OS
-	my @p_names;
+	# check process table for presence of either
+	my ($fpingd_found, $ipslad_found);
+
 	my $pt = new Proc::ProcessTable();
-	my %pnames;
-	foreach my $p (@{$pt->table}) {
-		$pnames{$p->fname} = 1;
+	foreach my $pentry (@{$pt->table})
+	{
+		# fpingd is identifyable only by cmdline
+		$fpingd_found = 1 if ($pentry->cmndline =~ $C->{daemon_fping_filename});
+		$ipslad_found = 1 if ($pentry->fname eq $C->{daemon_ipsla_filename});
+		last if ($fpingd_found && $ipslad_found);
 	}
 
-	# start fast ping daemon
-	if ( getbool($C->{daemon_fping_active}) ) {
-		if ( ! exists $pnames{$C->{daemon_fping_filename}}) {
+	# start fast ping daemon if desired and none is running,
+	# or if the one that is running is in bad shape
+	if (getbool($C->{daemon_fping_active}))
+	{
+		my $fping_data_age = mtimeFile(dir => 'var', name => 'nmis-fping');
+		my $staleafter = $C->{daemon_fping_maxage} || 900; # nothing in 15 minutes?
+		my $data_too_old = (time - $fping_data_age) > $staleafter;
+
+		if ($data_too_old or !$fpingd_found)
+		{
+			logMsg( !$fpingd_found? "INFO no $C->{daemon_fping_filename} running, will start one"
+							: "INFO $C->{daemon_fping_filename} seems dead, last file update at $fping_data_age, will restart");
+
 			if ( -x "$C->{'<nmis_bin>'}/$C->{daemon_fping_filename}" )
 			{
 				system("$C->{'<nmis_bin>'}/$C->{daemon_fping_filename}","restart=true");
@@ -8301,24 +8364,22 @@ sub runDaemons
 			}
 			else
 			{
-				logMsg("ERROR cannot run daemon $C->{'<nmis_bin>'}/$C->{daemon_fping_filename},$!");
+				logMsg("ERROR cannot run daemon $C->{'<nmis_bin>'}/$C->{daemon_fping_filename}, $!");
 			}
 		}
 	}
 
 	# start ipsla daemon
-	if ( getbool($C->{daemon_ipsla_active}) )
+	if ( getbool($C->{daemon_ipsla_active}) && !$ipslad_found)
 	{
-		if ( ! exists $pnames{$C->{daemon_ipsla_filename}}) {
-			if ( -x "$C->{'<nmis_bin>'}/$C->{daemon_ipsla_filename}" )
-			{
-				system("$C->{'<nmis_bin>'}/$C->{daemon_ipsla_filename}");
-				logMsg("INFO launched $C->{daemon_ipsla_filename} as daemon");
-			}
-			else
-			{
-				logMsg("ERROR cannot run daemon $C->{'<nmis_bin>'}/$C->{daemon_ipsla_filename},$!");
-			}
+		if ( -x "$C->{'<nmis_bin>'}/$C->{daemon_ipsla_filename}" )
+		{
+			system("$C->{'<nmis_bin>'}/$C->{daemon_ipsla_filename}");
+			logMsg("INFO launched $C->{daemon_ipsla_filename} as daemon");
+		}
+		else
+		{
+			logMsg("ERROR cannot run daemon $C->{'<nmis_bin>'}/$C->{daemon_ipsla_filename},$!");
 		}
 	}
 
@@ -9665,10 +9726,28 @@ sub purge_files
 			location => $C->{json_logs},
 			description => "Old JSON log files",
 		},
+		{
+			minage => $C->{purge_jsonlog_after} || 30*86400,
+			also_empties => 1,
+			ext => qr/\.json/,
+			location => $C->{config_logs},
+			description => "Old node configuration JSON log files",
+		},
+
+		{
+			minage => $C->{purge_reports_after} || 365*86400,
+			also_empties => 0,
+			ext => qr/\.html$/,
+			location => $C->{report_root},
+			description => "Very old report files",
+		},
+
 			);
 
 	for my $rule (@purgatory)
 	{
+		next if ($rule->{minage} <= 0);	# purging can be disabled by setting the minage to -1
+
 		my $olderthan = time - $rule->{minage};
 		next if (! $rule->{location});
 		info("checking dir $rule->{location} for $rule->{description}");

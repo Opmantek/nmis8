@@ -27,7 +27,7 @@
 #  http://support.opmantek.com/users/
 #
 # *****************************************************************************
-our $VERSION = "1.6.2";
+our $VERSION = "1.7.0";
 use strict;
 use Data::Dumper;
 use File::Basename;
@@ -37,8 +37,10 @@ use Cwd;
 use FindBin;
 use lib "$FindBin::Bin/../lib";
 
-
 print "Opmantek NMIS Support Tool Version $VERSION\n";
+
+die "The Support Tool must be run with root privileges, terminating now.\n"
+		if ($> != 0);
 
 my $usage = "Usage: ".basename($0)." action=collect [public=t/f] [node=nodeA,nodeB...]\n
 action=collect: collect general support info in an archive file
@@ -49,8 +51,10 @@ public: if set to false, then credentials, community, passwords
 \n\n";
 
 die $usage if (@ARGV == 1 && $ARGV[0] =~ /^-[h\?]/);
-
+		
 my %args = getArguements(@ARGV);
+
+die $usage if ($args{action} ne "collect");
 
 my $configname = $args{config} || "Config.nmis";
 my $maxzip = $args{maxzipsize} || 10*1024*1024; # 10meg
@@ -132,93 +136,89 @@ Alternatively, to fix permissions only you could\nuse \"$globalconf->{'<nmis_bas
 
 if ($args{action} eq "collect")
 {
-		# collect evidence
-		my $timelabel = POSIX::strftime("%Y-%m-%d-%H%M",localtime);
-		my $targetdir = "$td/nmis-collect.$timelabel";
-		mkdir($targetdir);
-		print "collecting support evidence...\n";
-		my $status = collect_evidence($targetdir, \%args);
-		die "failed to collect evidence: $status\n" if ($status);
-
-		my $omkzfn;
-		# if omk and its support tool found, run that as well if allowed to!
-		if (-d "/usr/local/omk" && -f "/usr/local/omk/bin/support.pl" && !$args{no_other_tools})
-		{
-			open(LF, ">$targetdir/omk-support.log");
-
-			print "\nFound local OMK installation with OMK support tool.
+	# collect evidence
+	my $timelabel = POSIX::strftime("%Y-%m-%d-%H%M",localtime);
+	my $targetdir = "$td/nmis-collect.$timelabel";
+	mkdir($targetdir);
+	print "collecting support evidence...\n";
+	my $status = collect_evidence($targetdir, \%args);
+	die "failed to collect evidence: $status\n" if ($status);
+	
+	my $omkzfn;
+	# if omk and its support tool found, run that as well if allowed to!
+	if (-d "/usr/local/omk" && -f "/usr/local/omk/bin/support.pl" && !$args{no_other_tools})
+	{
+		open(LF, ">$targetdir/omk-support.log");
+		
+		print "\nFound local OMK installation with OMK support tool.
 Please wait while we collect OMK information as well.\n";
-			open(F, "/usr/local/omk/bin/support.pl action=collect no_system_stats=1 no_other_tools=1 2>&1 |")
-					or warn "cannot execute OMK support tool: $!\n";
-			while (my $line = <F>)
-			{
-				print LF $line;
-				if ($line =~ /information is in (\S+)/)
-				{
-					$omkzfn = $1;
-				}
-			}
-			close F;
-			close LF;
-		}
-
-		print "\nEvidence collection complete, zipping things up...\n";
-
-		# do we have zip? or only tar+gz?
-		my $canzip=0;
-		$status = system("zip --version >/dev/null 2>&1");
-		$canzip=1 if (POSIX::WIFEXITED($status) && !POSIX::WEXITSTATUS($status));
-
-		my $zfn = "/tmp/nmis-support-$timelabel.".($canzip?"zip":"tgz");
-
-		# zip mustn't become too large, hence we possibly tail/truncate some or all log files
-		opendir(D,"$targetdir/logs")
-				or warn "can't read $targetdir/logs dir: $!\n";
-		my @shrinkables = map { "$targetdir/logs/$_" } (grep($_ !~ /^\.{1,2}$/, readdir(D)));
-		closedir(D);
-		while (1)
+		open(F, "/usr/local/omk/bin/support.pl action=collect no_system_stats=1 no_other_tools=1 2>&1 |")
+				or warn "cannot execute OMK support tool: $!\n";
+		while (my $line = <F>)
 		{
-				# test zip, shrink logfiles, repeat until small enough or out of shrinkables
-				my $curdir = getcwd;
-				chdir($td);							# so that the zip file doesn't have to whole /tmp/this/n/that/ path in it
-				if ($canzip)
-				{
-					$status = system("zip","-q","-r",$zfn, "nmis-collect.$timelabel");
-				}
-				else
-				{
-					$status = system("tar","-czf",$zfn,"nmis-collect.$timelabel");
-				}
-				chdir($curdir);
-
-				die "cannot create support zip file $zfn: $!\n"
-						if (POSIX::WEXITSTATUS($status));
-				last if (-s $zfn < $maxzip);
-
-				# hmm, too big: shrink the log files one by one until the size works out
-				unlink($zfn);
-				print "zipfile too big, trying to shrink some logfiles...\n";
-				if (my $nextfile = pop @shrinkables)
-				{
-						$status = shrinkfile($nextfile,$tail);
-						die "shrinking of $nextfile failed: $status\n" if ($status);
-				}
-				else
-				{
-						# nothing left to try :-(
-						die "\nPROBLEM: cannot reduce zip file size any further!\nPlease rerun $0 with maxzipsize=N higher than $maxzip.\n";
-				}
+			print LF $line;
+			if ($line =~ /information is in (\S+)/)
+			{
+				$omkzfn = $1;
+			}
 		}
-
-
-		print "\nAll done.\n\nCollected system information is in $zfn\n";
-		print "OMK information is in $omkzfn\n\n" if ($omkzfn);
-		print "Please include ".($omkzfn? "these zip files": "this zip file"). " when you contact
+		close F;
+		close LF;
+	}
+	
+	print "\nEvidence collection complete, zipping things up...\n";
+	
+	# do we have zip? or only tar+gz?
+	my $canzip=0;
+	$status = system("zip --version >/dev/null 2>&1");
+	$canzip=1 if (POSIX::WIFEXITED($status) && !POSIX::WEXITSTATUS($status));
+	
+	my $zfn = "/tmp/nmis-support-$timelabel.".($canzip?"zip":"tgz");
+	
+	# zip mustn't become too large, hence we possibly tail/truncate some or all log files
+	opendir(D,"$targetdir/logs")
+			or warn "can't read $targetdir/logs dir: $!\n";
+	my @shrinkables = map { "$targetdir/logs/$_" } (grep($_ !~ /^\.{1,2}$/, readdir(D)));
+	closedir(D);
+	while (1)
+	{
+		# test zip, shrink logfiles, repeat until small enough or out of shrinkables
+		my $curdir = getcwd;
+		chdir($td);							# so that the zip file doesn't have to whole /tmp/this/n/that/ path in it
+		if ($canzip)
+		{
+			$status = system("zip","-q","-r",$zfn, "nmis-collect.$timelabel");
+		}
+		else
+		{
+			$status = system("tar","-czf",$zfn,"nmis-collect.$timelabel");
+		}
+		chdir($curdir);
+		
+		die "cannot create support zip file $zfn: $!\n"
+				if (POSIX::WEXITSTATUS($status));
+		last if (-s $zfn < $maxzip);
+		
+		# hmm, too big: shrink the log files one by one until the size works out
+		unlink($zfn);
+		print "zipfile too big, trying to shrink some logfiles...\n";
+		if (my $nextfile = pop @shrinkables)
+		{
+			$status = shrinkfile($nextfile,$tail);
+			die "shrinking of $nextfile failed: $status\n" if ($status);
+		}
+		else
+		{
+			# nothing left to try :-(
+			die "\nPROBLEM: cannot reduce zip file size any further!\nPlease rerun $0 with maxzipsize=N higher than $maxzip.\n";
+		}
+	}
+	
+	
+	print "\nAll done.\n\nCollected system information is in $zfn\n";
+	print "OMK information is in $omkzfn\n\n" if ($omkzfn);
+	print "Please include ".($omkzfn? "these zip files": "this zip file"). " when you contact
 the NMIS Community or the Opmantek Team.\n\n";
-}
-else
-{
-	die "$usage\n";
 }
 
 # remove tempdir (done automatically on exit)

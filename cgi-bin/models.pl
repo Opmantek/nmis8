@@ -28,7 +28,7 @@
 #
 # *****************************************************************************
 use strict;
-our $VERSION = "8.6.2G";
+our $VERSION = "8.6.3G";
 
 use FindBin;
 use lib "$FindBin::Bin/../lib";

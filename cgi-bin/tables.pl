@@ -28,7 +28,7 @@
 #
 # *****************************************************************************
 use strict;
-our $VERSION="8.6.2G";
+our $VERSION="8.6.3G";
 
 use FindBin;
 use lib "$FindBin::Bin/../lib";
@@ -473,9 +473,6 @@ sub editTable
 									 elsif ($thisitem->{display} =~ /(text|password)/) 
 									 {
 										 my $wantpassword = $1 eq "password";
-										 print STDERR "az display is $thisitem->{display} ie. $wantpassword\n";
-																						 
-										 
 										 my $value = ($thiscontent or $func eq 'doedit') ? $thiscontent : $thisitem->{value}[0];
 
 										 $line .= td(

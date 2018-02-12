@@ -84,8 +84,8 @@ if ($Q->{server} ne "") { exit if requestServer(headeropts=>$headeropts); }
 # select function
 
 if ($Q->{act} eq 'network_graph_view') {		typeGraph();
-} elsif ($Q->{act} eq 'network_export') {		typeExport(); # unreachable dead code as of 2016-08
-} elsif ($Q->{act} eq 'network_stats') {		typeStats(); # unreachable dead code as of 2016-08
+} elsif ($Q->{act} eq 'network_export') {		typeExport();
+} elsif ($Q->{act} eq 'network_stats') {		typeStats();
 } else { notfound(); }
 
 sub notfound {
@@ -624,7 +624,6 @@ sub typeGraph {
 
 } # end typeGraph
 
-# unreachable dead code as of 2016-08
 sub typeExport {
 
 	my $S = Sys::->new; # get system object
@@ -685,7 +684,6 @@ sub typeExport {
 	}
 }
 
-# unreachable dead code as of 2016-08
 sub typeStats {
 
 	my $S = Sys::->new; # get system object
