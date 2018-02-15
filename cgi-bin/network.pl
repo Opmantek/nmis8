@@ -1472,7 +1472,7 @@ sub viewNode {
 	}
 
 	my %status = PreciseNodeStatus(system => $S);
-	
+
 	$S->readNodeView();
 	my $V = $S->view;
 
@@ -1608,10 +1608,10 @@ EO_HTML
 											: $S->getTitle(attr=>$k,section=>'system')) ||  $k;
 
 				next if ($title eq '');
-				
+
 				my $color = $V->{system}{"${k}_color"} || '#FFF';
 				my $gurl = $V->{system}{"${k}_gurl"}; # create new window
-				
+
 				# existing window, possibly widgeted or not
 				# but that's unknown when nmis.pl creates the view entry!
 				my $url;
@@ -1621,23 +1621,23 @@ EO_HTML
 					$u->query_param("widget" => ($wantwidget? "true": "false"));
 					$url = $u->as_string;
 				}
-				
+
 				my $value;
-				# get the value from the view if it one of the special ones, or only present there 
+				# get the value from the view if it one of the special ones, or only present there
 				if ( $k =~ /^(host_addr|lastUpdate|configurationState|configLastChanged|configLastSaved|bootConfigLastChanged)$/
-						 or not exists($NI->{system}{$k}) ) 
+						 or not exists($NI->{system}{$k}) )
 				{
 					$value = $V->{system}{"${k}_value"};
 				}
-				else 
+				else
 				{
 					$value = $NI->{system}{$k};
 				}
-				
+
 				# escape the input if there's anything in need of escaping;
 				# we don't want doubly-escaped uglies.
 				$value = escapeHTML($value) if ($value =~ /[<>]/);
-				
+
 				$color = colorPercentHi(100) if $V->{system}{"${k}_value"} eq "running";
 				$color = colorPercentHi(0) if $color eq "red";
 
@@ -1663,7 +1663,7 @@ EO_HTML
 				elsif ($k eq 'outage')
 				{
 					my ($outagestatus, $nextoutage) = NMIS::outageCheck(node => $node, time => time());
-					
+
 					# slightly special: don't show this row unless current or pending
 					next if (!$outagestatus);
 
@@ -1679,7 +1679,7 @@ EO_HTML
 						$color = eventColor("Normal"); # it's not active yet, let's show it as good/green/whatever
 					}
 				}
-				elsif ($k eq 'lastUpdate') 
+				elsif ($k eq 'lastUpdate')
 				{
 					# check lastupdate
 					my $time = $NI->{system}{last_poll};
@@ -1689,7 +1689,7 @@ EO_HTML
 						}
 					}
 				}
-				elsif ($k eq 'TimeSinceTopologyChange' and $NI->{system}{TimeSinceTopologyChange} =~ /\d+/ ) 
+				elsif ($k eq 'TimeSinceTopologyChange' and $NI->{system}{TimeSinceTopologyChange} =~ /\d+/ )
 				{
 					if ( $value ne "N/A" ) {
 						# convert to uptime format, time since change
@@ -1709,19 +1709,19 @@ EO_HTML
 				elsif ($url) {
 					$content = a({href=>$url},$value);
 				}
-				
+
 				my $printData = 1;
 				$printData = 0 if $k eq "customer" and not tableExists('Customers');
 				$printData = 0 if $k eq "businessService" and not tableExists('BusinessServices');
 				$printData = 0 if $k eq "serviceStatus" and not tableExists('ServiceStatus');
 				$printData = 0 if $k eq "location" and not tableExists('Locations');
-				
+
 				if ( $printData ) {
 					push @out,Tr(td({class=>'info Plain'}, escapeHTML($title)),
 											 td({class=>'info Plain',style=>getBGColor($color)},$content));
 				}
 			}
-			
+
 			# display events for this one node - also close one if asked to
 			if (my %nodeevents = loadAllEvents(node => $node))
 			{
@@ -2627,7 +2627,10 @@ sub viewServiceList {
 								. ", status=$NI->{system}{status_summary}"));
 	}
 
-	print Tr(th({class=>'title',colspan=>'7'},"List of Services on node $NI->{system}{name}"));
+	print Tr(th({class=>'title',colspan=>'7'},
+							"List of Services on node $NI->{system}{name}".
+							($NI->{system}->{last_poll_snmp_services}?
+							 (" (at ".returnDateStamp($NI->{system}->{last_poll_snmp_services}).")") : "")));
 
     #'AppleMobileDeviceService.exe:1756' => {
     #  'hrSWRunStatus' => 'running',
@@ -3547,7 +3550,7 @@ sub nodeAdminSummary
 
 		foreach my $node (sort keys %{$LNT})
 		{
-			if ( $AU->InGroup($LNT->{$node}{group}) and ($group eq "" or $group eq $LNT->{$node}{group}) ) 
+			if ( $AU->InGroup($LNT->{$node}{group}) and ($group eq "" or $group eq $LNT->{$node}{group}) )
 			{
 				my $intCollect = 0;
 				my $intCount = 0;
@@ -3557,7 +3560,7 @@ sub nodeAdminSummary
 				my $IF = $S->ifinfo;
 				my $exception = 0;
 				my @issueList;
-				
+
 				# Is the node active and are we doing stats on it.
 				if ( getbool($LNT->{$node}{active}) and getbool($LNT->{$node}{collect}) ) {
 					for my $ifIndex (keys %{$IF}) {
@@ -3571,27 +3574,27 @@ sub nodeAdminSummary
 				my $sysDescr = $NI->{system}{sysDescr};
 				$sysDescr =~ s/[\x0A\x0D]/\\n/g;
 				$sysDescr =~ s/,/;/g;
-				
+
 				my $community = "OK";
 				my $commClass = "info Plain";
-				
+
 				my $lastCollectPoll = defined $NI->{system}{lastCollectPoll} ? returnDateStamp($NI->{system}{lastCollectPoll}) : "N/A";
 				my $lastCollectClass = "info Plain";
 
 				my $lastUpdatePoll = defined $NI->{system}{last_update} ? returnDateStamp($NI->{system}{last_update}) : "N/A";
 				my $lastUpdateClass = "info Plain";
-				
+
 				my $pingable = "unknown";
 				my $pingClass = "info Plain";
-				
+
 				my $snmpable = "unknown";
 				my $snmpClass = "info Plain";
-				
+
 				my $wmiworks = "unknown";
 				my $wmiclass = "info Plain";
-				
+
 				my $moduleClass = "info Plain";
-				
+
 				my $actClass = "info Plain Minor";
 				if ( $LNT->{$node}{active} eq "false" ) {
 					push(@issueList,"Node is not active");
@@ -3612,7 +3615,7 @@ sub nodeAdminSummary
 						$exception = 1;
 						push(@issueList,"Last collect poll was over 5 minutes ago");
 					}
-					
+
 					if ( $LNT->{$node}{active} eq "false" ) {
 						$lastUpdatePoll = "N/A";
 					}
@@ -3627,7 +3630,7 @@ sub nodeAdminSummary
 						$exception = 1;
 						push(@issueList,"Last update poll was over 1 day ago");
 					}
-					
+
 					$pingable = "true";
 					$pingClass = "info Plain";
 					if ( not defined $NI->{system}{nodedown} ) {
@@ -3642,10 +3645,10 @@ sub nodeAdminSummary
 						$exception = 1;
 						push(@issueList,"Node is currently unreachable");
 					}
-					
+
 					# figure out what sources are enabled and which of those work/are misconfig'd etc
 					my %status = PreciseNodeStatus(system => $S);
-					
+
 					if ( !getbool($LNT->{$node}{collect}) or !$status{wmi_enabled} )
 					{
 						$wmiworks = "N/A";
@@ -3664,7 +3667,7 @@ sub nodeAdminSummary
 							$wmiworks = "true";
 						}
 					}
-					
+
 					if ( !getbool($LNT->{$node}{collect}) or !$status{snmp_enabled} )
 					{
 						$community = $snmpable = "N/A";
@@ -3679,21 +3682,28 @@ sub nodeAdminSummary
 							$exception = 1;
 							push(@issueList,"SNMP access is currently down");
 						}
-						
-						if ( $LNT->{$node}{community} eq "" ) {
-							$community = "BLANK";
-							$commClass = "info Plain Major";
-							$exception = 1;
-							push(@issueList,"SNMP Community is blank");
+
+						if ($LNT->{$node}->{version} eq "snmpv3")
+						{
+							$community = "N/A";
 						}
-						
-						if ( $LNT->{$node}{community} eq "public" ) {
-							$community = "DEFAULT";
-							$commClass = "info Plain Minor";
-							$exception = 1;
-							push(@issueList,"SNMP Community is default (public)");
+						else
+						{
+							if ( $LNT->{$node}{community} eq "" ) {
+								$community = "BLANK";
+								$commClass = "info Plain Major";
+								$exception = 1;
+								push(@issueList,"SNMP Community is blank");
+							}
+
+							if ( $LNT->{$node}{community} eq "public" ) {
+								$community = "DEFAULT";
+								$commClass = "info Plain Minor";
+								$exception = 1;
+								push(@issueList,"SNMP Community is default (public)");
+							}
 						}
-						
+
 						if ( $LNT->{$node}{model} ne "automatic"  ) {
 							$moduleClass = "info Plain Minor";
 							$exception = 1;
@@ -3701,19 +3711,19 @@ sub nodeAdminSummary
 						}
 					}
 				}
-				
+
 				my $wd = 850;
 				my $ht = 700;
-				
+
 				my $idsafenode = $node;
 				$idsafenode = (split(/\./,$idsafenode))[0];
 				$idsafenode =~ s/[^a-zA-Z0-9_:\.-]//g;
-				
+
 				my $nodelink = a({href=>url(-absolute=>1)."?conf=$Q->{conf}&act=network_node_view&refresh=$Q->{refresh}&widget=$widget&node=".uri_escape($node), id=>"node_view_$idsafenode"},$LNT->{$node}{name});
 				#my $url = "network.pl?conf=$Q->{conf}&act=network_node_view&refresh=$C->{page_refresh_time}&widget=$widget&node=".uri_escape($node);
 				#a({target=>"NodeDetails-$node", onclick=>"viewwndw(\'$node\',\'$url\',$wd,$ht)"},$LNT->{$node}{name});
 				my $issues = join("<br/>",@issueList);
-				
+
 				my $sysObject = "$NI->{system}{sysObjectName} $NI->{system}{sysObjectID}";
 				my $intNums = "$intCollect/$intCount";
 

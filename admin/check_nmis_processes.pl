@@ -36,7 +36,7 @@ use lib "$FindBin::Bin/../lib";
 use strict;
 use NMIS;
 use func;
-use Proc::ProcessTable;
+use Proc::ProcessTable 0.53;
 
 # load configuration table
 my $C = loadConfTable(conf=>"",debug=>0);

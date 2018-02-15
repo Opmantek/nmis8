@@ -222,8 +222,15 @@ SELinux needs extensive configuration to work properly.\n
 In its default configuration it is known to interfere with NMIS,
 and we do therefore recommend that you disable SELinux for NMIS.
 
-See \"man 8 selinux\" for details.\n";
-			&input_ok;
+See \"man 8 selinux\" for details.
+
+\n";
+			if ("CONTINUE" ne input_str("Type CONTINUE to continue regardless of SELinux, or any other key to abort: ",
+																	undef, undef))
+			{
+				echolog("\n\nAborting installation because of SELinux state.");
+				exit 1;
+			}
 		}
 	}
 	else
@@ -241,14 +248,14 @@ my $can_use_web;
 if ($osflavour)
 {
 	my @debpackages = (qw(autoconf automake gcc make libcairo2 libcairo2-dev libglib2.0-dev
-libpango1.0-dev libxml2 libxml2-dev libgd-gd2-perl libnet-ssleay-perl
+libpango1.0-dev libxml2 libxml2-dev libnet-ssleay-perl
 libcrypt-ssleay-perl apache2 fping nmap snmp snmpd snmptrapd libnet-snmp-perl
 libcrypt-passwdmd5-perl libjson-xs-perl libnet-dns-perl
 libio-socket-ssl-perl libwww-perl libnet-smtp-ssl-perl libnet-smtps-perl
 libcrypt-unixcrypt-perl libcrypt-rijndael-perl libuuid-tiny-perl libproc-processtable-perl libdigest-sha-perl
 libnet-ldap-perl libnet-snpp-perl libdbi-perl libtime-modules-perl
 libsoap-lite-perl libauthen-simple-radius-perl libauthen-tacacsplus-perl
-libauthen-sasl-perl rrdtool librrds-perl libsys-syslog-perl libtest-deep-perl dialog libcrypt-des-perl libdigest-hmac-perl libclone-perl
+libauthen-sasl-perl rrdtool librrds-perl libtest-deep-perl dialog libcrypt-des-perl libdigest-hmac-perl libclone-perl
 libexcel-writer-xlsx-perl libmojolicious-perl libdatetime-perl
 libnet-ip-perl libscalar-list-utils-perl libtest-requires-perl libtest-fatal-perl libtest-number-delta-perl
 
@@ -279,12 +286,16 @@ perl-Test-Requires ));
 		push @rhpackages, "perl-CGI";
 	}
 
-	# stretch ships with these packages
-	push @debpackages, (qw(libproc-queue-perl libstatistics-lite-perl libtime-moment-perl ))
+	# stretch/9 ships with these packages that jessie/8 didn't
+	push @debpackages, (qw(libproc-queue-perl libstatistics-lite-perl libtime-moment-perl libgd-perl ))
 			if ($osflavour eq "debian" and $osmajor >= 9);
-	# stretch no longer ships with this package...
-	push @debpackages, "libui-dialog-perl"
-			if ($osflavour ne "debian" or $osmajor <= 8);
+	# stretch no longer ships with these packages...
+	push @debpackages, (qw(libui-dialog-perl libsys-syslog-perl))
+			if ($osflavour eq "debian" and $osmajor <= 8);
+	# ubuntu 16.04.3 lts does have a different subset
+	push @debpackages, (qw(libproc-queue-perl libstatistics-lite-perl libgd-perl libui-dialog-perl))
+			if ($osflavour eq "ubuntu" and $osmajor >= 16);
+
 
 	my $pkgmgr = $osflavour eq "redhat"? "YUM": ($osflavour eq "debian" or $osflavour eq "ubuntu")? "APT": undef;
 	my $pkglist = $osflavour eq "redhat"? \@rhpackages : ($osflavour eq "debian" or $osflavour eq "ubuntu")? \@debpackages: undef;
@@ -684,7 +695,12 @@ or remove it and install from scratch.\n\n";
 	if (input_yn("Do you want to take a backup of your current NMIS install?\n(RRD data is NOT included!)"))
 	{
 		my $backupFile = getBackupFileName();
-		execPrint("tar -C $site -czf ~/$backupFile ./admin ./bin ./cgi-bin ./conf ./install ./lib ./menu ./mibs ./models");
+
+		my $apacheconfig = $osflavour eq "redhat"?
+				"/etc/httpd/conf.d/nmis.conf" : ($osflavour eq "debian" or $osflavour eq "ubuntu")?
+				"/etc/apache2/sites-available/nmis.conf" : undef;
+
+		execPrint("tar -C $site -czf ~/$backupFile ./admin ./bin ./cgi-bin ./conf ./install ./lib ./menu ./mibs ./models /etc/cron.d/nmis /etc/logrotate.d/nmis $apacheconfig");
 		echolog("Backup of NMIS install was created in ~/$backupFile\n");
 	}
 
@@ -867,6 +883,28 @@ else
 		if (input_yn("OK to set the FastPing/Ping timeouts to the new default of 5000ms?"))
 		{
 			execPrint("$site/admin/patch_config.pl -b -n $site/conf/Config.nmis /system/fastping_timeout=5000 /system/ping_timeout=5000");
+			echolog("\n");
+		}
+
+		# offer to setup nmis-omk sso, if it's safe to do so
+		# ie: if omk is present, no sso is configured for omk or nmis,
+		# and the current cookie flavour is the (pretty unsafe old-style) 'nmis'
+		if (-d "/usr/local/omk")
+		{
+			my %nmisconfig = do "$site/conf/Config.nmis";
+			my %omkconfig = do "/usr/local/omk/conf/opCommon.nmis";
+			if (keys %nmisconfig
+					&& $nmisconfig{authentication}->{auth_cookie_flavour} eq "nmis"
+					&& keys %omkconfig
+					&& !$omkconfig{authentication}->{auth_sso_domain}
+					&& !$nmisconfig{authentication}->{auth_sso_domain}
+					&& input_yn("OK to enable authentication cookie sharing (SSO) with Opmantek applications?"))
+			{
+				my $mustsharethis = $omkconfig{omkd}->{omkd_secrets}->[0];
+
+				printBanner("Enabling NMIS-OMK Single-Sign-On");
+				execPrint("$site/admin/patch_config.pl -b $site/conf/Config.nmis /authentication/auth_web_key=$mustsharethis /authentication/auth_cookie_flavour=omk");
+			}
 		}
 
 		# move config/cache files to new locations where necessary
@@ -1278,6 +1316,9 @@ if ($lrver =~ /^logrotate (\d+\.\d+\.\d+)/m)
 		if (input_yn("OK to install updated log rotation configuration file\n\t$lrfile in /etc/logrotate.d?"))
 		{
 			safecopy($lrfile,$lrtarget);
+			# recent versions of logrotate reject all files
+			# with perms other than 0644 or 0444
+			chmod(0644,$lrtarget);
 		}
 		else
 		{
@@ -1705,13 +1746,14 @@ sub input_yn
 	}
 }
 
-# question, default answer, whether we want confirmation or not
-# returns string in question
+# print question, return answer (or undef in unattended mode)
+# args: prompt, default (default none), confirmation (default false)
+# returns response string
 sub input_str
 {
 	my ($query, $default, $wantconfirmation) = @_;
 
-	print "$query [default: $default]: ";
+	print $default? "$query [default: $default]" : $query;
 	if ($noninteractive)
 	{
 		print " (auto-default)\n\n";
@@ -1721,13 +1763,14 @@ sub input_str
 	{
 		while (1)
 		{
-			my $result = $default;
+			my $result;
 
-			print "\nEnter new value or hit <Enter> to accept default: ";
+			print "\nEnter your response or hit <Enter> to accept default: ";
 			my $input = <STDIN>;
 			chomp $input;
 			logInstall("User input for \"$query\": \"$input\"");
-			$result = $input if ($input ne '');
+
+			$result = $input ne ''? $input: $default;
 
 			if ($wantconfirmation)
 			{

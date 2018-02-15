@@ -30,7 +30,7 @@
 #
 # *****************************************************************************
 use strict;
-our $VERSION = "8.6.2G";
+our $VERSION = "8.6.3G";
 
 # Auto configure to the <nmis-base>/lib
 use FindBin;

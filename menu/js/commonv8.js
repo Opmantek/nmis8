@@ -1,4 +1,3 @@
-// $Id: commonv8.js,v 8.37 2012/09/18 01:41:00 keiths Exp $
 //
 // Copyright Opmantek Limited (www.opmantek.com)
 //
@@ -763,7 +762,7 @@ function get(Id,optTrue,optFalse,evnt) {
 			}
 			else {
 
-				if (e.type=="text" || e.type=="textarea") {
+				if (e.type=="text" || e.type=="textarea" || e.type=="password" ) {
 					getstr+="&"+e.name+"="+encodeURIComponent(e.value);
 				}
 

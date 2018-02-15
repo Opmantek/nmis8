@@ -27,7 +27,7 @@
 #  http://support.opmantek.com/users/
 #
 # *****************************************************************************
-our $VERSION = "8.6.2G";
+our $VERSION = "8.6.3G";
 
 use FindBin qw($Bin);
 use lib "$FindBin::Bin/../lib";
@@ -83,7 +83,7 @@ if (-f $lockoutfile or getbool($C->{global_collect},"invert"))
 # debug=0 but logging=1 implies debug level 1.
 my $debug =  setDebug($nvp{debug});
 my $logfile = $C->{'fpingd_log'};
-my $pidfile = "/var/run/nmis-fpingd.pid";
+my $pidfile = $C->{'<nmis_var>'}."/nmis-fpingd.pid";
 
 # check for any running fpingd instance
 my $alreadyrunning;
@@ -190,6 +190,8 @@ if (!getbool($nvp{"foreground"}))
 open(PID, ">$pidfile") or die "Could not create $pidfile: $!\n";
 print PID $$;
 close PID;
+setFileProtDiag(file => $pidfile);
+
 debug("daemon started");
 logMsg("INFO daemon fpingd started, pidfile $pidfile created with pid: $$");
 

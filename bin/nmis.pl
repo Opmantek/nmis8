@@ -38,7 +38,7 @@ use Cwd qw();
 use Time::HiRes;								# also needed by nmis::timing, but bsts
 use Socket;
 use Net::SNMP qw(oid_lex_sort);
-use Proc::ProcessTable;
+use Proc::ProcessTable 0.53;
 use Proc::Queue ':all';
 use Data::Dumper;
 use File::Find;
@@ -72,12 +72,11 @@ if ( @ARGV == 1 && $ARGV[0] eq "--version" )
 	exit 0;
 }
 
-# Variables for command line munging
-my %nvp = getArguements(@ARGV);
+my $cmdargs = func::get_args_multi(@ARGV);
 
 # load configuration table, memorize startup time
 my $starttime = Time::HiRes::time;
-my $C = loadConfTable(conf=>$nvp{conf},debug=>$nvp{debug},info=>$nvp{info});
+my $C = loadConfTable(conf => $cmdargs->{conf}, debug=>$cmdargs->{debug}, info=>$cmdargs->{info});
 die "nmis cannot operate without config!\n" if (ref($C) ne "HASH");
 
 # and the status of the database dir, as reported by the selftest - 0 bad, 1 ok, undef unknown
@@ -127,21 +126,31 @@ if (-f $lockoutfile or getbool($C->{global_collect},"invert"))
 	}
 }
 
-# all arguments are now stored in nvp (name value pairs)
-my $type		= lc $nvp{type};
-my $node		= $nvp{node};
-my $rmefile		= $nvp{rmefile};
-my $runGroup	= $nvp{group};
-my $sleep	= $nvp{sleep};
+# let's consume all the supported command line arguments
+# operation type
+my $type		= lc($cmdargs->{type});
+# cisco import file
+my $rmefile		= $cmdargs->{rmefile};
 
-### 2012-12-03 keiths, adding some model testing and debugging options.
-my $model		= getbool($nvp{model});
+# these can be empty, an array or a single node name
+my $nodeselect		= $cmdargs->{node};
+my $groupselect	= $cmdargs->{group};
+my $forceoverride = getbool($cmdargs->{force}); # ignore the polling policy, ignore old nodeinfo files for update
+my $simulate = getbool($cmdargs->{simulate});		# for purge_files
+
+my $sleep	= $cmdargs->{sleep};
+my $ignorerunning = getbool($cmdargs->{ignore_running}); # to kill or not to kill, that is the question
+
+# model-related debug flag
+my $model		= getbool($cmdargs->{model});
+my $wantsystemcron = getbool($cmdargs->{system}); # for printCrontab
 
 # multiprocessing: commandline overrides config
-my $mthread	= (exists $nvp{mthread}? $nvp{mthread} : $C->{nmis_mthread}) || 0;
-my $maxThreads = (exists $nvp{maxthreads}? $nvp{maxthreads} : $C->{nmis_maxthreads}) || 1;
+my $mthread	= (exists $cmdargs->{mthread}? $cmdargs->{mthread} : $C->{nmis_mthread}) || 0;
+my $maxThreads = (exists $cmdargs->{maxthreads}? $cmdargs->{maxthreads} : $C->{nmis_maxthreads}) || 1;
+my $mthreadDebug=$cmdargs->{mthreaddebug}; # cmdline only for this debugging flag
 
-my $mthreadDebug=$nvp{mthreaddebug}; # cmdline only for this debugging flag
+
 
 
 # park the list of collect/update plugins globally
@@ -179,8 +188,9 @@ NMIS version $NMIS::VERSION
 # and for outages
 &NMIS::upgrade_outages;
 
-if ($type =~ /^(collect|update|services)$/) {
-	runThreads(type=>$type, node=>$node, mthread=>$mthread, mthreadDebug=>$mthreadDebug);
+if ($type =~ /^(collect|update|services)$/)
+{
+	runThreads(type=>$type, nodeselect=>$nodeselect, groupselect=>$groupselect, mthread=>$mthread, mthreadDebug=>$mthreadDebug);
 }
 elsif ( $type eq "escalate") { runEscalate(); printRunTime(); } # included in type=collect
 elsif ( $type eq "config" ) { checkConfig(change => "true"); }
@@ -189,9 +199,26 @@ elsif ( $type eq "links" ) { runLinks(); } # included in type=update
 elsif ( $type eq "apache" ) { printApache(); }
 elsif ( $type eq "apache24" ) { printApache24(); }
 elsif ( $type eq "crontab" ) { printCrontab(); }
-elsif ( $type eq "summary" ) { nmisSummary(); printRunTime(); } # MIGHT be included in type=collect
+elsif ( $type eq "summary" )  {
+	# both of these internally enforce at most one concurrent run
+	nmisSummary(); # MIGHT be included in type=collect
+	runMetrics();	# included in type=collect
+	printRunTime();
+}
 elsif ( $type eq "rme" ) { loadRMENodes($rmefile); }
-elsif ( $type eq "threshold" ) { runThreshold($node); printRunTime(); } # USUALLY included in type=collect
+elsif ( $type eq "threshold" )
+{
+	my @cand = expand_candidate_list($nodeselect, $groupselect);
+	if (@cand)
+	{
+		map { runThreshold($_); } (@cand);
+	}
+	else
+	{
+		runThreshold();
+	}
+	printRunTime();
+}
 elsif ( $type eq "master" ) { nmisMaster(); printRunTime(); } # MIGHT be included in type=collect
 elsif ( $type eq "groupsync" ) { sync_groups(); }
 elsif ( $type eq "purge" ) { my $error = purge_files(); die "$error\n" if $error; }
@@ -201,22 +228,57 @@ exit;
 
 #=========================================================================================
 
+# convert node selection and group selection into list of nodes
+# args: nodeselect and groupselect
+# node and group select are cumulative
+#
+# returns: list of nodes, or empty list if no args; dies on errors
+sub expand_candidate_list
+{
+	my ($nodesel, $groupsel) = @_;
+	my @cands;
+
+	return () if (!$nodesel and !$groupsel);
+
+	my $LNT = loadLocalNodeTable();
+	for my $maybe ((ref($nodesel) eq "ARRAY")? @$nodesel: $nodesel? ($nodesel) : ())
+	{
+		die "node \"$maybe\" does not exist!\n" if (ref($LNT->{$maybe}) ne "HASH");
+		push @cands, $maybe;
+	}
+
+	my @maybegroups = ref($groupsel) eq "ARRAY"? @$groupsel: $groupsel? ($groupsel) : ();
+	if (@maybegroups)
+	{
+		my @bygroup;
+		for my $maybe (keys %$LNT)
+		{
+			push @bygroup, $maybe if (List::Util::any { $LNT->{$maybe}->{group} eq $_ } (@maybegroups));
+		}
+		die "no nodes match groups \"".join(", ", @maybegroups)."\"!\n" if (!@bygroup);
+		push @cands, @bygroup;
+	}
+	return @cands;
+}
+
 # run collection-type functions, possibly spread across multiple processes
 sub	runThreads
 {
 	my %args = @_;
 	my $type = $args{type};
-	my $node_select = $args{'node'};
 	my $mthread = getbool($args{mthread});
 	my $mthreadDebug = getbool($args{mthreadDebug});
 
 	dbg("Starting, operation is $type");
 
+	# returns empty list if unfiltered
+	my @candnodes = expand_candidate_list($args{nodeselect}, $args{groupselect});
+
 	# do a selftest and cache the result, but not too often
 	# this takes about five seconds (for the process stats)
 	# however, DON'T do one if nmis is run in handle-just-this-node mode, which is usually a debugging exercise
 	# which shouldn't be delayed at all. ditto for (possibly VERY) frequent type=services
-	if (!$node_select and $type ne "services")
+	if (!@candnodes and $type ne "services")
 	{
 		info("Ensuring correct permissions on conf and model directories...");
 		setFileProtDirectory($C->{'<nmis_conf>'}, 1); # do recurse
@@ -298,22 +360,9 @@ sub	runThreads
 	}
 	my $C = loadConfTable();		# config table from cache
 
-	# check if the fping results look sensible
-	# compare nr of pingable active nodes against the fping results
-	if (getbool($C->{daemon_fping_active}))
-	{
-		my $pt = loadTable(dir=>'var',name=>'nmis-fping'); # load fping table in cache
-		my $cnt_pt = keys %{$pt};
-
-		my $active_ping = grep(getbool($_->{active}) && getbool($_->{ping}), values %{$NT});
-
-		# missing more then 10 nodes that should have been pinged?
-		if ($cnt_pt+10 < $active_ping)
-		{
-			logMsg("ERROR fping table missing too many entries, count fping=$cnt_pt count nodes=$active_ping");
-			$C->{daemon_fping_failed} = 'true'; # remember for runPing
-		}
-	}
+	# load the fping results now and cache them for all child processes
+	my $pt = loadTable(dir=>'var',name=>'nmis-fping')
+			if (getbool($C->{daemon_fping_active}));
 	dbg("all relevant tables loaded");
 
 	my $debug = $C->{debug};
@@ -369,13 +418,11 @@ sub	runThreads
 
 	my (@list_of_handled_nodes,		# for any after_x_plugin() functions
 			@todo_nodes,							# for the actual update/polling work
-			@cand_nodes,
 			%whichflavours);					# attempt smmp, wmi or both
 
 	# what to work on? one named node, or the nodes that are members of a given group or all nodes
 	# iff active and the polling policy agrees, that is...
-	@cand_nodes = $node_select? $node_select
-			: $runGroup? grep($_->{group} eq $runGroup, keys %$NT) : sort keys %$NT;
+	@candnodes = sort keys %$NT if (!@candnodes);
 
 
 	# get the polling policies and translate into seconds (for rrd file options)
@@ -404,14 +451,14 @@ sub	runThreads
 
 	if ($type eq "update" or $type eq "services")
 	{
-		@todo_nodes = grep(getbool($NT->{$_}->{active}), @cand_nodes);
+		@todo_nodes = grep(getbool($NT->{$_}->{active}), @candnodes);
 	}
 	else
 	{
 		# find out what nodes are due as per polling policy - also honor force,
 		# and any in-progress polling that hasn't finished yet...
 		my $now = time;
-		for my $maybe (@cand_nodes)
+		for my $maybe (@candnodes)
 		{
 			next if (ref($NT->{$maybe}) ne "HASH" or !getbool($NT->{$maybe}->{active}));
 			# save it back for the xyz-node file, and cgi-bin/network...
@@ -432,7 +479,7 @@ sub	runThreads
 															keys %$otherprocesses);
 			map { $problematic{$maybe} = $_; } (@isinprogress);
 
-			if (!getbool($nvp{force}) and @isinprogress)
+			if (!$forceoverride and @isinprogress)
 			{
 				# there should be at most one, we ignore any unexpected others
 				my $otherstart = $otherprocesses->{ $isinprogress[0] }->{start};
@@ -462,22 +509,35 @@ sub	runThreads
 				push @todo_nodes, $maybe;
 				$whichflavours{$maybe}->{wmi} = $whichflavours{$maybe}->{snmp} = 1; # and ignore the last-xyz markers
 			}
-			elsif (getbool($nvp{force}))
+			elsif ($forceoverride)
 			{
 				dbg("force is enabled, Node $maybe will be polled at $now");
 				push @todo_nodes, $maybe;
 				$whichflavours{$maybe}->{wmi} = $whichflavours{$maybe}->{snmp} = 1; # and ignore the last-xyz markers
 			}
-			# nodes that have not been pollable since forever: run at most once hourly
+			# nodes that have not been pollable since forever: run at most once daily
 			elsif (!$ninfo->{system}->{nodeModel} or $ninfo->{system}->{nodeModel} eq "Model")
 			{
 				my $lasttry = $ninfo->{system}->{last_poll} // 0;
-				my $nexttry = ($lasttry && ($now - $lasttry) <= 30*86400)? ($lasttry + 3600 * 0.95) : $now;
-				dbg("Node $maybe has no valid nodeModel, never polled successfully, demoting to hourly check, last attempt $lasttry, next $nexttry");
+
+				# was polling attempted at all and in the last 30 days? then once daily from
+				# that last try - otherwise try one now
+				my $nexttry = ($lasttry && ($now - $lasttry) <= 30*86400)? ($lasttry + 86400 * 0.95) : $now;
+
 				if ($nexttry <= $now)
 				{
 					push @todo_nodes, $maybe;
 					$whichflavours{$maybe}->{wmi} = $whichflavours{$maybe}->{snmp} = 1;
+				}
+				else
+				{
+					# log this pretty dire situation but not too noisy - with a default poll every minute this
+					# will log the issue once an hour
+					my $goodtimes = int((($now - $lasttry) % 3600) / 60);
+					my $msg = "Node $maybe has no valid nodeModel, never polled successfully, "
+							 . "demoted to frequency once daily, last attempt $lasttry, next $nexttry";
+					logMsg($msg) if ($goodtimes == 0);
+					dbg($msg);
 				}
 			}
 			# logic for collect now or later: candidate if no past successful collect whatsoever,
@@ -557,7 +617,7 @@ sub	runThreads
 
 		# if this is a collect and if told to ignore running processes (ignore_running=1/t),
 		# then only warn about processes and don't shoot them.
-		if ($type eq "collect" and getbool($nvp{ignore_running}))
+		if ($type eq "collect" and $ignorerunning)
 		{
 			for my $pid (keys %$otherprocesses)
 			{
@@ -629,8 +689,8 @@ sub	runThreads
 				my @methodargs = ( name => $onenode,
 													 policy => $intervals{$NT->{$onenode}->{polling_policy} || "default"} );
 				# try both flavours if force is on
-				push @methodargs, (wantsnmp => getbool($nvp{force}) ||  $whichflavours{$onenode}->{snmp},
-													 wantwmi => getbool($nvp{force}) || $whichflavours{$onenode}->{wmi})
+				push @methodargs, (wantsnmp => $forceoverride ||  $whichflavours{$onenode}->{snmp},
+													 wantwmi => $forceoverride || $whichflavours{$onenode}->{wmi})
 						if ($type eq "collect"); # flavours irrelevant for update
 				&$meth(@methodargs);
 
@@ -655,8 +715,8 @@ sub	runThreads
 			my @methodargs = ( name => $onenode,
 												 policy => $intervals{$NT->{$onenode}->{polling_policy} || "default"} );
 			# try both flavours if force is on
-			push @methodargs, (wantsnmp => getbool($nvp{force}) ||  $whichflavours{$onenode}->{snmp},
-												 wantwmi => getbool($nvp{force}) || $whichflavours{$onenode}->{wmi},)
+			push @methodargs, (wantsnmp => $forceoverride ||  $whichflavours{$onenode}->{snmp},
+												 wantwmi => $forceoverride || $whichflavours{$onenode}->{wmi},)
 					if ($type eq "collect"); # flavours irrelevant for update
 			&$meth(@methodargs);
 			alarm(0) if ($maxruntime);
@@ -722,7 +782,7 @@ sub	runThreads
 			if (!getbool($C->{threshold_poll_cycle},"invert") )
 			{
 				dbg("Starting runThreshold (for all selected nodes)");
-				runThreshold($node_select);
+				map { runThreshold($_) } (@candnodes);
 			}
 			else
 			{
@@ -887,7 +947,7 @@ sub doUpdate
 	# loads old node info (unless force is active), and the DEFAULT(!) model (always!),
 	# and primes the sys object for snmp/wmi ops
 
-	if (!$S->init(name=>$name, update=>'true', force => $nvp{force}))
+	if (!$S->init(name=>$name, update=>'true', force => $forceoverride))
 	{
 		logMsg("ERROR ($name) init failed: ".$S->status->{error}); # fixme: why isn't this terminal?
 	}
@@ -917,7 +977,7 @@ sub doUpdate
 																														 && $_->{options}->{nostats} } @{$outageres->{current}} )? 1 : 0;
 	}
 
-	if (!getbool($nvp{force}))
+	if (!$forceoverride)
 	{
 		$S->readNodeView; # from prev. run, but only if force isn't active
 	}
@@ -943,7 +1003,7 @@ sub doUpdate
 		# failed already?
 		if ($S->status->{snmp_error})
 		{
-			logMsg("ERROR SNMP session open to $node failed: ".$S->status->{snmp_error});
+			logMsg("ERROR SNMP session open to $name failed: ".$S->status->{snmp_error});
 			$S->disable_source("snmp");
 		}
 
@@ -1251,7 +1311,7 @@ sub doCollect
 		# failed already?
 		if ($S->status->{snmp_error})
 		{
-			logMsg("ERROR SNMP session open to $node failed: ".$S->status->{snmp_error});
+			logMsg("ERROR SNMP session open to $name failed: ".$S->status->{snmp_error});
 			$S->disable_source("snmp");
 		}
 
@@ -1387,7 +1447,7 @@ sub doCollect
 	return;
 }
 
-# normaly a daemon fpingd.pl is running (if set in NMIS config) and stores the result in var/fping.xxxx
+# normaly a daemon fpingd.pl is running permanently and stores ping result in var/nmis-fping.json
 # if node info missing then ping.pm is used
 # returns: 1 if pingable, 0 otherwise
 sub runPing
@@ -1410,26 +1470,32 @@ sub runPing
 	$V->{system}{status_title} = 'Node Status';
 	$V->{system}{status_color} = '#0F0';
 
+	my $nodename = $S->{name};
+
 	if (getbool($NC->{node}{ping}))
 	{
-		my $PT;
-		# use fastping info if its meant to be available, and actually is
+		my ($PT, $didfallback);
+
+		my $staleafter = $C->{daemon_fping_maxage} || 900;
+		# use fastping info if available and not stale
 		if ( getbool($C->{daemon_fping_active})
-				 && ($PT = loadTable(dir=>'var',name=>'nmis-fping'))
-				 && exists($PT->{$NC->{node}{name}}{loss}) )
+				 && ($PT = loadTable(dir=>'var',name=>'nmis-fping')) # cached
+				 && ref($PT->{$nodename}) eq "HASH"									 # record present
+				 && (time - $PT->{$nodename}->{lastping}) < $staleafter	 # and not stale, 15 minutes seems ample
+				)
 		{
 			# copy values
-			$ping_avg = $PT->{$NC->{node}{name}}{avg};
-			$ping_loss = $PT->{$NC->{node}{name}}{loss};
+			($ping_min, $ping_avg, $ping_max, $ping_loss) = @{$PT->{$nodename}}{"min","avg","max","loss"};
 			$pingresult = ($ping_loss < 100)? 100 : 0;
-			info("INFO ($S->{name}) PING min/avg/max = $ping_min/$ping_avg/$ping_max ms loss=$ping_loss%");
+			info("INFO ($nodename) PING min/avg/max = $ping_min/$ping_avg/$ping_max ms loss=$ping_loss%");
 		}
 		else
 		{
-			# fallback to OLD system
-			logMsg("INFO ($S->{name}) using standard ping system, no ping info of daemon fpingd")
+			# fallback to OLD/internal system
+			$didfallback = 1;
+			# but warn about that only if not in update
+			logMsg("INFO ($nodename) using internal ping system, daemon fpingd had no or oudated information")
 					if (getbool($C->{daemon_fping_active})
-							and !getbool($C->{daemon_fping_failed})
 							and !getbool($S->{update})); # fixme: unclean access to internal property
 
 			my $retries = $C->{ping_retries} ? $C->{ping_retries} : 3;
@@ -1437,37 +1503,38 @@ sub runPing
 			my $packet = $C->{ping_packet} ? $C->{ping_packet} : 56 ;
 			my $host = $NC->{node}{host};			# ip name/adress of node
 
-			info("Starting $S->{name} ($host) with timeout=$timeout retries=$retries packet=$packet");
+			info("Starting internal ping of ($nodename = $host) with timeout=$timeout retries=$retries packet=$packet");
 
 			( $ping_min, $ping_avg, $ping_max, $ping_loss) = ext_ping($host, $packet, $retries, $timeout );
 			$pingresult = defined $ping_min ? 100 : 0;		# ping_min is undef if unreachable.
 		}
 		# at this point ping_{min,avg,max,loss} and pingresult are all set
 
-		# in the fpingd case all up/down events are handled by it
-		if (!getbool($C->{daemon_fping_active}))
+		# in the fpingd case all up/down events are handled by it, otherwise we need to do that here
+		# this includes the case of a faulty fpingd
+		if ($didfallback)
 		{
 			if ($pingresult)
 			{
 				# up
 				# are the nodedown status and event db out of sync?
-				if ( not getbool($NI->{system}{nodedown}) and eventExist($NI->{system}{name}, "Node Down", "") )
+				if ( not getbool($NI->{system}{nodedown}) and eventExist($nodename, "Node Down", "") )
 				{
 					my $result = checkEvent(sys=>$S,event=>"Node Down",level=>"Normal",element=>"",details=>"Ping failed");
-					info("Fixing Event DB error: $S->{name}, Event DB says Node Down but nodedown said not.");
+					info("Fixing Event DB error: $nodename, Event DB says Node Down but nodedown said not.");
 				}
 				else
 				{
 					# note: up event is handled regardless of snmpdown/pingonly/snmponly, which the
 					# frontend nodeStatus() takes proper care of.
-					info("$S->{name} is PINGABLE min/avg/max = $ping_min/$ping_avg/$ping_max ms loss=$ping_loss%");
+					info("$nodename is PINGABLE min/avg/max = $ping_min/$ping_avg/$ping_max ms loss=$ping_loss%");
 					HandleNodeDown(sys => $S, type => "node", up => 1, details=>"Ping avg=$ping_avg loss=$ping_loss%");
 				}
 			}
 			else
 			{
 				# down - log if not already down
-				logMsg("ERROR ($S->{name}) ping failed") if (!getbool($NI->{system}{nodedown}));
+				logMsg("ERROR ($nodename) ping failed") if (!getbool($NI->{system}{nodedown}));
 				HandleNodeDown(sys => $S, type => "node", details => "Ping failed");
 			}
 		}
@@ -1483,7 +1550,7 @@ sub runPing
 	}
 	else
 	{
-		info("$S->{name} ping not requested");
+		info("($nodename) not configured for pinging");
 		$RI->{pingresult} = $pingresult = 100; # results for sub runReach
 		$RI->{pingavg} = 0;
 		$RI->{pingloss} = 0;
@@ -1822,8 +1889,8 @@ sub getNodeInfo
 		}
 		else
 		{
-			$NI->{system}->{host_addr} = '';
-			$V->{system}{host_addr_value} = "N/A";
+			$NI->{system}->{host_addr} = ''; # leave the system data clean...
+			$V->{system}{host_addr_value} = $NI->{system}{host}; # ...but give network.pl something to show
 			$V->{system}{host_addr_title} = 'IP Address';
 		}
 	}
@@ -3989,7 +4056,7 @@ sub getIntfData
 
 			### 2012-08-14 keiths, logic here to verify an event exists and the interface is up.
 			### this was causing events to be cleared when interfaces were collect true, oper=down, admin=up
-			if ( eventExist($node, "Interface Down", $IF->{$index}{ifDescr}) and $IF->{$index}{ifOperStatus} =~ /up|ok|dormant/ ) {
+			if ( eventExist($nodename, "Interface Down", $IF->{$index}{ifDescr}) and $IF->{$index}{ifOperStatus} =~ /up|ok|dormant/ ) {
 				checkEvent(sys=>$S,event=>"Interface Down",level=>"Normal",element=>$IF->{$index}{ifDescr},details=>$IF->{$index}{Description});
 			}
 		}
@@ -5236,6 +5303,8 @@ hrSWRunType hrSWRunPerfCPU hrSWRunPerfMem))
 			}
 			# keep all services for display (not rrd!)
 			$NI->{services} = \%services;
+			# and update the timestamp of this most recent snmp service poll operation
+			$NI->{system}->{last_poll_snmp_services} = time;
 
 			# now clear events that applied to processes that no longer exist
 			my %nodeevents = loadAllEvents(node => $NI->{system}->{name});
@@ -6861,10 +6930,21 @@ sub nmisMaster
 
 #=========================================================================================
 
-# preload all summary stats - for metric update and dashboard display.
+# preload all summary stats - for metric update and dashboard display
 sub nmisSummary
 {
 	my %args = @_;
+
+	# check that there are no other running/stuck/delayed summary processes
+	my $others = func::find_nmis_processes(config => $C,
+																				 type => 'summary');
+	if (keys %$others)
+	{
+		logMsg("ERROR other type=summary processes running (".join(", ", keys %$others)."), aborting operation.");
+		info("ERROR other type=summary processes running (".join(", ", keys %$others)."), aborting operation.");
+		return;
+	}
+	$0	= "nmis-".$C->{conf}."-summary";
 
 	my $pollTimer = NMIS::Timing->new;
 
@@ -7988,6 +8068,25 @@ sub runMetrics
 {
 	my %args = @_;
 	my $S = $args{sys};
+
+	# check that there are no other running/stuck/delayed summary processes
+	my $others = func::find_nmis_processes(config => $C,
+																				 type => 'metrics');
+	if (keys %$others)
+	{
+		logMsg("ERROR other type=metrics processes running (".join(", ", keys %$others)."), aborting operation.");
+		info("ERROR other type=metrics processes running (".join(", ", keys %$others)."), aborting operation.");
+		return;
+	}
+	$0 = "nmis-".$C->{conf}."-metrics";
+
+	# prime the global sys object if none given
+	if (ref($S) ne "Sys")
+	{
+		$S = Sys->new;
+		$S->init;
+	}
+
 	my $NI = $S->ndinfo;
 
 	my $GT = loadGroupTable();
@@ -8220,25 +8319,44 @@ sub runLinks
 
 #=========================================================================================
 
-# starts up fpingd and/or opslad
+# starts up fpingd and/or opslad if desired and none present
+# args: none
+# returns: nothing
 sub runDaemons
 {
-
 	my $C = loadConfTable();
+
+	# nothing to do, let's not waste any time on checking
+	return 	if (!getbool($C->{daemon_fping_active})
+							&& !getbool($C->{daemon_ipsla_active}));
 
 	dbg("Starting");
 
-	# get process table of OS
-	my @p_names;
+	# check process table for presence of either
+	my ($fpingd_found, $ipslad_found);
+
 	my $pt = new Proc::ProcessTable();
-	my %pnames;
-	foreach my $p (@{$pt->table}) {
-		$pnames{$p->fname} = 1;
+	foreach my $pentry (@{$pt->table})
+	{
+		# fpingd is identifyable only by cmdline
+		$fpingd_found = 1 if ($pentry->cmndline =~ $C->{daemon_fping_filename});
+		$ipslad_found = 1 if ($pentry->fname eq $C->{daemon_ipsla_filename});
+		last if ($fpingd_found && $ipslad_found);
 	}
 
-	# start fast ping daemon
-	if ( getbool($C->{daemon_fping_active}) ) {
-		if ( ! exists $pnames{$C->{daemon_fping_filename}}) {
+	# start fast ping daemon if desired and none is running,
+	# or if the one that is running is in bad shape
+	if (getbool($C->{daemon_fping_active}))
+	{
+		my $fping_data_age = mtimeFile(dir => 'var', name => 'nmis-fping');
+		my $staleafter = $C->{daemon_fping_maxage} || 900; # nothing in 15 minutes?
+		my $data_too_old = (time - $fping_data_age) > $staleafter;
+
+		if ($data_too_old or !$fpingd_found)
+		{
+			logMsg( !$fpingd_found? "INFO no $C->{daemon_fping_filename} running, will start one"
+							: "INFO $C->{daemon_fping_filename} seems dead, last file update at $fping_data_age, will restart");
+
 			if ( -x "$C->{'<nmis_bin>'}/$C->{daemon_fping_filename}" )
 			{
 				system("$C->{'<nmis_bin>'}/$C->{daemon_fping_filename}","restart=true");
@@ -8246,24 +8364,22 @@ sub runDaemons
 			}
 			else
 			{
-				logMsg("ERROR cannot run daemon $C->{'<nmis_bin>'}/$C->{daemon_fping_filename},$!");
+				logMsg("ERROR cannot run daemon $C->{'<nmis_bin>'}/$C->{daemon_fping_filename}, $!");
 			}
 		}
 	}
 
 	# start ipsla daemon
-	if ( getbool($C->{daemon_ipsla_active}) )
+	if ( getbool($C->{daemon_ipsla_active}) && !$ipslad_found)
 	{
-		if ( ! exists $pnames{$C->{daemon_ipsla_filename}}) {
-			if ( -x "$C->{'<nmis_bin>'}/$C->{daemon_ipsla_filename}" )
-			{
-				system("$C->{'<nmis_bin>'}/$C->{daemon_ipsla_filename}");
-				logMsg("INFO launched $C->{daemon_ipsla_filename} as daemon");
-			}
-			else
-			{
-				logMsg("ERROR cannot run daemon $C->{'<nmis_bin>'}/$C->{daemon_ipsla_filename},$!");
-			}
+		if ( -x "$C->{'<nmis_bin>'}/$C->{daemon_ipsla_filename}" )
+		{
+			system("$C->{'<nmis_bin>'}/$C->{daemon_ipsla_filename}");
+			logMsg("INFO launched $C->{daemon_ipsla_filename} as daemon");
+		}
+		else
+		{
+			logMsg("ERROR cannot run daemon $C->{'<nmis_bin>'}/$C->{daemon_ipsla_filename},$!");
 		}
 	}
 
@@ -8454,11 +8570,9 @@ sub checkConfig
 # (= with the extra 'root' user column)
 sub printCrontab
 {
-	my $C = loadConfTable();
+	dbg(" Crontab Config for NMIS for config file=$C->{conf}",3);
 
-	dbg(" Crontab Config for NMIS for config file=$nvp{conf}",3);
-
-	my $usercol = getbool($nvp{system})? "\troot\t" : '';
+	my $usercol = $wantsystemcron? "\troot\t" : '';
 
 	print qq|
 # if you DON'T want any NMIS cron mails to go to root,
@@ -8577,10 +8691,7 @@ ScriptAlias $C->{'<cgi_url_base>'}/ "$C->{'<nmis_cgi>'}/"
 
 sub printApache
 {
-
-	my $C = loadConfTable();
-
-	dbg(" Apache HTTPD Config for NMIS for config file=$nvp{conf}",3);
+	dbg(" Apache HTTPD Config for NMIS for config file=$C->{conf}",3);
 
 	print <<EO_TEXT;
 
@@ -8707,8 +8818,8 @@ command line options are:
       groupsync Check all nodes and add any missing groups to the configuration
       purge     Remove old files, or print them if simulate=true
   [conf=<file name>]     Optional alternate configuation file in conf directory
-  [node=<node name>]     Run operations on a single node;
-  [group=<group name>]   Run operations on all nodes in the named group;
+  [node=name1 node=name2...] Run operations on specific nodes only
+  [group=name1 group=name2...]  Run operations on nodes in the named groups only
   [force=true|false]     Makes operations run from scratch, ignoring interval policies
   [debug=true|false|0-9] default=false - Show debugging information
   [rmefile=<file name>]  RME file to import.
@@ -9509,7 +9620,7 @@ sub sync_groups
 	dbg("table Local Node loaded",2);
 
 	# reread the config with a lock and unflattened
-	my $fn = $C->{'<nmis_conf>'}."/".($nvp{conf}||"Config").".nmis";
+	my $fn = $C->{'<nmis_conf>'}."/".($C->{conf}||"Config").".nmis";
 	my ($rawC,$fh) = readFiletoHash(file => $fn, lock => 'true');
 
 	return "Error: failed to read config $fn!" if (!$rawC or !keys %$rawC);
@@ -9543,7 +9654,7 @@ sub sync_groups
 # this is a maintenance command for removing old, broken or unwanted files,
 # replaces and extends the old admin/nmis_file_cleanup.sh
 #
-# args: none, but checks nvp simulate (default: false, if true only prints
+# args: none, but checks simulate (default: false, if true only prints
 # what it would do)
 # returns: undef if ok, error message otherwise
 sub purge_files
@@ -9615,11 +9726,28 @@ sub purge_files
 			location => $C->{json_logs},
 			description => "Old JSON log files",
 		},
+		{
+			minage => $C->{purge_jsonlog_after} || 30*86400,
+			also_empties => 1,
+			ext => qr/\.json/,
+			location => $C->{config_logs},
+			description => "Old node configuration JSON log files",
+		},
+
+		{
+			minage => $C->{purge_reports_after} || 365*86400,
+			also_empties => 0,
+			ext => qr/\.html$/,
+			location => $C->{report_root},
+			description => "Very old report files",
+		},
+
 			);
-	my $simulate = getbool($nvp{simulate});
 
 	for my $rule (@purgatory)
 	{
+		next if ($rule->{minage} <= 0);	# purging can be disabled by setting the minage to -1
+
 		my $olderthan = time - $rule->{minage};
 		next if (! $rule->{location});
 		info("checking dir $rule->{location} for $rule->{description}");

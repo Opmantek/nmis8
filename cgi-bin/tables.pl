@@ -28,7 +28,7 @@
 #
 # *****************************************************************************
 use strict;
-our $VERSION="8.6.2G";
+our $VERSION="8.6.3G";
 
 use FindBin;
 use lib "$FindBin::Bin/../lib";
@@ -264,8 +264,11 @@ sub viewTable {
 	# print items of table
 	for my $ref ( @{$CT}) { # trick for order of header items
 		for my $item (keys %{$ref}) {
-			print Tr(td({class=>'header',align=>'center'},escapeHTML($ref->{$item}{header})),
-				td({class=>'info Plain'},escapeHTML($T->{$key}{$item})));
+			print Tr(td({class=>'header',align=>'center'},
+									escapeHTML($ref->{$item}{header})),
+							 td({class=>'info Plain'},
+									escapeHTML($ref->{$item}->{display} =~ /password/? 
+														 "<hidden>" : $T->{$key}{$item})));
 		}
 	}
 
@@ -467,12 +470,18 @@ sub editTable
 																					-rows => 3,
 																					-columns => ($wantwidget? 35 : 70)));
 									 }
-									 elsif ($thisitem->{display} =~ /text/) {
+									 elsif ($thisitem->{display} =~ /(text|password)/) 
+									 {
+										 my $wantpassword = $1 eq "password";
 										 my $value = ($thiscontent or $func eq 'doedit') ? $thiscontent : $thisitem->{value}[0];
-										 #print STDERR "DEBUG editTable: text -- item=$item, value=$value\n";
-										 $line .= td(textfield(-name=>$item, -value=>$value,
-																					 -style=> 'width: 95%;',
-																					 -size=>  ($wantwidget? 35 : 70)));
+
+										 $line .= td(
+											 $wantpassword? password_field(-name=>$item, -value=>$value,
+																										 -style=> 'width: 95%;',
+																										 -size=>  ($wantwidget? 35 : 70))
+											 : textfield(-name=>$item, -value=>$value,
+																	 -style=> 'width: 95%;',
+																	 -size=>  ($wantwidget? 35 : 70)));
 									 }
 									 elsif ($thisitem->{display} =~ /readonly/) {
 										 my $value = ($thiscontent or $func eq 'doedit') ? $thiscontent : $thisitem->{value}[0];
@@ -605,6 +614,7 @@ sub doeditTable
 			# "int" => [ min, max ], undef can be used for no min/max - rejects X < min or > max.
 			# "float" => [ min, max, above, below ] - rejects X < min or X <= above, X > max or X >= below
 			#   that's required to express 'positive float' === strictly above zero: [0 or undef,dontcare,0,dontcare]
+			# "int-or-empty", "float-or-empty" work like their namesakes, but accept nothing/blank/undef as well.
 			# "regex" => qr//,
 			# "ip" => [ 4 or 6 or 4, 6],
 			# "resolvable" => [ 4 or 6 or 4, 6] - accepts ip of that type or hostname that resolves to that ip type
@@ -617,28 +627,36 @@ sub doeditTable
 			{
 				my $valprops = $thisitem->{validate}->{$valtype};
 
-				if ($valtype eq "int" or $valtype eq "float")
+				if ($valtype =~ /^(int|float)(-or-empty)?$/)
 				{
-					return validation_abort($item, "'$value' is not an integer!")
-							if ($valtype eq "int" and int($value) ne $value);
-					return validation_abort($item, "'$value' is not a floating point number!")
-							# integer or full ieee floating point with optional exponent notation
-							if ($valtype eq "float" and $value !~ /^([+-]?)(?=\d|\.\d)\d*(\.\d*)?([Ee]([+-]?\d+))?$/);
+					my ($actualtype, $emptyisok) = ($1,$2);
 
-					my ($min,$max,$above,$below) = ref($valprops) eq "ARRAY"? @{$valprops} : (undef,undef,undef,undef);
-					return validation_abort($item, "$value below minimum $min!")
-							if (defined($min) and $value < $min);
-					return validation_abort($item,"$value above maximum $max!")
-							if (defined($max) and $value > $max);
-
-					# integers don't subdivide infinitely precisely so above and below not needed
-					if ($valtype eq "float")
+					# checks required if not both emptyisok and blank input
+					if (!$emptyisok or (defined($value) and $value ne ""))
 					{
-						return validation_abort($item, "$value is not above $above!")
-								if (defined($above) and $value <= $above);
+						return validation_abort($item, "'$value' is not an integer!")
+								if ($actualtype eq "int" and int($value) ne $value);
+						return validation_abort($item, "'$value' is not a floating point number!")
+								# integer or full ieee floating point with optional exponent notation
+								if ($actualtype eq "float"
+										and $value !~ /^([+-]?)(?=\d|\.\d)\d*(\.\d*)?([Ee]([+-]?\d+))?$/);
 
-						return validation_abort($item, "$value is not below $below!")
-								if (defined($below) and $value >= $below);
+						my ($min,$max,$above,$below) = (ref($valprops) eq "ARRAY"? @{$valprops}
+																						: (undef,undef,undef,undef));
+						return validation_abort($item, "$value below minimum $min!")
+								if (defined($min) and $value < $min);
+						return validation_abort($item,"$value above maximum $max!")
+								if (defined($max) and $value > $max);
+
+						# integers don't subdivide infinitely precisely so above and below not needed
+						if ($actualtype eq "float")
+						{
+							return validation_abort($item, "$value is not above $above!")
+									if (defined($above) and $value <= $above);
+
+							return validation_abort($item, "$value is not below $below!")
+									if (defined($below) and $value >= $below);
+						}
 					}
 				}
 				elsif ($valtype eq "regex")
