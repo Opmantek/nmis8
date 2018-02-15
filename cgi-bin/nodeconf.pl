@@ -47,9 +47,8 @@ die "failed to load configuration!\n" if (!$C or ref($C) ne "HASH" or !keys %$C)
 #======================================================================
 
 # if somehow someone defines refresh disable it.
-if ( defined $Q->{refresh} ) {
-	delete $Q->{refresh};
-}
+# completely disable refresh for nodeconf.pl
+$Q->{refresh} = 86400;
 
 my $widget = getbool($Q->{widget},"invert") ? 'false' : 'true';
 $Q->{expand} = "true" if ($widget eq "true");
