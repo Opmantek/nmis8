@@ -390,7 +390,7 @@ sub displayEventItems {
 	printRow(1,"user",$thisevent->{user});
 	printRow(1,"notify up",$ntf_str);
 
-	my ($outage,undef) = outageCheck($thisevent->{node},time());
+	my ($outage,undef) = outageCheck(node => $thisevent->{node}, time => time());
 	if ( $outage eq "current" 
 			 and getbool($thisevent->{ack},"invert") ) {
 		# check outage
