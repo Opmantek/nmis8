@@ -221,7 +221,10 @@ elsif ( $type eq "threshold" )
 }
 elsif ( $type eq "master" ) { nmisMaster(); printRunTime(); } # MIGHT be included in type=collect
 elsif ( $type eq "groupsync" ) { sync_groups(); }
-elsif ( $type eq "purge" ) { my $error = purge_files(); die "$error\n" if $error; }
+elsif ( $type eq "purge" ) {
+	my $error = purge_files(); die "$error\n" if $error;
+	my $res = NMIS::purge_outages(); die "$res->error\n" if !$res->{success};
+}
 else { checkArgs(); }
 
 exit;
