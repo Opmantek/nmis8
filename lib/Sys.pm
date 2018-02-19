@@ -251,7 +251,7 @@ sub init
 	# load Model of node or the base Model, or give up
 	my $thisnodeconfig = $self->{cfg}->{node};
 	my $curmodel = $self->{info}{system}{nodeModel};
-	my $loadthis = "Generic";
+	my $loadthis = "Model";
 
 	# get the node's model IFF its valid
 	if ($curmodel and $curmodel ne "Model" and not $self->{update})
