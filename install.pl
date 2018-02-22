@@ -874,6 +874,19 @@ else
 		execPrint("$site/admin/patch_config.pl -b $site/conf/Config.nmis /system/non_stateful_events='Node Configuration Change, Node Reset, NMIS runtime exceeded' /globals/uuid_add_with_node=true /system/node_summary_field_list,=uuid /system/json_node_fields,=uuid /system/network_viewNode_field_list,=polling_policy");
 		echolog("\n");
 
+		echolog("By default this version NMIS demotes nodes that have never
+been collected successfully to a single collection attempt once every 24 hours.
+
+If you choose Y below, then the installer will change the configuration
+setting demote_faulty_nodes to false, and NMIS will try to collect such nodes
+every 5 minutes.");
+
+		if (input_yn("Should NMIS retry totally uncollectable nodes every 5 min?"))
+		{
+			execPrint("$site/admin/patch_config.pl $site/conf/Config.nmis /system/demote_faulty_nodes=false");
+			echolog("\n");
+		}
+
 		if (input_yn("OK to remove syslog and JSON logging from default event escalation?"))
 		{
 			execPrint("$site/admin/patch_config.pl -b $site/conf/Escalations.nmis /default_default_default_default__/Level0=''");
