@@ -519,28 +519,36 @@ sub	runThreads
 				$whichflavours{$maybe}->{wmi} = $whichflavours{$maybe}->{snmp} = 1; # and ignore the last-xyz markers
 			}
 			# nodes that have not been pollable since forever: run at most once daily
+			# ...except if the demote_faulty_nodes config option is set to false
 			elsif (!$ninfo->{system}->{nodeModel} or $ninfo->{system}->{nodeModel} eq "Model")
 			{
 				my $lasttry = $ninfo->{system}->{last_poll} // 0;
 
-				# was polling attempted at all and in the last 30 days? then once daily from
+				# try once every 5 minutes if demote_faulty_nodes is set to false,
+				# otherwise: was polling attempted at all and in the last 30 days? then once daily from
 				# that last try - otherwise try one now
-				my $nexttry = ($lasttry && ($now - $lasttry) <= 30*86400)? ($lasttry + 86400 * 0.95) : $now;
+				my $nexttry = !getbool($C->{demote_faulty_nodes},"invert")? # === ne false
+						($lasttry && ($now - $lasttry) <= 30*86400)? ($lasttry + 86400 * 0.95) : $now : $lasttry + 300 ;
 
 				if ($nexttry <= $now)
 				{
 					push @todo_nodes, $maybe;
 					$whichflavours{$maybe}->{wmi} = $whichflavours{$maybe}->{snmp} = 1;
 				}
-				else
+				# if demotion is enabled, log this pretty dire situation
+				# but not too noisily - with a default poll every minute this
+				# will log the issue once an hour.
+				elsif (!getbool($C->{demote_faulty_nodes},"invert")) # === ne false
 				{
-					# log this pretty dire situation but not too noisy - with a default poll every minute this
-					# will log the issue once an hour
 					my $goodtimes = int((($now - $lasttry) % 3600) / 60);
 					my $msg = "Node $maybe has no valid nodeModel, never polled successfully, "
 							 . "demoted to frequency once daily, last attempt $lasttry, next $nexttry";
 					logMsg($msg) if ($goodtimes == 0);
 					dbg($msg);
+				}
+				else
+				{
+					dbg("Node $maybe has no valid nodeModel, never polled successfully. demote_faulty_nodes is disabled, last attempt $lasttry, next $nexttry.");
 				}
 			}
 			# logic for collect now or later: candidate if no past successful collect whatsoever,
