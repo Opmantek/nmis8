@@ -5633,7 +5633,7 @@ hrSWRunType hrSWRunPerfCPU hrSWRunPerfMem))
 				# program is disconnected from stdin; stderr goes into a tmpfile
 				# and is collected separately for diagnostics
 
-				my $stderrsink = POSIX::tmpnam(); # good enough, no atomic open required
+				my $stderrsink = File::Temp::mktemp(File::Spec->tmpdir()."/nmis.XXXXXX");		# good enough, no atomic open required
 				dbg("running external program '$thisservice->{Program} $finalargs', "
 						.(getbool($thisservice->{Collect_Output})? "collecting":"ignoring")." output");
 				$pid = open(PRG,"$thisservice->{Program} $finalargs </dev/null 2>$stderrsink |");
