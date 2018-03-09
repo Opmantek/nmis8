@@ -71,7 +71,7 @@ my %hash = (
 		"roletype_list" => "core,distribution,access,default",
 		"nettype_list" => "wan,lan,vpn,man,san,voice,default",
 		"nodetype_list" => "generic,switch,router,firewall,server",
-		
+
 		# new configuration option to have a configurable field to use for location, e.g. sysLocation or location.
 		'location_field_name' => 'sysLocation',
 
@@ -90,6 +90,7 @@ my %hash = (
     'node_status_uses_status_summary' => 'false',
     'display_status_summary' => 'false',
 
+		'demote_faulty_nodes' => 'true', # try totally unpollable nodes just once a day?
 		# to have additional fields in the node summary data.
     'node_summary_field_list' => 'host,uuid,customer,businessService,serviceStatus,snmpdown,wmidown',
 
@@ -301,7 +302,7 @@ my %hash = (
     'daemon_ipsla_filename' => 'ipslad.pl',
     'daemon_fping_active' => 'true',
     'daemon_fping_dns_cache' => 'true',
-		'daemon_fping_run_escalation' => 'true', 
+		'daemon_fping_run_escalation' => 'true',
     'daemon_fping_filename' => 'fpingd.pl'
   },
 
@@ -506,5 +507,6 @@ my %hash = (
 		'purge_event_after' => 30*86400,	 # historic, closed events
 		'purge_jsonlog_after' => 30*86400, # json log files
 		'purge_reports_after' => 365*86400,			 # html reports
+		'purge_outages_after' => 86400,					 # past non-recurring outages
 	},
 );
