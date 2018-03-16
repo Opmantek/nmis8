@@ -47,7 +47,7 @@
 #   incorporated in NMIS and more generally into other web programs needing
 #   user authentication.
 package Auth;
-our $VERSION = "2.0.0";
+our $VERSION = "2.0.1";
 
 use strict;
 use vars qw(@ISA @EXPORT);
@@ -1342,14 +1342,6 @@ sub loginout {
 			if ( $self->{priv} eq "" and ( $self->{config}->{auth_default_privilege} eq ""
 																		 or getbool($self->{config}->{auth_default_privilege},"invert")) ) {
 				$self->do_login(msg=>"Privileges NOT defined, please contact your administrator",
-												listmodules => $listmodules);
-				return 0;
-			}
-
-			# check the name of the NMIS config file specified on url
-			# only bypass for administrator
-			if ($self->{privlevel} gt 1 and $self->{config} ne '' and $config ne $self->{config}) {
-				$self->do_login(msg=>"Invalid config file specified on url",
 												listmodules => $listmodules);
 				return 0;
 			}
