@@ -352,7 +352,7 @@ https://community.opmantek.com/x/boSG\n\n";
 							 and $osflavour eq "ubuntu"
 							 and version->parse($osversion) < version->parse("15.10"));
 
-			if (`dpkg -l $pkg 2>/dev/null` =~ /^ii\s*$pkg\s*/m)
+			if (`dpkg -l $pkg 2>/dev/null` =~ /^[hi]i\s*$pkg\s*/m)
 			{
 				echolog("Required package $pkg is already installed.");
 			}
