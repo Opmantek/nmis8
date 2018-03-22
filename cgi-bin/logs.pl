@@ -91,7 +91,7 @@ if ($AU->Require) {
 		$user = $ENV{'REMOTE_USER'} if $ENV{'REMOTE_USER'};
 		$logoutButton = qq|disabled="disabled"|;
 	}
-	exit 0 unless $AU->loginout(conf=>$Q->{conf},type=>$Q->{auth_type},username=>$Q->{auth_username},
+	exit 0 unless $AU->loginout(type=>$Q->{auth_type},username=>$Q->{auth_username},
 				password=>$Q->{auth_password},headeropts=>$headeropts) ;
 	$privlevel = $AU->{privlevel};
 } else {
