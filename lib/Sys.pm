@@ -820,15 +820,6 @@ sub getValues
 			}
 		}
 
-		# check if we should just skip any collect and leave this to a plugin to collect
-		# we need to have an rrd section so we can define the graphtypes.
-		if ($thissection->{skip_collect} and getbool($thissection->{skip_collect}))
-		{
-			dbg("skip_collect $thissection->{skip_collect} found for section=$sectionname",2);
-			$status{skipped} = "skipped $sectionname because skip_collect set to true";
-			next;
-		}
-
 		# should we add graphtype to given (info) table?
 		if (ref($tbl) eq "HASH")
 		{
@@ -853,6 +844,15 @@ sub getValues
 			{
 				$status{error} = "$self->{name} is missing property 'graphtype' for section $sectionname";
 			}
+		}
+
+		# check if we should just skip any collect and leave this to a plugin to collect
+		# we need to have an rrd section so we can define the graphtypes.
+		if ($thissection->{skip_collect} and getbool($thissection->{skip_collect}))
+		{
+			dbg("skip_collect $thissection->{skip_collect} found for section=$sectionname",2);
+			$status{skipped} = "skipped $sectionname because skip_collect set to true";
+			next;
 		}
 
 		# prep the list of things to tackle, snmp first - iff snmp is ok for this node
