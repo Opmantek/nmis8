@@ -46,9 +46,8 @@ die "failed to load configuration!\n" if (!$C or ref($C) ne "HASH" or !keys %$C)
 
 #======================================================================
 
-# if somehow someone defines refresh disable it.
-# completely disable refresh for nodeconf.pl
-$Q->{refresh} = 86400;
+# nodeconf should not refresh, ever.
+$Q->{refresh} = undef;
 
 my $widget = getbool($Q->{widget},"invert") ? 'false' : 'true';
 $Q->{expand} = "true" if ($widget eq "true");
@@ -119,7 +118,7 @@ sub displayNodemenu
 	print header($headeropts);
 	if (!$wantwidget)
 	{
-			pageStart(title => $Q->{node}." Node Configuration", refresh => $Q->{refresh});
+			pageStart(title => $Q->{node}." Node Configuration");
 	}
 	my $menuformid = "${formid}_menu";
 
