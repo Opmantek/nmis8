@@ -1660,9 +1660,9 @@ sub moduleVersion
 sub listModules
 {
   my (@missing, @critmissing);
-  my %noncritical = ("Net::LDAP"=>1, "Net::LDAPS"=>1, "IO::Socket::SSL"=>1,
-										 "Crypt::UnixCrypt"=>1, "Authen::TacacsPlus"=>1, "Authen::Simple::RADIUS"=>1,
-										 "SNMP_util"=>1, "SNMP_Session"=>1, "SOAP::Lite" => 1, "UI::Dialog" => 1, );
+  my %noncritical = ( "Authen::TacacsPlus"=>1, "Authen::Simple::RADIUS"=>1,
+											"SNMP_util"=>1, "SNMP_Session"=>1,
+											"SOAP::Lite" => 1, "UI::Dialog" => 1, );
 
   logInstall("Module status follows:\nName - Path - Current Version - Minimum Version\n");
 	# sort by install prio, or file
@@ -1686,16 +1686,12 @@ sub listModules
 		{
 			printBanner("Some Optional Perl Modules are missing (or too old)");
 			print qq|The following optional modules are missing or too old:\n| .join(" ", @optionals)
-					.qq|\n\nNote: The modules Net::LDAP, Net::LDAPS, IO::Socket::SSL, Crypt::UnixCrypt,
-Authen::TacacsPlus, Authen::Simple::RADIUS are optional components for the
+					.qq|\n\nNote: The modules Authen::TacacsPlus and Authen::Simple::RADIUS are optional components for the
 NMIS AAA system.
 
 The modules SNMP_util and SNMP_Session are also optional (needed only for
 the ipsla subsystem) and can be installed either with
-'yum install perl-SNMP_Session' or 'apt-get install libsnmp-session-perl'.
-
-The modules Digest::HMAC and Crypt::DES are required if any of your
-devices use SNMP Version 3.\n\n|;
+'yum install perl-SNMP_Session' or 'apt-get install libsnmp-session-perl'.\n\n|;
 		}
 
 		if (@critmissing)
