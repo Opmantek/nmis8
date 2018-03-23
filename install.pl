@@ -273,7 +273,7 @@ rrdtool-perl perl-Test-Deep dialog
 perl-Excel-Writer-XLSX perl-Net-IP perl-DateTime
 perl-Digest-HMAC perl-Crypt-DES perl-Clone perl-ExtUtils-CBuilder
 perl-ExtUtils-ParseXS perl-ExtUtils-MakeMaker perl-Test-Fatal perl-Test-Number-Delta
-perl-Test-Requires ));
+perl-Test-Requires perl-JSON perl-XML-SAX perl-XML-SAX-Writer perl-Convert-ASN1));
 
 	# perl-Time-modules no longer a/v in rh/centos7
 	push @rhpackages, ($osflavour eq "redhat" && $osmajor < 7)?
@@ -1572,7 +1572,7 @@ EOF
 	# has a much too old perl. many of these modules are in core since 5.19 or thereabouts
 
 	$nmisModules->{"IO::Socket::IP"} = { file => "MODULE NOT FOUND", type  => "use",
-																			 by => "lib/Auth.pm", priority => 99 };
+																			 by => "lib/Auth.pm", minversion => "0.37", priority => 99 };
 	# io socket ip needs at least this version of socket...
 	$nmisModules->{"Socket"} = { file => "MODULE NOT FOUND", type  => "use",
 															 by => "lib/Auth.pm", minversion => "1.97",
