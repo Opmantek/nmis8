@@ -598,7 +598,12 @@ and then restart the installer.\n\n";
 				# of cpan seem to start it automatically
 				print "\n
 If the CPAN configuration doesn't start automatically, then please
-enter 'o conf init' on the CPAN prompt. To return to the installer when done,
+enter 'o conf init' on the CPAN prompt.
+
+Should you get prompted to choose Perl Library directories, 'local::lib'
+or the like, please choose 'sudo' or 'manual' - NOT 'local::lib'!
+
+To return to the installer when done,
 please exit the CPAN\nshell with 'exit'.\n";
 				&input_ok;
 				system("cpan");
@@ -1686,8 +1691,8 @@ sub listModules
 		{
 			printBanner("Some Optional Perl Modules are missing (or too old)");
 			print qq|The following optional modules are missing or too old:\n| .join(" ", @optionals)
-					.qq|\n\nNote: The modules Authen::TacacsPlus and Authen::Simple::RADIUS are optional components for the
-NMIS AAA system.
+					.qq|\n\nNote: The modules Authen::TacacsPlus and Authen::Simple::RADIUS
+are optional components for the NMIS AAA system.
 
 The modules SNMP_util and SNMP_Session are also optional (needed only for
 the ipsla subsystem) and can be installed either with
