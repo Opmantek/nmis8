@@ -743,7 +743,19 @@
         'PRINT:totalUtil:AVERAGE:totalUtil=%1.2lf',
         'PRINT:inputBits:AVERAGE:inputBits=%1.2lf',
         'PRINT:outputBits:AVERAGE:outputBits=%1.2lf'
-      ]  		
+      ],  		
+      'cbqos-in' => [
+        'DEF:DropPkt=$database:DropPkt:MAX',
+        'DEF:NoBufDropPkt=$database:NoBufDropPkt:MAX',
+        'PRINT:DropPkt:MAX:DropPkt=%1.2lf',
+        'PRINT:NoBufDropPkt:MAX:NoBufDropPkt=%1.2lf'
+      ],
+      'cbqos-out' => [
+        'DEF:DropPkt=$database:DropPkt:MAX',
+        'DEF:NoBufDropPkt=$database:NoBufDropPkt:MAX',
+        'PRINT:DropPkt:MAX:DropPkt=%1.2lf',
+        'PRINT:NoBufDropPkt:MAX:NoBufDropPkt=%1.2lf'
+      ],
   	}
   },
   'summary' => {
