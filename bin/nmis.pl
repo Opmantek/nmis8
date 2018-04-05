@@ -192,7 +192,7 @@ if ($type =~ /^(collect|update|services)$/)
 {
 	runThreads(type=>$type, nodeselect=>$nodeselect, groupselect=>$groupselect, mthread=>$mthread, mthreadDebug=>$mthreadDebug);
 }
-elsif ( $type eq "escalate") { runEscalate(); printRunTime(); } # included in type=collect
+elsif ( $type eq "escalate") { runEscalate(independent => 1); printRunTime(); } # included in type=collect
 elsif ( $type eq "config" ) { checkConfig(change => "true"); }
 elsif ( $type eq "audit" ) { checkConfig(audit => "true", change => "false"); }
 elsif ( $type eq "links" ) { runLinks(); } # included in type=update
@@ -5620,6 +5620,9 @@ hrSWRunType hrSWRunPerfCPU hrSWRunPerfMem))
 			my $remaining = alarm(0);
 			dbg("saving running alarm, $remaining seconds remaining");
 			my $pid;
+
+			# good enough, no atomic open required - removed after eval
+			my $stderrsink = File::Temp::mktemp(File::Spec->tmpdir()."/nmis.XXXXXX");
 			eval
 			{
 				my @responses;
@@ -5633,7 +5636,6 @@ hrSWRunType hrSWRunPerfCPU hrSWRunPerfMem))
 				# program is disconnected from stdin; stderr goes into a tmpfile
 				# and is collected separately for diagnostics
 
-				my $stderrsink = File::Temp::mktemp(File::Spec->tmpdir()."/nmis.XXXXXX");		# good enough, no atomic open required
 				dbg("running external program '$thisservice->{Program} $finalargs', "
 						.(getbool($thisservice->{Collect_Output})? "collecting":"ignoring")." output");
 				$pid = open(PRG,"$thisservice->{Program} $finalargs </dev/null 2>$stderrsink |");
@@ -5662,7 +5664,6 @@ hrSWRunType hrSWRunPerfCPU hrSWRunPerfMem))
 						info("Service program $thisservice->{Program} returned unexpected error output: \"$badstuff\"");
 						close(UNWANTED);
 					}
-					unlink($stderrsink);
 
 					if (getbool($thisservice->{Collect_Output}))
 					{
@@ -5764,6 +5765,7 @@ hrSWRunType hrSWRunPerfCPU hrSWRunPerfMem))
 					}
 				}
 			};
+			unlink($stderrsink);
 
 			if ($@ and $@ eq "alarm\n")
 			{
@@ -7039,17 +7041,29 @@ sub summaryCache
 ### things, ie if escalate0 = 5 then an interface goes down, no alert sent, next
 ### poll interface goes up and event cancelled!  Downside is a little longer before
 ### receiving first notification, so it depends on what the support SLA is.
-
-### 11-Nov-11, keiths, update to this, changed the escalation so that through policy you can
-### wait for 5 mins or just notify now, so Ecalation0 is 0 seconds, Escalation1 is 300 seconds
-### then in Ecalations.xxxx, core devices might notify at Escalation0 while others at Escalation1
+# args: independent (optional, default 0; if set we ensure that only one runescalate process is active)
+# returns: nothing
 sub runEscalate
 {
 	my %args = @_;
+	my $C = loadConfTable();
+
+	if (getbool($args{independent}))
+	{
+		# check that there are no other running/stuck/delayed escalate processes
+		my $others = func::find_nmis_processes(config => $C,
+																					 type => 'escalate');
+		if (keys %$others)
+		{
+			logMsg("ERROR other type=escalate processes running (".join(", ", keys %$others)."), aborting operation.");
+			info("ERROR other type=escalate processes running (".join(", ", keys %$others)."), aborting operation.");
+			return;
+		}
+	}
+	$0 = "nmis-".$C->{conf}."-escalate";
 
 	my $pollTimer = NMIS::Timing->new;
 
-	my $C = loadConfTable();
 	my $NT = loadLocalNodeTable();
 
 	my $outage_time;

@@ -27,11 +27,12 @@
 #  http://support.opmantek.com/users/
 #
 # *****************************************************************************
-our $VERSION = "1.7.0";
+our $VERSION = "1.8.0";
 use strict;
 use Data::Dumper;
 use File::Basename;
 use File::Temp;
+use File::Path;
 use POSIX qw();
 use Cwd;
 use FindBin;
@@ -51,7 +52,7 @@ public: if set to false, then credentials, community, passwords
 \n\n";
 
 die $usage if (@ARGV == 1 && $ARGV[0] =~ /^-[h\?]/);
-		
+
 my %args = getArguements(@ARGV);
 
 die $usage if ($args{action} ne "collect");
@@ -139,17 +140,17 @@ if ($args{action} eq "collect")
 	# collect evidence
 	my $timelabel = POSIX::strftime("%Y-%m-%d-%H%M",localtime);
 	my $targetdir = "$td/nmis-collect.$timelabel";
-	mkdir($targetdir);
+	File::Path::make_path($targetdir, { chmod => 0755 });
 	print "collecting support evidence...\n";
 	my $status = collect_evidence($targetdir, \%args);
 	die "failed to collect evidence: $status\n" if ($status);
-	
+
 	my $omkzfn;
 	# if omk and its support tool found, run that as well if allowed to!
 	if (-d "/usr/local/omk" && -f "/usr/local/omk/bin/support.pl" && !$args{no_other_tools})
 	{
 		open(LF, ">$targetdir/omk-support.log");
-		
+
 		print "\nFound local OMK installation with OMK support tool.
 Please wait while we collect OMK information as well.\n";
 		open(F, "/usr/local/omk/bin/support.pl action=collect no_system_stats=1 no_other_tools=1 2>&1 |")
@@ -165,16 +166,16 @@ Please wait while we collect OMK information as well.\n";
 		close F;
 		close LF;
 	}
-	
+
 	print "\nEvidence collection complete, zipping things up...\n";
-	
+
 	# do we have zip? or only tar+gz?
 	my $canzip=0;
 	$status = system("zip --version >/dev/null 2>&1");
 	$canzip=1 if (POSIX::WIFEXITED($status) && !POSIX::WEXITSTATUS($status));
-	
+
 	my $zfn = "/tmp/nmis-support-$timelabel.".($canzip?"zip":"tgz");
-	
+
 	# zip mustn't become too large, hence we possibly tail/truncate some or all log files
 	opendir(D,"$targetdir/logs")
 			or warn "can't read $targetdir/logs dir: $!\n";
@@ -194,11 +195,11 @@ Please wait while we collect OMK information as well.\n";
 			$status = system("tar","-czf",$zfn,"nmis-collect.$timelabel");
 		}
 		chdir($curdir);
-		
+
 		die "cannot create support zip file $zfn: $!\n"
 				if (POSIX::WEXITSTATUS($status));
 		last if (-s $zfn < $maxzip);
-		
+
 		# hmm, too big: shrink the log files one by one until the size works out
 		unlink($zfn);
 		print "zipfile too big, trying to shrink some logfiles...\n";
@@ -213,8 +214,8 @@ Please wait while we collect OMK information as well.\n";
 			die "\nPROBLEM: cannot reduce zip file size any further!\nPlease rerun $0 with maxzipsize=N higher than $maxzip.\n";
 		}
 	}
-	
-	
+
+
 	print "\nAll done.\n\nCollected system information is in $zfn\n";
 	print "OMK information is in $omkzfn\n\n" if ($omkzfn);
 	print "Please include ".($omkzfn? "these zip files": "this zip file"). " when you contact
@@ -293,7 +294,7 @@ sub collect_evidence
 	$dirstocheck .= " $dbdir" if ($dbdir !~ /^$basedir/);
 	$dirstocheck .= " $logdir" if ($logdir !~ /^$basedir/);
 
-	mkdir("$targetdir/system_status");
+	File::Path::make_path("$targetdir/system_status", { chmod => 0755 });
 	# dump a recursive file list, ls -haRH does NOT work as it won't follow links except given on the cmdline
 	# this needs to cover dbdir and vardir if outside
 	system("find -L $dirstocheck -type d -print0| xargs -0 ls -laH > $targetdir/system_status/filelist.txt") == 0
@@ -328,7 +329,7 @@ sub collect_evidence
 	system("mount >> $targetdir/system_status/disk_info");
 
 	system("uname -av > $targetdir/system_status/uname");
-	mkdir("$targetdir/system_status/osrelease");
+	File::Path::make_path("$targetdir/system_status/osrelease", { chmod => 0755 });
 	system("cp -a /etc/*release /etc/*version $targetdir/system_status/osrelease/ 2>/dev/null");
 
 	if (!$args->{no_system_stats})
@@ -352,7 +353,7 @@ sub collect_evidence
 			or warn "can't save routing table: $!\n";
 
 	# capture the cron files, root's and nmis's tabs
-	mkdir("$targetdir/system_status/cron");
+	File::Path::make_path("$targetdir/system_status/cron", { chmod => 0755 });
 	system("cp -a /etc/cron* $targetdir/system_status/cron") == 0
 			or warn "can't save cron files: $!\n";
 
@@ -364,7 +365,7 @@ sub collect_evidence
 	if ($apachehome)
 	{
 		my $apachetarget = "$targetdir/system_status/apache";
-		mkdir ($apachetarget) if (!-d $apachetarget);
+		File::Path::make_path($apachetarget, { chmod => 0755 });
 		# on centos/RH there are symlinks pointing to all the apache module binaries, we don't
 		# want these (so  -a or --dereference is essential)
 		system("cp -a $apachehome/* $apachetarget");
@@ -380,7 +381,7 @@ sub collect_evidence
 	}
 
 	# collect all defined log files
-	mkdir("$targetdir/logs");
+	File::Path::make_path("$targetdir/logs", { chmod => 0755 });
 	my @logfiles = grep(/^.+$/, (map { $globalconf->{$_} } (grep(/_log$/, keys %$globalconf))));
 	if (!@logfiles)							# if the nmis load failed, fall back to the most essential standard logs
 	{
@@ -415,9 +416,7 @@ sub collect_evidence
 					or warn "ATTENTION: can't copy logfile $lfn to $targetdir!\n";
 		}
 	}
-	mkdir("$targetdir/conf",0755);
-	mkdir("$targetdir/conf/scripts",0755);
-	mkdir("$targetdir/conf/nodeconf",0755);
+	File::Path::make_path("$targetdir/conf/scripts", "$targetdir/conf/nodeconf" , { chmod => 0755 });
 
 	# copy all of conf/ and models/ but NOT any stray stuff beneath
 	system("cp","-r","$basedir/models",$targetdir) == 0
@@ -458,43 +457,64 @@ sub collect_evidence
 	}
 
 	# copy generic var files (=var/nmis-*)
-		mkdir("$targetdir/var");
-		opendir(D,"$vardir") or warn "can't read var dir $vardir: $!\n";
-		my @generics = grep(/^nmis[-_]/, readdir(D));
-		closedir(D);
-		system("cp", "-r", (map { "$vardir/$_" } (@generics)),
-					 "$targetdir/var") == 0 or warn "can't copy var files: $!\n";
+	File::Path::make_path("$targetdir/var", { chmod => 0755 });
+	opendir(D,"$vardir") or warn "can't read var dir $vardir: $!\n";
+	my @generics = grep(/^nmis[-_]/, readdir(D));
+	closedir(D);
+	system("cp", "-r", (map { "$vardir/$_" } (@generics)),
+				 "$targetdir/var") == 0 or warn "can't copy var files: $!\n";
 
-		# if node info requested copy those files as well
-		# special case: want ALL nodes
-		if ($thisnode eq "*")
+	# if node info requested copy those files as well
+	# special case: want ALL nodes
+	if ($thisnode eq "*")
+	{
+		# all node-related files...
+		system("cp $vardir/*.* $targetdir/var/") == 0
+				or warn "can't copy all nodes' files: $!\n";
+		#...and their current events
+		opendir(D, "$vardir/events") or warn "can't read $vardir/events: $!\n";
+		for my $onenode (grep(!/^\./,readdir(D)))
 		{
-				system("cp $vardir/* $targetdir/var/") == 0
-						or warn "can't copy all nodes' files: $!\n";
+			# no events for this node -> skip
+			next if (!(my @list = glob("$vardir/events/$onenode/current/*")));
+			my $curevdir = "$targetdir/var/events/$onenode/current";
+			File::Path::make_path($curevdir, { chmod => 0755 });
+			system("cp $vardir/events/$onenode/current/* $curevdir") == 0
+					or warn "can't copy $onenode events to $curevdir: $!\n";
 		}
-		elsif ($thisnode)
+		closedir(D);
+	}
+	elsif ($thisnode)
+	{
+		my $lnt = &loadLocalNodeTable;
+		for my $nextnode (split(/\s*,\s*/,$thisnode))
 		{
-			my $lnt = &loadLocalNodeTable;
-			for my $nextnode (split(/\s*,\s*/,$thisnode))
+			if ($lnt->{$nextnode})
 			{
-				if ($lnt->{$nextnode})
-				{
-					my $fileprefix = "$vardir/".lc($nextnode);
-					my @files_to_copy = (-r "$fileprefix-node.json")?
-							("$fileprefix-node.json", "$fileprefix-view.json") :
-							("$fileprefix-node.nmis", "$fileprefix-view.nmis");
+				my $fileprefix = "$vardir/".lc($nextnode);
+				my @files_to_copy = (-r "$fileprefix-node.json")?
+						("$fileprefix-node.json", "$fileprefix-view.json") :
+						("$fileprefix-node.nmis", "$fileprefix-view.nmis");
 
-					system("cp", @files_to_copy, "$targetdir/var/") == 0
-							or warn "can't copy node ${nextnode}'s node files: $!\n";
-				}
-				else
+				system("cp", @files_to_copy, "$targetdir/var/") == 0
+						or warn "can't copy node ${nextnode}'s node files: $!\n";
+
+				my $curevdir = "$targetdir/var/events/$nextnode/current";
+				if (my @list = glob("$vardir/events/$nextnode/current/*")) # no events for this node -> skip
 				{
-					warn("ATTENTION: the requested node \"$nextnode\" isn't known to NMIS!\n");
+					File::Path::make_path($curevdir, { chmod => 0755 });
+					system("cp $vardir/events/$nextnode/current/* $curevdir") == 0
+							or warn "can't copy $nextnode events to $curevdir: $!\n";
 				}
 			}
+			else
+			{
+				warn("ATTENTION: the requested node \"$nextnode\" isn't known to NMIS!\n");
+			}
 		}
+	}
 
-		return undef;
+	return undef;
 }
 
 # print question, return true if y (or in unattended mode). default is yes.
