@@ -99,7 +99,7 @@ sub getRRDasHash
 	my $maxhr = (defined $args{hour_to}? $args{hour_to} :  24) ;
 	my $mustcheckhours = ($minhr != 0  and $maxhr != 24);
 	my $invertperiod = $minhr > $maxhr;
-	my $resolution = $args{resolution};
+	my $wantedresolution = $args{resolution};
 
 	if (!$S) {
 		$S = Sys::->new(); # get base Model containing database info
@@ -109,8 +109,8 @@ sub getRRDasHash
 	my $db = $S->getDBName(graphtype=>$graphtype, index=>$index, item=>$item);
 
 	my @rrdargs = ($db, $args{mode});
-	my $bucketsize;
-	if (defined($resolution) && $resolution > 0)
+	my ($bucketsize, $resolution);
+	if (defined($wantedresolution) && $wantedresolution > 0)
 	{
 		# rrdfetch selects resolutions only from existing RRAs (no multiples),
 		# so we need to determine what native resolutions are available,
@@ -121,19 +121,19 @@ sub getRRDasHash
 
 		# this can work if the desired resolution is directly equal to an RRA period,
 		# or if the step divides the desired resolution cleanly
-		if (grep($_ == $resolution, @available))
+		if (grep($_ == $wantedresolution, @available))
 		{
-			# happy. nothing more to do/setup
+			$resolution = $wantedresolution;
 		}
-		elsif ( $resolution % $available[0] == 0)
+		elsif ( $wantedresolution % $available[0] == 0)
 		{
 			# we must bucketise ourselves
-			$bucketsize = $resolution / $available[0];
+			$bucketsize = $wantedresolution / $available[0];
 			$resolution = $available[0];
 		}
 		else
 		{
-			return ({},[], { error => "Summarisation with resolution $resolution not possible, available RRD resolutions: "
+			return ({},[], { error => "Summarisation with resolution $wantedresolution not possible, available RRD resolutions: "
 													 .join(", ",@available) });
 		}
 
@@ -145,12 +145,19 @@ sub getRRDasHash
 
 	my ($begin,$step,$name,$data) = RRDs::fetch(@rrdargs);
 
-	# bail out if we ask for resolution X but get back step Y
-	# in some cases we could recalc the buckets but not worth the hassle
+	# bail out if we ask for resolution X but get back (bigger) step Y
+	# and cannot recompute the bucket size
 	if (defined($bucketsize) && $resolution != $step)
 	{
-		return ({}, [], {
-			error => "Summarisation with resolution $args{resolution} not possible, RRD only provides resolution $step for requested time interval!" });
+		if ($wantedresolution % $step == 0) # step we got back is divisible into buckets of desired size
+		{
+			$bucketsize = $wantedresolution / $step;
+		}
+		else
+		{
+			return ({}, [], {
+				error => "Summarisation with resolution $wantedresolution not possible, RRD only provides resolution $step for requested time interval! " });
+		}
 	}
 
 	my @dsnames = @$name if (defined $name);

@@ -257,7 +257,7 @@ libnet-ldap-perl libnet-snpp-perl libdbi-perl libtime-modules-perl
 libsoap-lite-perl libauthen-simple-radius-perl libauthen-tacacsplus-perl
 libauthen-sasl-perl rrdtool librrds-perl libtest-deep-perl dialog libcrypt-des-perl libdigest-hmac-perl libclone-perl
 libexcel-writer-xlsx-perl libmojolicious-perl libdatetime-perl
-libnet-ip-perl libscalar-list-utils-perl libtest-requires-perl libtest-fatal-perl libtest-number-delta-perl
+libnet-ip-perl libscalar-list-utils-perl libtest-requires-perl libtest-fatal-perl libtest-number-delta-perl libtext-csv-perl libtext-csv-xs-perl
 
 ));
 
@@ -273,7 +273,8 @@ rrdtool-perl perl-Test-Deep dialog
 perl-Excel-Writer-XLSX perl-Net-IP perl-DateTime
 perl-Digest-HMAC perl-Crypt-DES perl-Clone perl-ExtUtils-CBuilder
 perl-ExtUtils-ParseXS perl-ExtUtils-MakeMaker perl-Test-Fatal perl-Test-Number-Delta
-perl-Test-Requires perl-JSON perl-XML-SAX perl-XML-SAX-Writer perl-Convert-ASN1));
+perl-Test-Requires perl-JSON perl-XML-SAX perl-XML-SAX-Writer perl-Convert-ASN1
+perl-Text-CSV perl-Text-CSV_XS));
 
 	# perl-Time-modules no longer a/v in rh/centos7
 	push @rhpackages, ($osflavour eq "redhat" && $osmajor < 7)?
