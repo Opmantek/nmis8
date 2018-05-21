@@ -270,7 +270,7 @@ sub getRRDResolutions
 	my ($rrdfile,$mode) = @_;
 	my $info = RRDs::info($rrdfile);
 
-	return "failed to retrieve RRD info: ".&RRDs::error
+	return "failed to retrieve RRD info: ".RRDs::error()
 			if (ref($info) ne "HASH");
 
 	my $basicstep = $info->{step};
@@ -508,7 +508,7 @@ sub addDStoRRD
 							dbg("xml written to $rrd.xml");
 							# Re-import
 							RRDs::restore($rrd.".xml",$rrd);
-							if (my $ERROR = &RRDs::error)
+							if (my $ERROR = RRDs::error())
 							{
 								logMsg("update ERROR database=$rrd: $ERROR");
 								$stats{error} = "update database=$rrd: $ERROR";
@@ -748,7 +748,7 @@ sub updateRRD
 		RRDs::update($database,@options);
 		++$stats{rrdcount};
 
-		if (my $ERROR = &RRDs::error)
+		if (my $ERROR = RRDs::error())
 		{
 			if ($ERROR !~ /contains more DS|unknown DS name/)
 			{
@@ -959,7 +959,7 @@ sub createRRD
 				dbg($t);
 			}
 			RRDs::create("$database",@options);
-			my $ERROR = &RRDs::error;
+			my $ERROR = RRDs::error();
 			if ($ERROR)
 			{
 				$stats{error} = "($S->{name}) unable to create $database: $ERROR";
