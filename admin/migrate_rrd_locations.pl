@@ -35,7 +35,7 @@
 #
 # nmis collection is disabled while this operation is performed, and a record
 # of operations is kept for rolling back in case of problems.
-our $VERSION = "8.6.4G";
+our $VERSION = "8.6.5G";
 
 use strict;
 use File::Copy;
