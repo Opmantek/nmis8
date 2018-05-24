@@ -27,7 +27,7 @@
 #  http://support.opmantek.com/users/
 #
 # *****************************************************************************
-our $VERSION = "1.8.0";
+our $VERSION = "1.9.0";
 use strict;
 use Data::Dumper;
 use File::Basename;
@@ -416,7 +416,9 @@ sub collect_evidence
 					or warn "ATTENTION: can't copy logfile $lfn to $targetdir!\n";
 		}
 	}
-	File::Path::make_path("$targetdir/conf/scripts", "$targetdir/conf/nodeconf" , { chmod => 0755 });
+	File::Path::make_path("$targetdir/conf/scripts", 
+												"$targetdir/conf/nodeconf"
+												"$targetdir/conf/plugins", { chmod => 0755 });
 
 	# copy all of conf/ and models/ but NOT any stray stuff beneath
 	system("cp","-r","$basedir/models",$targetdir) == 0
@@ -449,7 +451,7 @@ sub collect_evidence
 		close F;
 	}
 
-	for my $oksubdir (qw(scripts nodeconf))
+	for my $oksubdir (qw(scripts nodeconf plugins))
 	{
 		next if (! -d "$basedir/conf/$oksubdir"); # those dirs may or may not exist
 		system("cp $basedir/conf/$oksubdir/* $targetdir/conf/$oksubdir") == 0

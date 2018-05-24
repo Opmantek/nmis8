@@ -3098,5 +3098,38 @@ sub audit_log
 	return undef;
 }
 
+# translates period value (in seconds) into human-friendly string
+# input: period value, optional onlysingleunit, optional fractions
+# fractions is honored only when onlysingleunit is set
+# returns things like 4d or 95m with onlysingleunit, or 1h20m otherwise
+# or 1.34d (onlysingleunit 1 and fractions 2)
+sub period_friendly
+{
+		my ($value,$onlysingleunit,$fractions) = @_;
+
+		my ($string,$div);
+		my %units = ("y" => 86400*365, "d" => 86400, "h" => 3600, "m" => 60, "s" => 1);
+
+		# break it into the largest available unit, then the next and so on
+		# OR use only ONE unit, the largest that allows division without remainder,
+		# or the largest one smaller than the input if fractions are allowed.
+		for my $unitname (sort { $units{$b} <=> $units{$a}} keys %units)
+		{
+			my $unitvalue = $units{$unitname};
+			my $mod = $value % $unitvalue;
+			my $div = $value / $unitvalue;
+
+			next if ($onlysingleunit && !$fractions && $mod);
+
+			if ($div >= 1)
+			{
+				my $layout = ($onlysingleunit && $fractions)? "%.${fractions}f%s" : "%d%s";
+				$string .= sprintf($layout, $div, $unitname);
+				$value = $mod;
+				last if ($onlysingleunit && $fractions);
+			}
+		}
+		return $string;
+}
 
 1;

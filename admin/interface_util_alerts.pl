@@ -40,16 +40,33 @@ use warnings;
 my $syslog_facility = 'local3';
 my $syslog_server = 'localhost:udp:514';
 
+my $nmisEventProcessing = 0;
+
 my $threshold_period = "-5 minutes";
+
+# A set of regular thresholds, uncomment these and comment out the next section to use these
+#my $thresholds = {
+#              'fatal' => 90,
+#              'critical' => 80,
+#              'major' => 60,
+#              'minor' => 20,
+#              'warning' => 10,
+#              'normal' => 10,
+#             };
+
+# to only use fatal, change normal and fatal to be the same, and all others to 0
+# convienently this can be done using the fatalThreshold variable
+my $fatalThreshold = 50;
 my $thresholds = {
-              'fatal' => '90',
-              'critical' => '80',
-              'major' => '60',
-              'minor' => '20',
-              'warning' => '10'
+              'fatal' => $fatalThreshold,
+              'critical' => 0,
+              'major' => 0,
+              'minor' => 0,
+              'warning' => 0,
+              'normal' => $fatalThreshold,
              };
 
-my $event = "Proactive Interface Utilisation";
+my $eventName = "Proactive Interface Utilisation";
 
 # set this to 1 to include group in the message details, 0 to exclude.
 my $includeGroup = 1;
@@ -110,6 +127,8 @@ foreach my $node (sort keys %{$LNT}) {
 		for my $ifIndex (sort keys %{$IF}) {
 			if ( exists $IF->{$ifIndex}{collect} and $IF->{$ifIndex}{collect} eq "true") {
 				
+				my $event = $eventName;
+				
 				# get the summary stats
 				my $stats = getSummaryStats(sys=>$S,type=>"interface",start=>$threshold_period,end=>'now',index=>$ifIndex);
 				
@@ -133,11 +152,11 @@ foreach my $node (sort keys %{$LNT}) {
 				my $element = $IF->{$ifIndex}{ifDescr};
 
 				# apply the thresholds
-				if ( $util < $thresholds->{warning} ) { $level = "Normal"; $reset = $thresholds->{warning}; $thrvalue = $thresholds->{warning}; }
-				elsif ( $util >= $thresholds->{warning} and $util < $thresholds->{minor} ) { $level = "Warning"; $thrvalue = $thresholds->{warning}; }
-				elsif ( $util >= $thresholds->{minor} and $util < $thresholds->{major} ) { $level = "Minor"; $thrvalue = $thresholds->{minor}; }
-				elsif ( $util >= $thresholds->{major} and $util < $thresholds->{critical} ) { $level = "Major"; $thrvalue = $thresholds->{major}; }
-				elsif ( $util >= $thresholds->{critical} and $util < $thresholds->{fatal} ) { $level = "Critical"; $thrvalue = $thresholds->{critical}; }
+				if ( $util < $thresholds->{normal} ) { $level = "Normal"; $reset = $thresholds->{normal}; $thrvalue = $thresholds->{normal}; }
+				elsif ( $thresholds->{warning} > 0 and $util >= $thresholds->{warning} and $util < $thresholds->{minor} ) { $level = "Warning"; $thrvalue = $thresholds->{warning}; }
+				elsif ( $thresholds->{minor} > 0 and $util >= $thresholds->{minor} and $util < $thresholds->{major} ) { $level = "Minor"; $thrvalue = $thresholds->{minor}; }
+				elsif ( $thresholds->{major} > 0 and $util >= $thresholds->{major} and $util < $thresholds->{critical} ) { $level = "Major"; $thrvalue = $thresholds->{major}; }
+				elsif ( $thresholds->{critical} > 0 and $util >= $thresholds->{critical} and $util < $thresholds->{fatal} ) { $level = "Critical"; $thrvalue = $thresholds->{critical}; }
 				elsif ( $util >= $thresholds->{fatal} ) { $level = "Fatal"; $thrvalue = $thresholds->{fatal}; }
 												
 				# if the level is normal, make sure there isn't an existing event open
@@ -171,9 +190,15 @@ foreach my $node (sort keys %{$LNT}) {
 				if ( $eventExists and $level =~ /Normal/i) {
 					# Proactive Closed.
 					$condition = 1;
-					eventDelete(event => { node => $node, 
-																 event => $event, 
-																 element => $element });
+
+					if ( getbool($nmisEventProcessing) ) {
+						checkEvent(sys=>$S,event=>$event,level=>$level,element=>$element,details=>$details,value=>$util,reset=>$reset);
+					}
+					else {						
+						eventDelete(event => { node => $node, 
+																	 event => $event, 
+																	 element => $element });
+					}
 					$event = "$event Closed" if $event !~ /Closed/;
 					$sendSyslog = 1;
 				}
@@ -184,10 +209,15 @@ foreach my $node (sort keys %{$LNT}) {
 				elsif ( not $eventExists and $level !~ /Normal/i) {
 					$condition = 3;
 					$event =~ s/ Closed//g;
-
-					eventAdd(node=>$node,event=>$event,level=>$level,element=>$element,details=>$details);
 					# new event send the syslog.
 					$sendSyslog = 1;
+
+					if ( getbool($nmisEventProcessing) ) {
+						notify(sys=>$S,event=>$event,level=>$level,element=>$element,details=>$details);
+					}
+					else {
+						eventAdd(node=>$node,event=>$event,level=>$level,element=>$element,details=>$details);	
+					}
 				}
 				elsif ( $eventExists and $level !~ /Normal/i) {
 					$condition = 4;
@@ -214,17 +244,8 @@ foreach my $node (sort keys %{$LNT}) {
 					}
 				}
 				
-				# This section will enable normal NMIS processing of the event in addition to the custom syslog above.
-				#if ( $level =~ /Normal/i ) { 
-				#	checkEvent(sys=>$S,event=>$event,level=>$level,element=>$element,details=>$details,value=>$util,reset=>$reset);
-				#}
-				#else {
-				#	notify(sys=>$S,event=>$event,level=>$level,element=>$element,details=>$details);
-				#}
-
-
 				#\t$IF->{$ifIndex}{collect}\t$IF->{$ifIndex}{Description}
-				print "  $element: condition=$condition ifIndex=$IF->{$ifIndex}{ifIndex} util=$util level=$level thrvalue=$thrvalue\n" if $info;
+				print "  $element: $event condition=$condition ifIndex=$IF->{$ifIndex}{ifIndex} util=$util level=$level thrvalue=$thrvalue\n" if $info;
 
 			}
 		}

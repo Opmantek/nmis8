@@ -27,7 +27,7 @@
 #
 # *****************************************************************************
 package NMIS;
-our $VERSION = "8.6.4G";
+our $VERSION = "8.6.5G";
 
 use NMIS::uselib;
 use lib "$NMIS::uselib::rrdtool_lib";
@@ -2681,19 +2681,11 @@ sub htmlGraph {
 	my $time = time();
 	my $clickurl = "$C->{'node'}?conf=$C->{conf}&act=network_graph_view&graphtype=$graphtype&group=$urlsafegroup&intf=$urlsafeintf&server=$server&node=$urlsafenode";
 
-
-	if( getbool($C->{display_opcharts}) ) {
-		my $graphLink = "$C->{'rrddraw'}?conf=$C->{conf}&act=draw_graph_view&group=$urlsafegroup&graphtype=$graphtype&node=$urlsafenode&intf=$urlsafeintf&server=$server".
-				"&start=&end=&width=$width&height=$height&time=$time";
-		my $retval = qq|<div class="chartDiv" id="${id}DivId" data-chart-url="$graphLink" data-title-onclick='viewwndw("$target","$clickurl",$win_width,$win_height)' data-chart-height="$height" data-chart-width="$width"><div class="chartSpan" id="${id}SpanId"></div></div>|;
-	}
-	else {
-		my $src = "$C->{'rrddraw'}?conf=$C->{conf}&act=draw_graph_view&group=$urlsafegroup&graphtype=$graphtype&node=$urlsafenode&intf=$urlsafeintf&server=$server".
+	my $src = "$C->{'rrddraw'}?conf=$C->{conf}&act=draw_graph_view&group=$urlsafegroup&graphtype=$graphtype&node=$urlsafenode&intf=$urlsafeintf&server=$server".
 			"&start=&end=&width=$width&height=$height&time=$time";
-		### 2012-03-28 keiths, changed graphs to come up in their own Window with the target of node, handy for comparing graphs.
-		return 	qq|<a target="Graph-$target" onClick="viewwndw(\'$target\',\'$clickurl\',$win_width,$win_height)">
+	### 2012-03-28 keiths, changed graphs to come up in their own Window with the target of node, handy for comparing graphs.
+	return 	qq|<a target="Graph-$target" onClick="viewwndw(\'$target\',\'$clickurl\',$win_width,$win_height)">
 <img alt='Network Info' src="$src"></img></a>|;
-	}
 }
 
 # args: user, node, system, refresh, widget, au (object),
@@ -3033,8 +3025,6 @@ sub startNmisPage {
     <script src="$C->{'calendar_setup'}" type="text/javascript"></script>
     <script src="$C->{'jquery_ba_dotimeout'}" type="text/javascript"></script>
     <script src="$C->{'nmis_common'}" type="text/javascript"></script>
-    <script src="$C->{'highstock'}" type="text/javascript"></script>
-		<script src="$C->{'chart'}" type="text/javascript"></script>
   </head>
   <body>
 |;
@@ -3070,8 +3060,6 @@ sub pageStart {
     <link type="text/css" rel="stylesheet" href="$C->{'jquery_jdmenu_css'}" />
     <link type="text/css" rel="stylesheet" href="$C->{'styles'}" />
     <script src="$C->{'jquery'}" type="text/javascript"></script>
-    <script src="$C->{'highstock'}" type="text/javascript"></script>
-		<script src="$C->{'chart'}" type="text/javascript"></script>
     <script>
 $jscript
 </script>
@@ -3116,8 +3104,6 @@ sub pageStartJscript {
     <script src="$C->{'calendar_setup'}" type="text/javascript"></script>
     <script src="$C->{'jquery_ba_dotimeout'}" type="text/javascript"></script>
     <script src="$C->{'nmis_common'}" type="text/javascript"></script>
-    <script src="$C->{'highstock'}" type="text/javascript"></script>
-		<script src="$C->{'chart'}" type="text/javascript"></script>
   </head>
   <body>
 |;

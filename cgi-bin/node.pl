@@ -1,7 +1,5 @@
 #!/usr/bin/perl
 #
-## $Id: node.pl,v 8.5 2012/04/28 00:59:36 keiths Exp $
-#
 #  Copyright (C) Opmantek Limited (www.opmantek.com)
 #
 #  ALL CODE MODIFICATIONS MUST BE SENT TO CODE@OPMANTEK.COM
@@ -33,42 +31,37 @@
 use FindBin;
 use lib "$FindBin::Bin/../lib";
 
-#
 use strict;
 use List::Util 1.33;						# older versions don't have a usable any()
-use NMIS;
-use func;
-use Sys;
-use rrdfunc;
 use Time::ParseDate;
 use URI::Escape;
-
 use Data::Dumper;
-$Data::Dumper::Indent = 1;
-
 use CGI qw(:standard *table *Tr *td *form *Select *div);
+use Text::CSV;
+
+use NMIS;
+use Auth;
+use Sys;
+use rrdfunc;
+use func;
 
 my $q = new CGI; # This processes all parameters passed via GET and POST
 my $Q = $q->Vars; # values in hash
-my $C;
 
-if (!($C = loadConfTable(conf=>$Q->{conf},debug=>$Q->{debug}))) { exit 1; };
+my $C = loadConfTable(conf=>$Q->{conf},debug=>$Q->{debug});
+die "Failed to load configuration!\n" if (ref($C) ne "HASH" or !keys %$C);
 
 # Before going any further, check to see if we must handle
 # an authentication login or logout request
 
-# if arguments present, then called from command line
+# if arguments present, then called from command line, no auth.
 if ( @ARGV ) { $C->{auth_require} = 0; }
 
-# NMIS Authentication module
-use Auth;
 my $user;
 my $privlevel;
 
-# variables used for the security mods
 my $headeropts = {type=>'text/html',expires=>'now'};
-my $AU = Auth->new(conf => $C);  # Auth::new will reap init values from NMIS::config
-
+my $AU = Auth->new(conf => $C);
 
 
 if ($AU->Require) {
@@ -81,26 +74,41 @@ if ($Q->{server} ne "") { exit if requestServer(headeropts=>$headeropts); }
 
 #======================================================================
 
-# select function
+# cancel? go to graph view
+if ($Q->{cancel} || $Q->{act} eq 'network_graph_view')
+{
+	typeGraph();
+}
+elsif ($Q->{act} eq 'network_export')
+{
+	typeExport();
+}
+elsif ($Q->{act} eq 'network_export_options')
+{
+	show_export_options();
+}
+elsif ($Q->{act} eq 'network_stats')
+{
+	typeStats();
+}
+else { bailout(message => "Unrecognised arguments! act=$Q->{act}, node=$Q->{node}, intf=$Q->{intf}<br>")};
 
-if ($Q->{act} eq 'network_graph_view') {		typeGraph();
-} elsif ($Q->{act} eq 'network_export') {		typeExport();
-} elsif ($Q->{act} eq 'network_stats') {		typeStats();
-} else { notfound(); }
+exit 0;
 
-sub notfound {
-	print header($headeropts);
-	print start_html();
-	print "Network: ERROR, act=$Q->{act}, node=$Q->{node}, intf=$Q->{intf} <br>\n";
-	print "Request not found\n";
-	print end_html;
+# print minimal header, complaint message and exits
+# args: code (optional, default: 400), message (required)
+sub bailout
+{
+	my (%args) = @_;
+
+	my $code = $args{code} // 400;
+	my $message = $args{message} // "Failure";
+	print header(-status => $code), start_html, $message, end_html;
+	exit 0;
 }
 
-exit;
-
-#============================================================
-
-sub typeGraph {
+sub typeGraph
+{
 	my %args = @_;
 
 	my $node = $Q->{node};
@@ -165,12 +173,6 @@ sub typeGraph {
 	}
 
 	print header($headeropts);
-	my $opcharts_scripts = "";
-	if( $C->{display_opcharts} ) {
-		$opcharts_scripts = "<script src=\"$C->{'jquery'}\" type=\"text/javascript\"></script>".
-			"<script src=\"$C->{'highstock'}\" type=\"text/javascript\"></script>".
-			"<script src=\"$C->{'chart'}\" type=\"text/javascript\"></script>";
-	}
 	print start_html(
 		-title => "Graph Drill In for $heading @ ".returnDateStamp." - $C->{server_name}",
 		-meta => { 'CacheControl' => "no-cache",
@@ -178,14 +180,13 @@ sub typeGraph {
 			'Expires' => -1
 			},
 		-head=>[
-			Link({-rel=>'shortcut icon',-type=>'image/x-icon',-href=>"$C->{'<url_base>'}/images/nmis_favicon.png"}),
-			Link({-rel=>'stylesheet',-type=>'text/css',-href=>"$C->{'<menu_url_base>'}/css/dash8.css"}),
-			$opcharts_scripts
-			]
+			 Link({-rel=>'shortcut icon',-type=>'image/x-icon',-href=>"$C->{'<url_base>'}/images/nmis_favicon.png"}),
+			 Link({-rel=>'stylesheet',-type=>'text/css',-href=>"$C->{'styles'}"}),
+		],
+		-script => {-src => $C->{'jquery'}, -type=>"text/javascript"},
 		);
 
 	# verify that user is authorized to view the node within the user's group list
-
 	if ( $node ) {
 		if ( ! $AU->InGroup($NT->{$node}{group}) ) {
 			print "Not Authorized to view graphs on node '$node' in group $NT->{$node}{group}";
@@ -315,182 +316,183 @@ sub typeGraph {
 		}
 	}
 
+	my %sshealth = get_graphtype_systemhealth(sys => $S, graphtype => $graphtype);
+
 	print comment("typeGraph begin");
 
-	my $systemHealth = 0;
-	my $systemHealthSection = "";
-	my $systemHealthHeader = "";
-	my $systemHealthTitle = "";
-	my @systemHealthLabels;
+	# primary form part - if we want the url to have the params then we need to use GET
+	# and tell cgi explicitely to use the appropriate encoding type...
 
-	foreach my $index (keys %{$NI->{graphtype}}) {
-		if ( ref($NI->{graphtype}{$index}) eq "HASH" ) {
-			foreach my $gtype (keys %{$NI->{graphtype}{$index}}) {
-				if ( $NI->{graphtype}{$index}{$gtype} =~ /$graphtype/ and exists $M->{systemHealth}{rrd}{$gtype} ) {
-					$systemHealth = 1;
-					$systemHealthSection = $gtype;
-					### 2013-11-22 keiths, handling headers a bit better in the graph drill in
-					if ( $M->{systemHealth}{sys}{$gtype}{headers} !~ /,/ ) {
-						$systemHealthHeader = $M->{systemHealth}{sys}{$gtype}{headers};
-					}
-					else {
-						my @tmpHeaders = split(",",$M->{systemHealth}{sys}{$gtype}{headers});
-						$systemHealthHeader = $tmpHeaders[0];
-					}
-
-					if ( exists $M->{systemHealth}{sys}{$gtype}{snmp}{$systemHealthHeader}{title} and $M->{systemHealth}{sys}{$gtype}{snmp}{$systemHealthHeader}{title} ne "" ) {
-						$systemHealthTitle =  $M->{systemHealth}{sys}{$gtype}{snmp}{$systemHealthHeader}{title};
-					}
-					else {
-						$systemHealthTitle = $systemHealthHeader;
-					}
-					@systemHealthLabels = map{($_ => $NI->{$systemHealthSection}{$_}{$systemHealthHeader})} sort keys %{$NI->{$systemHealthSection}};
-				}
-			}
-		}
-	}
-
-	print start_form( -method=>'get', -name=>"dograph", -action=>url(-absolute=>1));
-
-	print start_table();
+	print start_form(-method => 'GET', -enctype => "application/x-www-form-urlencoded",
+									 -name=>"dograph", -action=>url(-absolute=>1)),
+	start_table();
 
 	#print Tr(th({class=>'title',colspan=>'1'},"<div>$heading<span class='right'>User: $user, Auth: Level$privlevel</span></div>"));
 	print Tr(th({class=>'title',colspan=>'1'},"$heading"));
 	print Tr(td({colspan=>'1'},
-			table({class=>'table',width=>'100%'},
-				Tr(
-				# Start date field
-				td({class=>'header',align=>'center',colspan=>'1'},"Start",
-					textfield(-name=>"date_start",-override=>1,-value=>"$date_start",size=>'23',tabindex=>"1")),
-				# Node select menu
-				td({class=>'header',align=>'center',colspan=>'1'},eval {
-						return hidden(-name=>'node', -default=>$Q->{node},-override=>'1')
-							if $Q->{graphtype} eq 'metrics' or $Q->{graphtype}  eq 'nmis';
-						return "Node ",popup_menu(-name=>'node', -override=>'1',
-																			tabindex=>"3",
-																			-values=>[@nodelist],
-																			-default=>"$Q->{node}",
-																			-onChange=>'JavaScript:this.form.submit()');
-					}),
-				# Graphtype select menu
-				td({class=>'header',align=>'center',colspan=>'1'},"Type ",
-					popup_menu(-name=>'graphtype', -override=>'1', tabindex=>"4",
-						-values=>[sort keys %{$GTT}],
-						-default=>"$Q->{graphtype}",
-						-onChange=>'JavaScript:this.form.submit()')),
-				# Submit button
-				td({class=>'header',align=>'center',colspan=>'1'},
-					submit(-name=>"dograph",-value=>"Submit"))),
-				# next row
-				Tr(
-				# End date field
-				td({class=>'header',align=>'center',colspan=>'1'},"End&nbsp;",
-					textfield(-name=>"date_end",-override=>1,-value=>"$date_end",size=>'23',tabindex=>"2")),
-				# Group or Interface select menu
-				td({class=>'header',align=>'center',colspan=>'1'}, eval {
-						return hidden(-name=>'intf', -default=>$Q->{intf},-override=>'1') if $Q->{graphtype} eq 'nmis';
-						if ( $Q->{graphtype} eq "metrics") {
-							return 	"Group ",popup_menu(-name=>'group', -override=>'1',-size=>'1', tabindex=>"5",
-										-values=>[grep $AU->InGroup($_), 'network',sort keys %{$GT}],
-										-default=>"$group",
-										-onChange=>'JavaScript:this.form.submit()'),
-										hidden(-name=>'intf', -default=>$Q->{intf},-override=>'1');
-						}
-						elsif ($Q->{graphtype} eq "hrsmpcpu") {
-							return 	"CPU ",popup_menu(-name=>'intf', -override=>'1',-size=>'1', tabindex=>"5",
-										-values=>['',sort $S->getTypeInstances(graphtype => "hrsmpcpu")],
-										-default=>"$index",
-										-onChange=>'JavaScript:this.form.submit()');
-						} elsif ($Q->{graphtype} =~ /service|service-cpumem|service-response/) {
-							return 	"Service ",popup_menu(-name=>'intf', -override=>'1',-size=>'1', tabindex=>"5",
-										-values=>['',sort $S->getTypeInstances(section => "service")],
-										-default=>"$index",
-										-onChange=>'JavaScript:this.form.submit()');
-						} elsif ($Q->{graphtype} eq "hrdisk") {
-							my @disks = $S->getTypeInstances(graphtype =>  "hrdisk");
-							return 	"Disk ",popup_menu(-name=>'intf', -override=>'1',-size=>'1', tabindex=>"5",
-										-values=>['',sort @disks],
-										-default=>"$index",
-										-labels=>{ map{($_ => $NI->{storage}{$_}{hrStorageDescr})} sort @disks },
-										-onChange=>'JavaScript:this.form.submit()');
-						} elsif ($GTT->{$graphtype} eq "env_temp") {
-							my @sensors = $S->getTypeInstances(graphtype => "env_temp");
-							return 	"Sensor ",popup_menu(-name=>'intf', -override=>'1',-size=>'1', tabindex=>"5",
-										-values=>['',sort @sensors],
-										-default=>"$index",
-										-labels=>{ map{($_ => $NI->{env_temp}{$_}{tempDescr})} sort @sensors },
-										-onChange=>'JavaScript:this.form.submit()');
-						} elsif ($GTT->{$graphtype} eq "akcp_temp") {
-							my @sensors = $S->getTypeInstances(graphtype => "akcp_temp");
-							return 	"Sensor ",popup_menu(-name=>'intf', -override=>'1',-size=>'1', tabindex=>"5",
-										-values=>['',sort @sensors],
-										-default=>"$index",
-										-labels=>{ map{($_ => $NI->{akcp_temp}{$_}{hhmsSensorTempDescr})} sort @sensors },
-										-onChange=>'JavaScript:this.form.submit()');
-						} elsif ($GTT->{$graphtype} eq "akcp_hum") {
-							my @sensors = $S->getTypeInstances(graphtype => "akcp_hum");
-							return 	"Sensor ",popup_menu(-name=>'intf', -override=>'1',-size=>'1', tabindex=>"5",
-										-values=>['',sort @sensors],
-										-default=>"$index",
-										-labels=>{ map{($_ => $NI->{akcp_hum}{$_}{hhmsSensorHumDescr})} sort @sensors },
-										-onChange=>'JavaScript:this.form.submit()');
-						} elsif ($GTT->{$graphtype} eq "cssgroup") {
-							my @cssgroup = $S->getTypeInstances(graphtype => "cssgroup");
-							return 	"Group ",popup_menu(-name=>'intf', -override=>'1',-size=>'1', tabindex=>"5",
-										-values=>['',sort @cssgroup],
-										-default=>"$index",
-										-labels=>{ map{($_ => $NI->{cssgroup}{$_}{CSSGroupDesc})} sort @cssgroup },
-										-onChange=>'JavaScript:this.form.submit()');
-						} elsif ($GTT->{$graphtype} eq "csscontent") {
-							my @csscont = $S->getTypeInstances(graphtype => "csscontent");
-							return 	"Sensor ",popup_menu(-name=>'intf', -override=>'1',-size=>'1', tabindex=>"5",
-										-values=>['',sort @csscont],
-										-default=>"$index",
-										-labels=>{ map{($_ => $NI->{csscontent}{$_}{CSSContentDesc})} sort @csscont },
-										-onChange=>'JavaScript:this.form.submit()');
-						}
-						elsif ($systemHealth) {
-							return 	"$systemHealthTitle ",popup_menu(-name=>'intf', -override=>'1',-size=>'1', tabindex=>"5",
-										-values=>['',sort keys %{$NI->{$systemHealthSection}}],
-										-default=>"$index",
-										-labels=>{ @systemHealthLabels },
-										-onChange=>'JavaScript:this.form.submit()');
-						}
-						else {
-							# all interfaces have an ifindex, but for the menu we only want
-							# the ones that NMIS actually collects
-							my @wantedifs = sort { $IF->{$a}{ifDescr} cmp $IF->{$b}{ifDescr} }
-							grep( exists $IF->{$_}{ifIndex} && getbool($IF->{$_}->{collect}), keys %{$IF});
+							table({class=>'table',width=>'100%'},
+										Tr(
+											# Start date field
+											td({class=>'header',align=>'center',colspan=>'1'},"Start",
+												 textfield(-name=>"date_start",-override=>1,-value=>"$date_start",size=>'23',tabindex=>"1")),
+											# Node select menu
+											td({class=>'header',align=>'center',colspan=>'1'},
 
-							### 2014-10-21 keiths, if the ifIndex is specifically requested, show it in the menu.
-							if (not grep { $_ eq $index } @wantedifs ) {
-										push(@wantedifs, $index);
-							}
-							return 	"Interface ",popup_menu(-name=>'intf', -override=>'1',-size=>'1', tabindex=>"5",
-										-values=>['',  @wantedifs],
-										-default=>"$index",
-										-labels=>{ map{($_ => $IF->{$_}{ifDescr})} @wantedifs },
-										-onChange=>'JavaScript:this.form.submit()');
-						}
-					}),
-				# Fast select graphtype buttons
-				td({class=>'header',align=>'center',colspan=>'2'}, div({class=>"header"}, eval {
-						my @out;
-						my $cg = "conf=$Q->{conf}&group=$urlsafegroup&start=$start&end=$end&intf=$index&item=$Q->{item}&node=$urlsafenode";
-						foreach my $gtp (keys %graph_button_table) {
-							foreach my $gt (keys %{$GTT}) {
-								if ($gtp eq $gt) {
-									push @out,a({class=>'button', tabindex=>"-1", href=>url(-absolute=>1)."?$cg&act=network_graph_view&graphtype=$gtp"},$graph_button_table{$gtp});
-								}
-							}
-						}
-						if (not($graphtype =~ /cbqos|calls/ and $Q->{item} eq '')) {
-							push @out,a({class=>'button', tabindex=>"-1", href=>url(-absolute=>1)."?$cg&act=network_export&graphtype=$Q->{graphtype}"},"Export");
-							push @out,a({class=>'button', tabindex=>"-1", href=>url(-absolute=>1)."?$cg&act=network_stats&graphtype=$Q->{graphtype}"},"Stats");
-						}
-						push @out,a({class=>'button', tabindex=>"-1", href=>url(-absolute=>1)."?$cg&act=network_graph_view&graphtype=nmis"},"NMIS");
-						return @out;
-					})) ))));
+												 ($Q->{graphtype} eq 'metrics' or $Q->{graphtype}  eq 'nmis')?
+												 hidden(-name=>'node', -default=>$Q->{node},-override=>'1')
+												 : ( "Node ", popup_menu(-name=>'node', -override=>'1',
+																								 tabindex=>"3",
+																								 -values=>[@nodelist],
+																								 -default=>"$Q->{node}",
+																								 -onChange=>'JavaScript:this.form.submit()'))
+											),
+											# Graphtype select menu
+											td({class=>'header',align=>'center',colspan=>'1'},"Type ",
+												 popup_menu(-name=>'graphtype', -override=>'1', tabindex=>"4",
+																		-values=>[sort keys %{$GTT}],
+																		-default=>"$Q->{graphtype}",
+																		-onChange=>'JavaScript:this.form.submit()')),
+											# Submit button
+											td({class=>'header',align=>'center',colspan=>'1'},
+												 submit(-name=>"dograph",-value=>"Submit"))),
+
+										# next row
+										Tr(
+											# End date field
+											td({class=>'header',align=>'center',colspan=>'1'},"End&nbsp;",
+												 textfield(-name=>"date_end",-override=>1,-value=>"$date_end",size=>'23',tabindex=>"2")),
+											# Group or Interface select menu
+											td({class=>'header',align=>'center',colspan=>'1'},
+												 # fixme: using eval this way makes all errors vanish!
+												 eval {
+													 return hidden(-name=>'intf', -default=>$Q->{intf},-override=>'1') if $Q->{graphtype} eq 'nmis';
+													 if ( $Q->{graphtype} eq "metrics") {
+														 return 	"Group ",popup_menu(-name=>'group', -override=>'1',-size=>'1', tabindex=>"5",
+																													-values=>[grep $AU->InGroup($_), 'network',sort keys %{$GT}],
+																													-default=>"$group",
+																													-onChange=>'JavaScript:this.form.submit()'),
+														 hidden(-name=>'intf', -default=>$Q->{intf},-override=>'1');
+													 }
+													 elsif ($Q->{graphtype} eq "hrsmpcpu") {
+														 return 	"CPU ",popup_menu(-name=>'intf', -override=>'1',-size=>'1', tabindex=>"5",
+																												-values=>['',sort $S->getTypeInstances(graphtype => "hrsmpcpu")],
+																												-default=>"$index",
+																												-onChange=>'JavaScript:this.form.submit()');
+													 } elsif ($Q->{graphtype} =~ /service|service-cpumem|service-response/) {
+														 return 	"Service ",popup_menu(-name=>'intf', -override=>'1',-size=>'1', tabindex=>"5",
+																														-values=>['',sort $S->getTypeInstances(section => "service")],
+																														-default=>"$index",
+																														-onChange=>'JavaScript:this.form.submit()');
+													 } elsif ($Q->{graphtype} eq "hrdisk") {
+														 my @disks = $S->getTypeInstances(graphtype =>  "hrdisk");
+														 return 	"Disk ",popup_menu(-name=>'intf', -override=>'1',-size=>'1', tabindex=>"5",
+																												 -values=>['',sort @disks],
+																												 -default=>"$index",
+																												 -labels=>{ map{($_ => $NI->{storage}{$_}{hrStorageDescr})} sort @disks },
+																												 -onChange=>'JavaScript:this.form.submit()');
+													 } elsif ($GTT->{$graphtype} eq "env_temp") {
+														 my @sensors = $S->getTypeInstances(graphtype => "env_temp");
+														 return 	"Sensor ",popup_menu(-name=>'intf', -override=>'1',-size=>'1', tabindex=>"5",
+																													 -values=>['',sort @sensors],
+																													 -default=>"$index",
+																													 -labels=>{ map{($_ => $NI->{env_temp}{$_}{tempDescr})} sort @sensors },
+																													 -onChange=>'JavaScript:this.form.submit()');
+													 } elsif ($GTT->{$graphtype} eq "akcp_temp") {
+														 my @sensors = $S->getTypeInstances(graphtype => "akcp_temp");
+														 return 	"Sensor ",popup_menu(-name=>'intf', -override=>'1',-size=>'1', tabindex=>"5",
+																													 -values=>['',sort @sensors],
+																													 -default=>"$index",
+																													 -labels=>{ map{($_ => $NI->{akcp_temp}{$_}{hhmsSensorTempDescr})} sort @sensors },
+																													 -onChange=>'JavaScript:this.form.submit()');
+													 } elsif ($GTT->{$graphtype} eq "akcp_hum") {
+														 my @sensors = $S->getTypeInstances(graphtype => "akcp_hum");
+														 return 	"Sensor ",popup_menu(-name=>'intf', -override=>'1',-size=>'1', tabindex=>"5",
+																													 -values=>['',sort @sensors],
+																													 -default=>"$index",
+																													 -labels=>{ map{($_ => $NI->{akcp_hum}{$_}{hhmsSensorHumDescr})} sort @sensors },
+																													 -onChange=>'JavaScript:this.form.submit()');
+													 } elsif ($GTT->{$graphtype} eq "cssgroup") {
+														 my @cssgroup = $S->getTypeInstances(graphtype => "cssgroup");
+														 return 	"Group ",popup_menu(-name=>'intf', -override=>'1',-size=>'1', tabindex=>"5",
+																													-values=>['',sort @cssgroup],
+																													-default=>"$index",
+																													-labels=>{ map{($_ => $NI->{cssgroup}{$_}{CSSGroupDesc})} sort @cssgroup },
+																													-onChange=>'JavaScript:this.form.submit()');
+													 } elsif ($GTT->{$graphtype} eq "csscontent") {
+														 my @csscont = $S->getTypeInstances(graphtype => "csscontent");
+														 return 	"Sensor ",popup_menu(-name=>'intf', -override=>'1',-size=>'1', tabindex=>"5",
+																													 -values=>['',sort @csscont],
+																													 -default=>"$index",
+																													 -labels=>{ map{($_ => $NI->{csscontent}{$_}{CSSContentDesc})} sort @csscont },
+																													 -onChange=>'JavaScript:this.form.submit()');
+													 }
+													 elsif ($sshealth{is_systemhealth})
+													 {
+														 return 	$sshealth{title}." ",
+														 popup_menu(-name=>'intf', -override=>'1',-size=>'1', tabindex=>"5",
+																				-values=>['',sort keys %{$NI->{ $sshealth{section} }}],
+																				-default=>"$index",
+																				-labels=> $sshealth{labels},
+																				-onChange=>'JavaScript:this.form.submit()');
+													 }
+													 else {
+														 # all interfaces have an ifindex, but for the menu we only want
+														 # the ones that NMIS actually collects
+														 my @wantedifs = sort { $IF->{$a}{ifDescr} cmp $IF->{$b}{ifDescr} }
+														 grep( exists $IF->{$_}{ifIndex} && getbool($IF->{$_}->{collect}), keys %{$IF});
+
+														 ### 2014-10-21 keiths, if the ifIndex is specifically requested, show it in the menu.
+														 if (not grep { $_ eq $index } @wantedifs ) {
+															 push(@wantedifs, $index);
+														 }
+														 return 	"Interface ",popup_menu(-name=>'intf', -override=>'1',-size=>'1', tabindex=>"5",
+																															-values=>['',  @wantedifs],
+																															-default=>"$index",
+																															-labels=>{ map{($_ => $IF->{$_}{ifDescr})} @wantedifs },
+																															-onChange=>'JavaScript:this.form.submit()');
+													 }
+												 }),
+
+											# Fast select graphtype buttons
+											td({class=>'header',align=>'center',colspan=>'2'},
+												 div({class=>"header"},
+														 eval {
+															 my @out;
+															 my $cg = "conf=$Q->{conf}&group=$urlsafegroup&start=$start&end=$end&intf=$index&item=$Q->{item}&node=$urlsafenode";
+
+															 push @out, a({class=>'button', tabindex=>"-1",
+																						 href=>url(-absolute=>1)."?$cg&act=network_graph_view&graphtype=nmis"},
+																						"NMIS");
+
+															 foreach my $gtp (keys %graph_button_table) {
+																 foreach my $gt (keys %{$GTT}) {
+																	 if ($gtp eq $gt) {
+																		 push @out,a({class=>'button', tabindex=>"-1", href=>url(-absolute=>1)."?$cg&act=network_graph_view&graphtype=$gtp"},$graph_button_table{$gtp});
+																	 }
+																 }
+															 }
+
+
+															 if (not($graphtype =~ /cbqos|calls/ and $Q->{item} eq ''))
+															 {
+																 push @out,a({class=>'button', tabindex=>"-1",
+																							href=>url(-absolute=>1)."?$cg&act=network_stats&graphtype=$Q->{graphtype}"},
+																						 "Stats");
+
+																 # export: one link, direct export with default resolution,
+																 # one link to a separate page with option form
+																 push @out, (
+																	 a({class=>'button', tabindex=>"-1",
+																			href=>url(-absolute=>1)."?$cg&act=network_export&graphtype=$Q->{graphtype}"},
+																		 "Export"),
+																	 a({class=>"button", tabindex => -1,
+																			href => url(-absolute=>1)."?$cg&act=network_export_options&graphtype=$Q->{graphtype}"},
+																		 "Adv. Export"), );
+															 }
+
+
+															 return @out;
+														 })) ))));
 
 
 	# interface info
@@ -584,18 +586,10 @@ sub typeGraph {
 
 		my $graphLink="$C->{'rrddraw'}?conf=$Q->{conf}&amp;act=draw_graph_view".
 				"&node=$urlsafenode&group=$urlsafegroup&graphtype=$graphtype&start=$start&end=$end&width=$width&height=$height&intf=$urlsafeindex&item=$urlsafeitem";
-		my $chartDiv = "";
-		if( getbool($C->{display_opcharts}) ) {
-			$chartDiv = qq |<div class="chartDiv" id="chartDivId" data-chart-url="$graphLink" data-chart-height="$height" ><div class="chartSpan" id="chartSpanId"></div></div>|;
-		}
 
 		if ( $graphtype ne "service-cpumem" or $NI->{graphtype}{$index}{service} =~ /service-cpumem/ ) {
-			if( getbool($C->{display_opcharts}) ) {
-				push @output, Tr(td({class=>'info Plain',align=>'center',colspan=>'4'}, $chartDiv));
-			} else {
-				push @output, Tr(td({class=>'info Plain',align=>'center',colspan=>'4'},image_button(-name=>'graphimg',-src=>"$graphLink",-align=>'MIDDLE', -tabindex=>"-1")));
-				push @output, Tr(td({class=>'info Plain',align=>'center',colspan=>'4'},"Clickable graphs: Left -> Back; Right -> Forward; Top Middle -> Zoom In; Bottom Middle-> Zoom Out, in time"));
-			}
+			push @output, Tr(td({class=>'info Plain',align=>'center',colspan=>'4'},image_button(-name=>'graphimg',-src=>"$graphLink",-align=>'MIDDLE', -tabindex=>"-1")));
+			push @output, Tr(td({class=>'info Plain',align=>'center',colspan=>'4'},"Clickable graphs: Left -> Back; Right -> Forward; Top Middle -> Zoom In; Bottom Middle-> Zoom Out, in time"));
 		}
 		else {
 			push @output, Tr(td({class=>'info Plain',align=>'center',colspan=>'4'},"Graph type not applicable for this data set."));
@@ -615,19 +609,148 @@ sub typeGraph {
 	print hidden(-name=>'p_start', -default=>"$p_start",-override=>'1');
 	print hidden(-name=>'p_end', -default=>"$p_end",-override=>'1');
 	print hidden(-name=>'p_time', -default=>"$time",-override=>'1');
-	print hidden(-name=>'act', -default=>"network_graph_view",-override=>'1');
-	print hidden(-name=>'obj', -default=>"graph",-override=>'1');
-	print hidden(-name=>'func', -default=>"view",-override=>'1');
+	print hidden(-name=>'act', -default=>"network_graph_view", -override=>'1');
+	print hidden(-name=>'obj', -default=>"graph",-override=>'1'); # for rrddraw
+	print hidden(-name=>'func', -default=>"view",-override=>'1'); # fixme: looks unused
 
 	print "</form>", comment("typeGraph end");
 	print end_html;
 
 } # end typeGraph
 
-sub typeExport {
+# shows a form with options for exporting, submission target is typeExport()
+sub show_export_options
+{
+	my ($node,$item,$intf,$group,$graphtype) = @{$Q}{qw(node item intf group graphtype)};
 
-	my $S = Sys::->new; # get system object
-	$S->init(name=>$Q->{node}); # load node info and Model if name exists
+	bailout(message => "Invalid arguments, missing node!") if (!$node);
+
+	my $S = Sys->new;
+	my $isok = $S->init(name => $node, snmp => 'false');
+	bailout(message => "Invalid arguments, could not load data for nonexistent node!") if (!$isok);
+
+	# verify that user is authorized to view the node within the user's group list
+	my $nodegroup = $S->ndinfo->{system}->{group};
+	if ($node && !$AU->InGroup($nodegroup))
+	{
+		bailout(code => 403,
+						message => escapeHTML("Not Authorized to export rrd data for node '$node' in group '$nodegroup'."));
+	}
+	elsif ($group && !$AU->InGroup($group))
+	{
+		bailout(code => 403,
+						message => escapeHTML("Not Authorized to export rrd data for nodes in group '$group'."));
+	}
+
+	# graphtypes for custom service graphs are fixed and not found in the model system
+	# note: format known here, in services.pl and nmis.pl
+	my $heading;
+	if ($graphtype =~ /^service-custom-([a-z0-9\.-])+-([a-z0-9\._-]+)$/)
+	{
+		$heading = $2;
+	}
+	else
+	{
+		# fixme: really group in item???
+		$heading = $S->graphHeading(graphtype=>$graphtype, index=>$intf, item=>$group);
+	}
+	$heading = escapeHTML($heading);
+
+	# headers, html setup, form
+	print header($headeropts),
+	start_html(-title => "Export Options for Graph $heading - $C->{server_name}",
+						 -head => [
+								Link({-rel=>'shortcut icon',-type=>'image/x-icon',-href=>"$C->{'nmis_favicon'}"}),
+								Link({-rel=>'stylesheet',-type=>'text/css',-href=>"$C->{'styles'}"}),
+						 ],
+						 -script => {-src => $C->{'jquery'}, -type=>"text/javascript"},),
+
+								# this form should post. we don't want anything in the url.
+								start_form( -name => 'exportopts',
+														-action => url(-absolute => 1)),
+								hidden(-name => 'act', -default => 'network_export', -override => 1),
+								# not selectable: node/group, graphtype, item/intf
+								hidden(-name => "node", -default => $node, -override => 1),
+								hidden(-name => "group", -default => $group, -override => 1),
+								hidden(-name => "graphtype", -default => $graphtype, -override => 1),
+								hidden(-name => "item", -default => $item, -override => 1),
+								hidden(-name => "intf", -default => $intf, -override => 1);
+
+	# figure out how to label the selector/index/intf properties
+	my %sshealth = get_graphtype_systemhealth(sys => $S, graphtype => $graphtype);
+	my %graphtype2itemname = ( metrics => 'Group',
+														 hrsmpcpu => 'Cpu',
+														 ( map { ($_ => "Service") } (qw(service service-cpumem service-response))),
+														 hrdisk => 'Disk',
+														 ( map { ($_ => 'Sensor') } (qw(env_temp akcp_temp akcp_hum csscontent))),
+														 cssgroup => 'Group',
+														 nmis => undef); # no item label is shown
+
+	print qq|<table><tr><th class='title' colspan='2'>Export Options for Graph "$heading"</th></tr>|;
+
+	my $label = $graphtype2itemname{$graphtype};
+	$label //= $sshealth{labels}->{$graphtype} if ($sshealth{is_systemhealth});
+	$label //= "Interface";
+
+	my $property = ( $graphtype eq "nmis"? undef
+									 : $graphtype eq "metrics"? $group : $intf );
+
+	print qq|<tr><td class="header">Node</td><td>|.escapeHTML($node).qq|</td></tr>|
+			if ($graphtype ne "nmis" && $graphtype ne "metrics");
+	if (defined $property)
+	{
+		print qq|<tr><td class="header">$label</td><td>|.escapeHTML($property).qq|</td></tr>|;
+	}
+
+	my $graphhours =$C->{graph_amount};
+	$graphhours *= 24 if ($C->{graph_unit} eq "days");
+
+	my $date_start = returnDateStamp( time - $graphhours*3600);
+	my $date_end = returnDateStamp(time);
+
+	print qq|<tr><td class='header'>Start</td><td>|
+			. textfield(-name=>"date_start", -override=>1, -value=> $date_start, size=>'23', tabindex=>"1")
+			. qq|</td></tr><tr><td class='header'>End</td><td>|
+			. textfield(-name=>"date_end", -override=>1, -value=> $date_end, size=>'23', tabindex=>"2")
+			. qq|</td></tr>|;
+
+
+	# make a dropdown list for export summarisation options
+	my @options = ref($C->{export_summarisation_periods}) eq "ARRAY"?
+			@{$C->{export_summarisation_periods}}: ( 300, 900, 1800, 3600, 4*3600 );
+	my %labels = ( '' => "best", map { ($_=> func::period_friendly($_)) } (@options));
+
+	print qq|<tr><td class='header'>Resolution</td><td>Select one of |
+			. popup_menu(-name => "resolution",
+									 -id => "exportres",
+									 -values => [ '', @options ],
+									 -override => 1,
+									 -labels => \%labels, )
+			# also add an input field for a one-off text input
+			. qq| or enter |
+			.textfield(-name => "custom_resolution",
+								 -id => "exportrescustom",
+								 -override => 1,
+								 -placeholder => "NNN",
+								 -size => 6	)
+			. qq| seconds </td></tr>|;
+
+	print  qq|<tr><td class='header' colspan='2' align='center'>|
+			. hidden(-name => 'cancel', -id => 'cancelinput', -default => '', -override => 1)
+			. submit( -value=>'Export')
+			.qq| or <input name="cancel" type='button' value="Cancel" onclick="\$('#cancelinput').val(1); this.form.submit()"></td></tr></table>|;
+}
+
+
+# exports the underlying data for a particular graph as csv,
+# optionally further bucketised into fewer readings
+# params: node (or group?), graphtype, intf/item, start/end (or date_start/date_end),
+# resolution (optional; default or blank, zero: use best resolution),
+# also custom_resolution (optional, if present overrides resolution)
+sub typeExport
+{
+	my $S = Sys->new; # get system object
+	$S->init(name => $Q->{node}, snmp => 'false');
 	my $NI = $S->ndinfo;
 	my $IF = $S->ifinfo;
 
@@ -637,51 +760,64 @@ sub typeExport {
 	my $database;
 	my $extName;
 
- 	# verify access to this command/tool bar/button
-	#
-	if ( $AU->Require ) {
-		# CheckAccess will throw up a web page and stop if access is not allowed
-		# $AU->CheckAccess("") or die "Attempted unauthorized access";
-		if ( ! $AU->User ) {
-			do_force_login("Authentication is required to access this function. Please login.");
-			exit 0;
-		}
-	}
-
 	# verify that user is authorized to view the node within the user's group list
-	#
-	if ( $Q->{node} ) {
-		if ( ! $AU->InGroup($NT->{$Q->{node}}{group}) ) {
-			print "Not Authorized to export rrd data on node '$Q->{node}' in group '$NT->{$Q->{node}}{group}'.","grey";
-			return 0;
-		}
-	} elsif ( $Q->{group} ) {
-		if ( ! $AU->InGroup($Q->{group}) ) {
-			print "Not Authorized to export rrd data on nodes in group '$Q->{group}'.","grey";
-			return 0;
-		}
+	if ($Q->{node} && !$AU->InGroup($NT->{$Q->{node}}{group}))
+	{
+		bailout(code => 403, message => "Not Authorized to export rrd data for node '$Q->{node}' in group '$NT->{$Q->{node}}{group}'.");
+	} elsif ( $Q->{group} && !$AU->InGroup($Q->{group}))
+	{
+		bailout(code => 403, message => "Not Authorized to export rrd data for nodes in group '$Q->{group}'.");
 	}
 
-	my ($statval,$head) = getRRDasHash(sys=>$S,graphtype=>$Q->{graphtype},mode=>"AVERAGE",start=>$Q->{start},end=>$Q->{end},index=>$Q->{intf},item=>$Q->{item});
-	my $filename = "$Q->{node}"."-"."$Q->{graphtype}";
-	if ( $Q->{node} eq "" ) { $filename = "$Q->{group}-$Q->{graphtype}" }
-	print "Content-type: text/csv;\n";
-	print "Content-Disposition: attachment; filename=$filename.csv\n\n";
+	# figure out start and end
+	my ($start, $end) = @{$Q}{"start","end"};
+	$start //= func::parseDateTime($Q->{date_start}) || func::getUnixTime($Q->{date_start}) if ($Q->{date_start});
+	$end //= func::parseDateTime($Q->{date_end}) || func::getUnixTime($Q->{date_end}) if ($Q->{date_end});
 
-	# print header line first - expectation is that w/o ds list/header there's also no data.
+	my $mayberesolution = ( defined($Q->{custom_resolution}) && $Q->{custom_resolution} =~ /^\d+$/?
+													$Q->{custom_resolution}
+													: defined($Q->{resolution})
+													&& $Q->{resolution} =~ /^\d+$/
+													&& $Q->{resolution} != 0?
+													$Q->{resolution}: undef );
+
+	my ($statval,$head,$meta) = getRRDasHash(sys=>$S,
+																					 graphtype=>$Q->{graphtype},
+																					 index=>$Q->{intf},item=>$Q->{item},
+																					 mode=>"AVERAGE",
+																					 start => $start,
+																					 end => $end,
+																					 resolution => $mayberesolution);
+
+	bailout(message => "Failed to retrieve RRD data: $meta->{error}\n") if ($meta->{error});
+
+	# no data? complain, don't produce an empty csv
+	bailout(message => "No exportable data found!") if (!keys %$statval or !$meta->{rows_with_data});
+
+	my $filename = ($Q->{node} || $Q->{group})."-$Q->{graphtype}.csv";
+	$headeropts->{type} = "text/csv";
+	$headeropts->{"Content-Disposition"} = "attachment; filename=\"$filename\"";
+
+	print header($headeropts);
+
+	my $csv = Text::CSV->new;
+	# header line, then the goodies
 	if (ref($head) eq "ARRAY" && @$head)
 	{
-		print join("\t", @$head)."\n";
+		$csv->combine(@$head);
+		print $csv->string,"\n";
+	}
 
-		# print any row that has at least one reading with known ds/header name
-		foreach my $rtime (sort keys %{$statval})
+	# print any row that has at least one reading with known ds/header name
+	foreach my $rtime (sort keys %{$statval})
+	{
+		if ( List::Util::any { defined $statval->{$rtime}->{$_} } (@$head) )
 		{
-			if ( List::Util::any { defined $statval->{$rtime}->{$_} } (@$head) )
-			{
-				print join("\t", map { $statval->{$rtime}->{$_} } (@$head))."\n";
-			}
+			$csv->combine(map { $statval->{$rtime}->{$_} } (@$head));
+			print $csv->string,"\n";
 		}
 	}
+	exit 0;
 }
 
 sub typeStats {
@@ -703,8 +839,9 @@ sub typeStats {
 			'Expires' => -1
 			},
 		-head=>[
-			Link({-rel=>'stylesheet',-type=>'text/css',-href=>"$C->{'<menu_url_base>'}/css/dash8.css"})
-			]
+			 Link({-rel=>'stylesheet',-type=>'text/css',-href=>"$C->{'styles'}"}),
+		],
+		-script => {-src => $C->{'jquery'}, -type=>"text/javascript"},
 		);
 
 	# verify access to this command/tool bar/button
@@ -773,4 +910,50 @@ sub typeStats {
 
 	print end_table,end_html;
 
+}
+
+# determine if the given graphtype belongs to systemhealth-modelled section,
+# and if so, look up the labels
+# args: sys object, graphtype
+# returns: hash of is_systemhealth, section, header, title, labels (hashref)
+sub get_graphtype_systemhealth
+{
+	my (%args) = @_;
+
+	my ($S,$graphtype) = @args{"sys","graphtype"};
+	my $NI = $S->ndinfo;
+	my $M = $S->mdl;
+
+	my %result = ( is_systemhealth => 0 );
+
+	for my $index (keys %{$NI->{graphtype}})
+	{
+		my $thisgt = $NI->{graphtype}->{$index};
+		next if (ref($thisgt) ne "HASH");
+
+		for my $gtype (keys %{$thisgt})
+		{
+			if ( $thisgt->{$gtype} =~ /$graphtype/ # fixme: not equality?
+					 and exists $M->{systemHealth}->{rrd}->{$gtype} )
+			{
+				$result{is_systemhealth} = 1;
+				$result{section} = $gtype;
+				my $mdlsection = $M->{systemHealth}->{sys}->{$gtype};
+
+				$result{header} = $mdlsection->{headers};
+				$result{header} =~ s/,.*$//;
+				$result{title} = $result{header};
+
+				if (exists $mdlsection->{snmp}->{ $result{header} }->{title}
+						and $mdlsection->{snmp}->{ $result{header} }->{title} ne "")
+				{
+					$result{title} =  $mdlsection->{snmp}->{ $result{header} }->{title};
+				}
+
+				$result{labels} = { map { ($_ => $NI->{$gtype}->{$_}->{ $result{header} }) } (keys %{$NI->{$gtype}}) };
+				return %result;
+			}
+		}
+	}
+	return %result;
 }

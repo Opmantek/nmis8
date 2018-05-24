@@ -5403,8 +5403,7 @@ hrSWRunType hrSWRunPerfCPU hrSWRunPerfMem))
 
 		info("Checking service name=$name type=$servicetype service_name=$servicename");
 
-		# clear global hash each time around as this is used to pass results to rrd update
-		my $ret = 0;
+		my $ret = 0;								# 0 means bad, service down
 		my $snmpdown = 0;
 
 		# record the service response time, more precisely the time it takes us testing the service
@@ -5419,71 +5418,84 @@ hrSWRunType hrSWRunPerfCPU hrSWRunPerfMem))
 			my $lookfor = $servicename;
 
 			if (!$lookfor) {
-				dbg("Service_Name for service $service must be a FQDN or IP address");
-				logMsg("ERROR, ($NI->{system}{name}) Service_name for service=$service must be a FQDN or IP address");
-				next;
-			}
-			my $res = Net::DNS::Resolver->new;
-			$res->nameserver($NI->{system}{host});
-			$res->udp_timeout(10);						# don't waste more than 10s on dud dns
-			$res->usevc(0);										# force to udp (default)
-			$res->debug(1) if $C->{debug} >3;	# set this to 1 for debug
-
-			my $packet = $res->search($lookfor); # resolver figures out what to look for
-			if (!defined $packet)
-			{
-					$ret = 0;
-					dbg("ERROR Unable to lookup $lookfor on DNS server $NI->{system}{host}");
+				logMsg("ERROR, ($NI->{system}{name}) misconfigured: Service_name for service=$service must be a FQDN or IP address");
+				$status{$service}->{status_text} = "Service misconfigured: Service_name must be a FQDN or IP address";
+				$ret = 0;
 			}
 			else
 			{
+				my $res = Net::DNS::Resolver->new;
+				$res->nameserver($NI->{system}{host});
+				$res->udp_timeout(10);						# don't waste more than 10s on dud dns
+				$res->usevc(0);										# force to udp (default)
+				$res->debug(1) if $C->{debug} >3;	# set this to 1 for debug
+
+				my $packet = $res->search($lookfor); # resolver figures out what to look for
+				if (!defined $packet)
+				{
+					$ret = 0;
+					dbg("ERROR Unable to lookup $lookfor on DNS server $NI->{system}{host}");
+				}
+				else
+				{
 					$ret = 1;
 					dbg("DNS data for $lookfor from $NI->{system}{host} was ".$packet->string);
+				}
 			}
-		} # end DNS
+		}
 
 		# now the 'port' service checks, which rely on nmap
 		# - tcp would be easy enough to do with a plain connect, but udp accessible-or-closed needs extra smarts
 		elsif ( $servicetype eq "port" )
 		{
-			my ( $scan, $port) = split ':' , $thisservice->{Port};
-
-			my $nmap = ( $scan =~ /^udp$/i ? "nmap -sU --host_timeout 3000 -p $port -oG - $NI->{system}{host}"
-									 : "nmap -sT --host_timeout 3000 -p $port -oG - $NI->{system}{host}" );
-			# fork and read from pipe
-			my $pid = open(NMAP, "$nmap 2>&1 |");
-			if (!defined $pid)
+			if ($thisservice->{Port} !~ /^(tcp|udp):\d+$/i)
 			{
-				my $errmsg = "ERROR, Cannot fork to execute nmap: $!";
-				logMsg($errmsg);
-				info($errmsg);
-			}
-			my $nmap_out = join("", <NMAP>);
-			close(NMAP);
-
-			my $exitcode = $?;
-			# if the pipe close doesn't wait until the child is gone (which it may do...)
-			# then wait and collect explicitely
-			if (waitpid($pid,0) == $pid)
-			{
-				$exitcode = $?;
-			}
-			if ($exitcode)
-			{
-				logMsg("ERROR, NMAP ($nmap) returned exitcode ".($exitcode >> 8). " (raw $exitcode)");
-				info("$nmap returned exitcode ".($exitcode >> 8). " (raw $exitcode)");
-			}
-			if ($nmap_out =~ /Ports: $port\/open/)
-			{
-				$ret = 1;
-				info("NMAP reported success for port $port: $nmap_out");
-				logMsg("INFO, NMAP reported success for port $port: $nmap_out") if ($C->{debug} or $C->{info});
+				logMsg("ERROR, ($NI->{system}{name}) misconfigured: Port for service=$service must be tcp:<port> or udp:<port>!");
+				$status{$service}->{status_text} = "Service misconfigured: Port must be tcp:<port> or udp:<port>!";
+				$ret = 0;
 			}
 			else
 			{
-				$ret = 0;
-				info("NMAP reported failure for port $port: $nmap_out");
-				logMsg("INFO, NMAP reported failure for port $port: $nmap_out") if ($C->{debug} or $C->{info});
+				my ( $scan, $port) = split ':' , $thisservice->{Port};
+
+
+				my $nmap = ( $scan =~ /^udp$/i ? "nmap -sU --host_timeout 3000 -p $port -oG - $NI->{system}{host}"
+										 : "nmap -sT --host_timeout 3000 -p $port -oG - $NI->{system}{host}" );
+				# fork and read from pipe
+				my $pid = open(NMAP, "$nmap 2>&1 |");
+				if (!defined $pid)
+				{
+					my $errmsg = "ERROR, Cannot fork to execute nmap: $!";
+					logMsg($errmsg);
+					info($errmsg);
+				}
+				my $nmap_out = join("", <NMAP>);
+				close(NMAP);
+
+				my $exitcode = $?;
+				# if the pipe close doesn't wait until the child is gone (which it may do...)
+				# then wait and collect explicitely
+				if (waitpid($pid,0) == $pid)
+				{
+					$exitcode = $?;
+				}
+				if ($exitcode)
+				{
+					logMsg("ERROR, NMAP ($nmap) returned exitcode ".($exitcode >> 8). " (raw $exitcode)");
+					info("$nmap returned exitcode ".($exitcode >> 8). " (raw $exitcode)");
+				}
+				if ($nmap_out =~ /Ports: $port\/open/)
+				{
+					$ret = 1;
+					info("NMAP reported success for port $port: $nmap_out");
+					logMsg("INFO, NMAP reported success for port $port: $nmap_out") if ($C->{debug} or $C->{info});
+				}
+				else
+				{
+					$ret = 0;
+					info("NMAP reported failure for port $port: $nmap_out");
+					logMsg("INFO, NMAP reported failure for port $port: $nmap_out") if ($C->{debug} or $C->{info});
+				}
 			}
 		}
 		# now the snmp services - but only if snmp is on
@@ -5505,60 +5517,63 @@ hrSWRunType hrSWRunPerfCPU hrSWRunPerfMem))
 
 				if (!$wantedprocname and !$parametercheck)
 				{
-					dbg("ERROR, Both Service_Name and Service_Parameters are empty");
-					logMsg("ERROR, ($NI->{system}{name}) service=$service Service_Name and Service_Parameters are empty!");
-					next;
-				}
-				# one of the two blank is ok
-				$wantedprocname ||= ".*";
-				$parametercheck ||= ".*";
-
-				# lets check the service status from snmp for matching process(es)
-				# it's common to have multiple processes with the same name on a system,
-				# heuristic: one or more living processes -> service is ok,
-				# no living ones -> down.
-				# living in terms of host-resources mib = runnable or running;
-				# interpretation of notrunnable is not clear.
-				# invalid is for (short-lived) zombies, which should be ignored.
-
-				# we check: the process name, against regex from Service_Name definition,
-				# AND the process path + parameters, against regex from Service_Parameters
-				# services list is keyed by "name:pid"
-				my @matchingpids = grep((/^$wantedprocname:\d+$/
-																 && ($services{$_}->{hrSWRunPath}." ".
-																		 $services{$_}->{hrSWRunParameters}) =~ /$parametercheck/), keys %services);
-
-				my @livingpids = grep ($services{$_}->{hrSWRunStatus} =~ /^(running|runnable)$/i,
-														 @matchingpids);
-
-				dbg("runServices: found ".scalar(@matchingpids)." total and "
-						.scalar(@livingpids). " live processes for process '$wantedprocname', parameters '$parametercheck', live processes: " .join(" ", map { /^$wantedprocname:(\d+)/ && $1 } (@livingpids)));
-
-				if (!@livingpids)
-				{
+					logMsg("ERROR, ($NI->{system}{name}) misconfigured: Service_Name and Service_Parameters are empty for service=$service !");
+					$status{$service}->{status_text} = "Service misconfigured: Service_Name and Service_Parameters are empty!";
 					$ret = 0;
-					$cpu = 0;
-					$memory = 0;
-					$gotMemCpu = 1;
-					logMsg("INFO, service $name is down, "
-								 .(@matchingpids? "only non-running processes"
-									 : "no matching processes"));
 				}
 				else
 				{
-					# return the average values for cpu and mem
-					$ret = 1;
-					$gotMemCpu = 1;
+					# one of the two blank is ok
+					$wantedprocname ||= ".*";
+					$parametercheck ||= ".*";
 
-					# cpu is in centiseconds, and a running counter. rrdtool wants integers for counters.
-					# memory is in kb, and a gauge.
-					$cpu = int(mean( map { $services{$_}->{hrSWRunPerfCPU} } (@livingpids) ));
-					$memory = mean( map { $services{$_}->{hrSWRunPerfMem} } (@livingpids) );
+					# lets check the service status from snmp for matching process(es)
+					# it's common to have multiple processes with the same name on a system,
+					# heuristic: one or more living processes -> service is ok,
+					# no living ones -> down.
+					# living in terms of host-resources mib = runnable or running;
+					# interpretation of notrunnable is not clear.
+					# invalid is for (short-lived) zombies, which should be ignored.
 
-#					dbg("cpu: ".join(" + ",map { $services{$_}->{hrSWRunPerfCPU} } (@livingpids)) ." = $cpu");
-#					dbg("memory: ".join(" + ",map { $services{$_}->{hrSWRunPerfMem} } (@livingpids)) ." = $memory");
+					# we check: the process name, against regex from Service_Name definition,
+					# AND the process path + parameters, against regex from Service_Parameters
+					# services list is keyed by "name:pid"
+					my @matchingpids = grep((/^$wantedprocname:\d+$/
+																	 && ($services{$_}->{hrSWRunPath}." ".
+																			 $services{$_}->{hrSWRunParameters}) =~ /$parametercheck/), keys %services);
 
-					info("INFO, service $name is up, ".scalar(@livingpids)." running process(es)");
+					my @livingpids = grep ($services{$_}->{hrSWRunStatus} =~ /^(running|runnable)$/i,
+																 @matchingpids);
+
+					dbg("runServices: found ".scalar(@matchingpids)." total and "
+							.scalar(@livingpids). " live processes for process '$wantedprocname', parameters '$parametercheck', live processes: " .join(" ", map { /^$wantedprocname:(\d+)/ && $1 } (@livingpids)));
+
+					if (!@livingpids)
+					{
+						$ret = 0;
+						$cpu = 0;
+						$memory = 0;
+						$gotMemCpu = 1;
+						logMsg("INFO, service $name is down, "
+									 .(@matchingpids? "only non-running processes"
+										 : "no matching processes"));
+					}
+					else
+					{
+						# return the average values for cpu and mem
+						$ret = 1;
+						$gotMemCpu = 1;
+
+						# cpu is in centiseconds, and a running counter. rrdtool wants integers for counters.
+						# memory is in kb, and a gauge.
+						$cpu = int(mean( map { $services{$_}->{hrSWRunPerfCPU} } (@livingpids) ));
+						$memory = mean( map { $services{$_}->{hrSWRunPerfMem} } (@livingpids) );
+
+						#					dbg("cpu: ".join(" + ",map { $services{$_}->{hrSWRunPerfCPU} } (@livingpids)) ." = $cpu");
+						#					dbg("memory: ".join(" + ",map { $services{$_}->{hrSWRunPerfMem} } (@livingpids)) ." = $memory");
+
+						info("INFO, service $name is up, ".scalar(@livingpids)." running process(es)");
+					}
 				}
 			}
 			else {
@@ -5574,7 +5589,10 @@ hrSWRunType hrSWRunPerfCPU hrSWRunPerfMem))
 			my $scriptfn = "$C->{script_root}/". $servicename || $service;
 			if (!open(F, $scriptfn))
 			{
-				dbg("ERROR, can't open script file for $service: $!");
+				my $cause = $!;
+				logMsg("ERROR, ($NI->{system}{name}) misconfigured: cannot open script file $scriptfn for service=$service: $cause");
+				$status{$service}->{status_text} = "Service misconfigured: cannot open script file $scriptfn: $cause";
+				$ret = 0;
 			}
 			else
 			{
@@ -5599,219 +5617,220 @@ hrSWRunType hrSWRunPerfCPU hrSWRunPerfMem))
 			$ret = 0;
 			if (!$thisservice->{Program} or !-x $thisservice->{Program})
 			{
-				info("ERROR, service $service defined with no working Program to run!");
-				logMsg("ERROR service $service defined with no working Program to run!");
-				next;
-			}
-
-			# exit codes and output handling differ
-			my $flavour_nagios = ($servicetype eq "nagios-plugin");
-
-			# check the arguments (if given), substitute node.XYZ values
-			my $finalargs;
-			if ($thisservice->{Args})
-			{
-				$finalargs = $thisservice->{Args};
-				# don't touch anything AFTER a node.xyz, and only subst if node.xyz is the first/only thing,
-				# or if there's a nonword char before node.xyz.
-				$finalargs =~ s/(^|\W)(node\.([a-zA-Z0-9_-]+))/$1$NI->{system}{$3}/g;
-				dbg("external program args were $thisservice->{Args}, now $finalargs");
-			}
-
-			my $programexit = 0;
-			# save and restore any previously running alarm,
-			# but don't bother subtracting the time spent here
-			my $remaining = alarm(0);
-			dbg("saving running alarm, $remaining seconds remaining");
-			my $pid;
-
-			# good enough, no atomic open required - removed after eval
-			my $stderrsink = File::Temp::mktemp(File::Spec->tmpdir()."/nmis.XXXXXX");
-			eval
-			{
-				my @responses;
-				my $svcruntime = defined($thisservice->{Max_Runtime}) && $thisservice->{Max_Runtime} > 0?
-						$thisservice->{Max_Runtime} : 0;
-
-				local $SIG{ALRM} = sub { die "alarm\n"; };
-				alarm($svcruntime) if ($svcruntime); # setup execution timeout
-
-				# run given program with given arguments and possibly read from it
-				# program is disconnected from stdin; stderr goes into a tmpfile
-				# and is collected separately for diagnostics
-
-				dbg("running external program '$thisservice->{Program} $finalargs', "
-						.(getbool($thisservice->{Collect_Output})? "collecting":"ignoring")." output");
-				$pid = open(PRG,"$thisservice->{Program} $finalargs </dev/null 2>$stderrsink |");
-				if (!$pid)
-				{
-					alarm(0) if ($svcruntime); # cancel any timeout
-					info("ERROR, cannot start service program $thisservice->{Program}: $!");
-					logMsg("ERROR: cannot start service program $thisservice->{Program}: $!");
-				}
-				else
-				{
-					@responses = <PRG>; # always check for output but discard it if not required
-					close PRG;
-					$programexit = $?;
-					alarm(0) if ($svcruntime); # cancel any timeout
-
-					dbg("service exit code is ". ($programexit>>8));
-
-					# consume and warn about any stderr-output
-					if (-f $stderrsink && -s $stderrsink)
-					{
-						open(UNWANTED, $stderrsink);
-						my $badstuff = join("", <UNWANTED>);
-						chomp($badstuff);
-						logMsg("WARNING: Service program $thisservice->{Program} returned unexpected error output: \"$badstuff\"");
-						info("Service program $thisservice->{Program} returned unexpected error output: \"$badstuff\"");
-						close(UNWANTED);
-					}
-
-					if (getbool($thisservice->{Collect_Output}))
-					{
-						# nagios has two modes of output *sigh*, |-as-newline separator and real newlines
-						# https://nagios-plugins.org/doc/guidelines.html#PLUGOUTPUT
-						if ($flavour_nagios)
-						{
-							# ditch any whitespace around the |
-							my @expandedresponses = map { split /\s*\|\s*/ } (@responses);
-
-							@responses = ($expandedresponses[0]); # start with the first line, as is
-							# in addition to the | mode, any subsequent lines can carry any number of
-							# 'performance measurements', which are hard to parse out thanks to a fairly lousy format
-							for my $perfline (@expandedresponses[1..$#expandedresponses])
-							{
-								while ($perfline =~ /([^=]+=\S+)\s*/g)
-								{
-									push @responses, $1;
-								}
-							}
-						}
-
-						# now determine how to save the values in question
-						for my $idx (0..$#responses)
-						{
-							my $response = $responses[$idx];
-							chomp $response;
-
-							# the first line is special; it sets the textual status
-							if ($idx == 0)
-							{
-								dbg("service status text is \"$response\"");
-								$status{$service}->{status_text} = $response;
-								next;
-							}
-
-							# normal expectation: values reported are unit-less, ready for final use
-							# expectation not guaranteed by nagios
-							my ($k,$v) = split(/=/,$response,2);
-							my $rescaledv;
-
-							if ($flavour_nagios)
-							{
-								# some nagios plugins report multiple metrics, e.g. the check_disk one
-								# but the format for passing performance data is pretty ugly
-								# https://nagios-plugins.org/doc/guidelines.html#AEN200
-
-								$k = $1 if ($k =~ /^'(.+)'$/); # nagios wants single quotes if a key has spaces
-
-								# a plugin can report levels for warning and crit thresholds
-								# and also optionally report possible min and max values;
-								my ($value_with_unit, $lwarn, $lcrit, $lmin, $lmax) = split(/;/, $v, 5);
-
-								# any of those could be set to zero
-								if (defined $lwarn or defined $lcrit or defined $lmin or defined $lmax)
-								{
-									$status{$service}->{limits}->{$k} = { warning => $lwarn, critical => $lcrit,
-																												min => $lmin, max => $lmax };
-								}
-
-								# units: s,us,ms = seconds, % percentage, B,KB,MB,TB bytes, c a counter
-								# negative values are possible, e.g. ntp offset...
-								if ($value_with_unit =~ /^([0-9\.-]+)(s|ms|us|%|B|KB|MB|GB|TB|c)$/)
-								{
-									my ($numericval,$unit) = ($1,$2);
-									dbg("performance data for label '$k': raw value '$value_with_unit'");
-
-									$status{$service}->{units}->{$k} = $unit; # keep track of the input unit
-									$v = $numericval;
-
-									# massage the value into a number for rrd
-									my %factors = ( 'ms' => 1e-3, 'us' => 1e-6,
-																	'KB' => 1e3, 'MB' => 1e6, 'GB' => 1e9, 'TB' => 1e12); # decimal here
-									$rescaledv = $v * $factors{$unit} if (defined $factors{$unit});
-								}
-							}
- 							dbg("collected response '$k' value '$v'".(defined $rescaledv? " rescaled '$rescaledv'":""));
-
-							# for rrd storage, but only numeric values can be stored!
-							# k needs sanitizing for rrd: only a-z0-9_ allowed
-							my $rrdsafekey = $k;
-							$rrdsafekey =~ s/[^a-zA-Z0-9_]/_/g;
-							$rrdsafekey = substr($rrdsafekey,0,19);
-							$Val{$rrdsafekey} = { value => defined($rescaledv)? $rescaledv : $v,
-																		option => "GAUGE,U:U,$serviceheartbeat" };
-							# record the relationship between extra readings and the DS names they're stored under
-							$status{$service}->{ds}->{$k} = $rrdsafekey;
-
-							if ($k eq "responsetime") # response time is handled specially
-							{
-								$responsetime = $v;
-							}
-							else
-							{
-								$status{$service}->{extra}->{$k} = $v;
-							}
-
-						}
-					}
-				}
-			};
-			unlink($stderrsink);
-
-			if ($@ and $@ eq "alarm\n")
-			{
-				kill('TERM', $pid);							# get rid of the service tester, it ran over time...
-				info("ERROR, service program $thisservice->{Program} exceeded Max_Runtime of $thisservice->{Max_Runtime}s, terminated.");
-				logMsg("ERROR: service program $thisservice->{Program} exceeded Max_Runtime of $thisservice->{Max_Runtime}s, terminated.");
-				$ret=0;
-				kill("KILL",$pid);
+				logMsg("ERROR, ($NI->{system}{name}) misconfigured: service=$service but no working Program to run!");
+				$status{$service}->{status_text} = "Service misconfigured: no working Program to run!";
 			}
 			else
 			{
-				# now translate the exit code into a service value (0 dead .. 100 perfect)
-				# if the external program died abnormally we treat this as 0=dead.
-				if (WIFEXITED($programexit))
+				# exit codes and output handling differ
+				my $flavour_nagios = ($servicetype eq "nagios-plugin");
+
+				# check the arguments (if given), substitute node.XYZ values
+				my $finalargs;
+				if ($thisservice->{Args})
 				{
-					$programexit = WEXITSTATUS($programexit);
-					dbg("external program terminated with exit code $programexit");
+					$finalargs = $thisservice->{Args};
+					# don't touch anything AFTER a node.xyz, and only subst if node.xyz is the first/only thing,
+					# or if there's a nonword char before node.xyz.
+					$finalargs =~ s/(^|\W)(node\.([a-zA-Z0-9_-]+))/$1$NI->{system}{$3}/g;
+					dbg("external program args were $thisservice->{Args}, now $finalargs");
+				}
 
+				my $programexit = 0;
+				# save and restore any previously running alarm,
+				# but don't bother subtracting the time spent here
+				my $remaining = alarm(0);
+				dbg("saving running alarm, $remaining seconds remaining");
+				my $pid;
 
-					# nagios knows four states: 0 ok, 1 warning, 2 critical, 3 unknown
-					# we'll map those to 100, 50 and 0 for everything else.
-					if ($flavour_nagios)
+				# good enough, no atomic open required - removed after eval
+				my $stderrsink = File::Temp::mktemp(File::Spec->tmpdir()."/nmis.XXXXXX");
+				eval
+				{
+					my @responses;
+					my $svcruntime = defined($thisservice->{Max_Runtime}) && $thisservice->{Max_Runtime} > 0?
+							$thisservice->{Max_Runtime} : 0;
+
+					local $SIG{ALRM} = sub { die "alarm\n"; };
+					alarm($svcruntime) if ($svcruntime); # setup execution timeout
+
+					# run given program with given arguments and possibly read from it
+					# program is disconnected from stdin; stderr goes into a tmpfile
+					# and is collected separately for diagnostics
+
+					dbg("running external program '$thisservice->{Program} $finalargs', "
+							.(getbool($thisservice->{Collect_Output})? "collecting":"ignoring")." output");
+					$pid = open(PRG,"$thisservice->{Program} $finalargs </dev/null 2>$stderrsink |");
+					if (!$pid)
 					{
-						$ret = $programexit == 0? 100: $programexit == 1? 50: 0;
+						alarm(0) if ($svcruntime); # cancel any timeout
+						info("ERROR, cannot start service program $thisservice->{Program}: $!");
+						logMsg("ERROR: cannot start service program $thisservice->{Program}: $!");
 					}
 					else
 					{
-						$ret = $programexit > 100? 100: $programexit;
+						@responses = <PRG>; # always check for output but discard it if not required
+						close PRG;
+						$programexit = $?;
+						alarm(0) if ($svcruntime); # cancel any timeout
+
+						dbg("service exit code is ". ($programexit>>8));
+
+						# consume and warn about any stderr-output
+						if (-f $stderrsink && -s $stderrsink)
+						{
+							open(UNWANTED, $stderrsink);
+							my $badstuff = join("", <UNWANTED>);
+							chomp($badstuff);
+							logMsg("WARNING: Service program $thisservice->{Program} returned unexpected error output: \"$badstuff\"");
+							info("Service program $thisservice->{Program} returned unexpected error output: \"$badstuff\"");
+							close(UNWANTED);
+						}
+
+						if (getbool($thisservice->{Collect_Output}))
+						{
+							# nagios has two modes of output *sigh*, |-as-newline separator and real newlines
+							# https://nagios-plugins.org/doc/guidelines.html#PLUGOUTPUT
+							if ($flavour_nagios)
+							{
+								# ditch any whitespace around the |
+								my @expandedresponses = map { split /\s*\|\s*/ } (@responses);
+
+								@responses = ($expandedresponses[0]); # start with the first line, as is
+								# in addition to the | mode, any subsequent lines can carry any number of
+								# 'performance measurements', which are hard to parse out thanks to a fairly lousy format
+								for my $perfline (@expandedresponses[1..$#expandedresponses])
+								{
+									while ($perfline =~ /([^=]+=\S+)\s*/g)
+									{
+										push @responses, $1;
+									}
+								}
+							}
+
+							# now determine how to save the values in question
+							for my $idx (0..$#responses)
+							{
+								my $response = $responses[$idx];
+								chomp $response;
+
+								# the first line is special; it sets the textual status
+								if ($idx == 0)
+								{
+									dbg("service status text is \"$response\"");
+									$status{$service}->{status_text} = $response;
+									next;
+								}
+
+								# normal expectation: values reported are unit-less, ready for final use
+								# expectation not guaranteed by nagios
+								my ($k,$v) = split(/=/,$response,2);
+								my $rescaledv;
+
+								if ($flavour_nagios)
+								{
+									# some nagios plugins report multiple metrics, e.g. the check_disk one
+									# but the format for passing performance data is pretty ugly
+									# https://nagios-plugins.org/doc/guidelines.html#AEN200
+
+									$k = $1 if ($k =~ /^'(.+)'$/); # nagios wants single quotes if a key has spaces
+
+									# a plugin can report levels for warning and crit thresholds
+									# and also optionally report possible min and max values;
+									my ($value_with_unit, $lwarn, $lcrit, $lmin, $lmax) = split(/;/, $v, 5);
+
+									# any of those could be set to zero
+									if (defined $lwarn or defined $lcrit or defined $lmin or defined $lmax)
+									{
+										$status{$service}->{limits}->{$k} = { warning => $lwarn, critical => $lcrit,
+																													min => $lmin, max => $lmax };
+									}
+
+									# units: s,us,ms = seconds, % percentage, B,KB,MB,TB bytes, c a counter
+									# negative values are possible, e.g. ntp offset...
+									if ($value_with_unit =~ /^([0-9\.-]+)(s|ms|us|%|B|KB|MB|GB|TB|c)$/)
+									{
+										my ($numericval,$unit) = ($1,$2);
+										dbg("performance data for label '$k': raw value '$value_with_unit'");
+
+										$status{$service}->{units}->{$k} = $unit; # keep track of the input unit
+										$v = $numericval;
+
+										# massage the value into a number for rrd
+										my %factors = ( 'ms' => 1e-3, 'us' => 1e-6,
+																		'KB' => 1e3, 'MB' => 1e6, 'GB' => 1e9, 'TB' => 1e12); # decimal here
+										$rescaledv = $v * $factors{$unit} if (defined $factors{$unit});
+									}
+								}
+								dbg("collected response '$k' value '$v'".(defined $rescaledv? " rescaled '$rescaledv'":""));
+
+								# for rrd storage, but only numeric values can be stored!
+								# k needs sanitizing for rrd: only a-z0-9_ allowed
+								my $rrdsafekey = $k;
+								$rrdsafekey =~ s/[^a-zA-Z0-9_]/_/g;
+								$rrdsafekey = substr($rrdsafekey,0,19);
+								$Val{$rrdsafekey} = { value => defined($rescaledv)? $rescaledv : $v,
+																			option => "GAUGE,U:U,$serviceheartbeat" };
+								# record the relationship between extra readings and the DS names they're stored under
+								$status{$service}->{ds}->{$k} = $rrdsafekey;
+
+								if ($k eq "responsetime") # response time is handled specially
+								{
+									$responsetime = $v;
+								}
+								else
+								{
+									$status{$service}->{extra}->{$k} = $v;
+								}
+
+							}
+						}
 					}
+				};
+				unlink($stderrsink);
+
+				if ($@ and $@ eq "alarm\n")
+				{
+					kill('TERM', $pid);							# get rid of the service tester, it ran over time...
+					info("ERROR, service program $thisservice->{Program} exceeded Max_Runtime of $thisservice->{Max_Runtime}s, terminated.");
+					logMsg("ERROR: service program $thisservice->{Program} exceeded Max_Runtime of $thisservice->{Max_Runtime}s, terminated.");
+					$ret=0;
+					kill("KILL",$pid);
 				}
 				else
 				{
-					logMsg("WARNING: service program $thisservice->{Program} terminated abnormally!");
-					$ret = 0;
+					# now translate the exit code into a service value (0 dead .. 100 perfect)
+					# if the external program died abnormally we treat this as 0=dead.
+					if (WIFEXITED($programexit))
+					{
+						$programexit = WEXITSTATUS($programexit);
+						dbg("external program terminated with exit code $programexit");
+
+
+						# nagios knows four states: 0 ok, 1 warning, 2 critical, 3 unknown
+						# we'll map those to 100, 50 and 0 for everything else.
+						if ($flavour_nagios)
+						{
+							$ret = $programexit == 0? 100: $programexit == 1? 50: 0;
+						}
+						else
+						{
+							$ret = $programexit > 100? 100: $programexit;
+						}
+					}
+					else
+					{
+						logMsg("WARNING: service program $thisservice->{Program} terminated abnormally!");
+						$ret = 0;
+					}
 				}
+				alarm($remaining) if ($remaining); # restore previously running alarm
+				dbg("restored alarm, $remaining seconds remaining");
 			}
-			alarm($remaining) if ($remaining); # restore previously running alarm
-			dbg("restored alarm, $remaining seconds remaining");
-		}														# end of program/nagios-plugin service type
+		}										# end of program/nagios-plugin service type
 		else
 		{
-			# no service type found
+			# no recognised service type found
 			logMsg("ERROR: skipping service $service, invalid service type!");
 			next;			# just do the next one - no alarms
 		}
