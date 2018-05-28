@@ -1458,8 +1458,8 @@ sub doCollect
 	return;
 }
 
-# normaly a daemon fpingd.pl is running permanently and stores ping result in var/nmis-fping.json
-# if node info missing then ping.pm is used
+# normaly a daemon fpingd.pl is running asynchronously and stores ping result in var/nmis-fping.json
+# if node info missing or too old then this function invokes ping::ext_ping() synchronously
 # returns: 1 if pingable, 0 otherwise
 sub runPing
 {
@@ -1485,26 +1485,40 @@ sub runPing
 
 	if (getbool($NC->{node}{ping}))
 	{
-		my ($PT, $didfallback);
-
+		my $PT;
+		my $mustinternal = 1;
 		my $staleafter = $C->{daemon_fping_maxage} || 900;
+
 		# use fastping info if available and not stale
 		if ( getbool($C->{daemon_fping_active})
-				 && ($PT = loadTable(dir=>'var',name=>'nmis-fping')) # cached
-				 && ref($PT->{$nodename}) eq "HASH"									 # record present
-				 && (time - $PT->{$nodename}->{lastping}) < $staleafter	 # and not stale, 15 minutes seems ample
-				)
+				 && ($PT = loadTable(dir=>'var',name=>'nmis-fping')) # cachable while not changing
+				 && ref($PT) eq "HASH")
 		{
-			# copy values
-			($ping_min, $ping_avg, $ping_max, $ping_loss) = @{$PT->{$nodename}}{"min","avg","max","loss"};
-			$pingresult = ($ping_loss < 100)? 100 : 0;
-			info("INFO ($nodename) PING min/avg/max = $ping_min/$ping_avg/$ping_max ms loss=$ping_loss%");
+			# for multihomed nodes there are two records to check, keyed nodename:N
+			my @tocheck = (defined $NC->{node}->{host_backup}?
+										 grep($_ =~ /^$nodename:\d$/, keys %$PT)
+										 : $nodename);
+			for my $onekey (@tocheck)
+			{
+				if (ref($PT->{$onekey}) eq "HASH"
+						&& (time - $PT->{$onekey}->{lastping}) < $staleafter)	 # and not stale, 15 minutes seems ample
+				{
+					# copy the fastping data...
+					($ping_min, $ping_avg, $ping_max, $ping_loss) = @{$PT->{$nodename}}{"min","avg","max","loss"};
+					$pingresult = ($ping_loss < 100)? 100 : 0;
+					info("INFO $nodename ($PT->{$onekey}->{ip}) PING min/avg/max = $ping_min/$ping_avg/$ping_max ms loss=$ping_loss%");
+					# ...but also try the fallback if the primary is unreachable
+					last if ($pingresult);
+				}
+			}
+
+			$mustinternal = !defined($pingresult); # nothing or nothing fresh found?
 		}
-		else
+
+		# fallback to synchronous/internal pinging
+		if ($mustinternal)
 		{
-			# fallback to OLD/internal system
-			$didfallback = 1;
-			# but warn about that only if not in update
+			# and warn about that, if not in type=update
 			logMsg("INFO ($nodename) using internal ping system, daemon fpingd had no or oudated information")
 					if (getbool($C->{daemon_fping_active})
 							and !getbool($S->{update})); # fixme: unclean access to internal property
@@ -1514,16 +1528,22 @@ sub runPing
 			my $packet = $C->{ping_packet} ? $C->{ping_packet} : 56 ;
 			my $host = $NC->{node}{host};			# ip name/adress of node
 
-			info("Starting internal ping of ($nodename = $host) with timeout=$timeout retries=$retries packet=$packet");
-
+			info("Starting internal ping of $nodename ($host) with timeout=$timeout retries=$retries packet=$packet");
 			( $ping_min, $ping_avg, $ping_max, $ping_loss) = ext_ping($host, $packet, $retries, $timeout );
 			$pingresult = defined $ping_min ? 100 : 0;		# ping_min is undef if unreachable.
+
+			if (!$pingresult && (my $fallback = $NC->{node}->{host_backup}))
+			{
+				info("Starting internal ping of $nodename, (backup address $fallback) with timeout=$timeout retries=$retries packet=$packet");
+				( $ping_min, $ping_avg, $ping_max, $ping_loss) = ext_ping($fallback, $packet, $retries, $timeout );
+				$pingresult = defined $ping_min ? 100 : 0;		# ping_min is undef if unreachable.
+			}
 		}
 		# at this point ping_{min,avg,max,loss} and pingresult are all set
 
 		# in the fpingd case all up/down events are handled by it, otherwise we need to do that here
 		# this includes the case of a faulty fpingd
-		if ($didfallback)
+		if ($mustinternal)
 		{
 			if ($pingresult)
 			{
