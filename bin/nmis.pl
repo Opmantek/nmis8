@@ -1910,19 +1910,22 @@ sub getNodeInfo
 		# override the sysLocation title to indicate that it is coming from SNMP sysLocation
 		$V->{system}{sysLocation_title} = 'SNMP Location';
 
-		# get the current ip address if the host property was a name
-		if ((my $addr = resolveDNStoAddr($NI->{system}{host})))
+		# get the current ip address if the host property was a name, ditto host_backup
+		for (["host","host_addr","IP Address"], ["host_backup", "host_addr_backup", "Backup IP Address"])
 		{
-			$NI->{system}{host_addr} = $addr; # cache it
-			$V->{system}{host_addr_value} = $addr;
-			$V->{system}{host_addr_value} .= " ($NI->{system}{host})" if ($addr ne $NI->{system}{host});
-			$V->{system}{host_addr_title} = 'IP Address';
-		}
-		else
-		{
-			$NI->{system}->{host_addr} = ''; # leave the system data clean...
-			$V->{system}{host_addr_value} = $NI->{system}{host}; # ...but give network.pl something to show
-			$V->{system}{host_addr_title} = 'IP Address';
+			my ($sourceprop, $targetprop, $title) = @$_;
+			$V->{system}->{"${targetprop}_title"} = $title;
+
+			if ((my $addr = resolveDNStoAddr($NI->{system}->{$sourceprop})))
+			{
+				$NI->{system}{$targetprop} = $V->{system}{"${targetprop}_value"} = $addr; # cache and display
+				$V->{system}{"${targetprop}_value"} .= " ($NI->{system}->{$sourceprop})" if ($addr ne $NI->{system}->{$sourceprop});
+			}
+			else
+			{
+				$NI->{system}->{$targetprop} = ''; # leave the system data clean...
+				$V->{system}{"${targetprop}_value"} = $NI->{system}->{$sourceprop}; # ...but give network.pl something to show
+			}
 		}
 	}
 	else

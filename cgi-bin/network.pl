@@ -1499,7 +1499,8 @@ EO_HTML
 		'status',
 		'outage',
 		'sysName',
-		,'host_addr'
+		'host_addr',
+		'host_addr_backup'
 		,'group'
 		,'customer'
 		,'location'
@@ -1624,7 +1625,7 @@ EO_HTML
 
 				my $value;
 				# get the value from the view if it one of the special ones, or only present there
-				if ( $k =~ /^(host_addr|lastUpdate|configurationState|configLastChanged|configLastSaved|bootConfigLastChanged)$/
+				if ( $k =~ /^(host_addr|host_addr_backup|lastUpdate|configurationState|configLastChanged|configLastSaved|bootConfigLastChanged)$/
 						 or not exists($NI->{system}{$k}) )
 				{
 					$value = $V->{system}{"${k}_value"};
@@ -1658,6 +1659,11 @@ EO_HTML
 						$value = "reachable";
 						$color = "#0F0";
 					}
+				}
+				# skip if not present
+				elsif ($k eq "host_addr_backup")
+				{
+					next if (!defined $value);
 				}
 				# from outageCheck, neither nodeinfo nor view
 				elsif ($k eq 'outage')
