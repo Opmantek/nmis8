@@ -1021,7 +1021,7 @@ sub doUpdate
 			elsif ($candosnmp && $S->status->{fallback})
 			{
 				notify(sys => $S,
-							 event => "Host Failover",
+							 event => "Node Polling Failover",
 							 element => undef,
 							 details => "SNMP Session switched to backup address \"$NC->{node}->{host_backup}\"",
 							 context => { type => "node" });
@@ -1030,8 +1030,8 @@ sub doUpdate
 			elsif ($candosnmp)
 			{
 				checkEvent(sys => $S,
-									 event => "Host Failover",
-									 upevent => "Host Failover Closed", # please log this
+									 event => "Node Polling Failover",
+									 upevent => "Node Polling Failover Closed", # please log it with this name
 									 element => undef,
 									 level => "Normal",
 									 details => "SNMP Session using primary address \"$NC->{node}->{host}\"");
@@ -1351,7 +1351,7 @@ sub doCollect
 			elsif ($candosnmp && $S->status->{fallback})
 			{
 				notify(sys => $S,
-							 event => "Host Failover",
+							 event => "Node Polling Failover",
 							 element => undef,
 							 details => "SNMP Session switched to backup address \"$NC->{node}->{host_backup}\"",
 							 context => { type => "node" });
@@ -1360,8 +1360,8 @@ sub doCollect
 			elsif ($candosnmp)
 			{
 				checkEvent(sys => $S,
-									 event => "Host Failover",
-									 upevent => "Host Failover Closed", # please log this
+									 event => "Node Polling Failover",
+									 upevent => "Node Polling Failover Closed", # please log it thusly
 									 element => undef,
 									 level => "Normal",
 									 details => "SNMP Session using primary address \"$NC->{node}->{host}\"");

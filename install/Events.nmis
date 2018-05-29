@@ -136,13 +136,13 @@
     'Description' => 'A redundant node pair has failed over, typically a Cisco PIX or ASA.',
   },
 
-  'Host Failover' => {
-    'Event' => 'Host Failover',
+  'Node Polling Failover' => {
+    'Event' => 'Node Polling Failover',
     'Notify' => 'true',
     'Status' => 'true',
     'Log' => 'true',
     'Stateful' => 'true',
-    'CancelingEvent' => 'Host Failover Closed',
+    'CancelingEvent' => 'Node Polling Failover Closed',
     'Description' => 'SNMP has failed over to the host_backup address.',
   },
 

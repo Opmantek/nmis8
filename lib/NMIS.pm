@@ -588,6 +588,7 @@ sub nodeStatus {
 	my $node_down = "Node Down";
 	my $snmp_down = "SNMP Down";
 	my $wmi_down_event = "WMI Down";
+	my $failover_event = "Node Polling Failover";
 
 	# ping disabled -> the WORSE one of snmp and wmi states is authoritative
 	if (getbool($NI->{system}{ping},"invert")
@@ -600,11 +601,13 @@ sub nodeStatus {
 	elsif ( eventExist($NI->{system}{name}, $node_down, "") ) {
 		$status = 0;
 	}
-	# ping enabled, pingable but dead snmp or dead wmi -> degraded
+	# ping enabled, pingable but dead snmp or dead wmi or failover'd -> degraded
 	# only applicable is collect eq true, handles SNMP Down incorrectness
 	elsif ( getbool($NI->{system}{collect}) and
 					( eventExist($NI->{system}{name}, $snmp_down, "")
-						or eventExist($NI->{system}{name}, $wmi_down_event, "")))
+						or eventExist($NI->{system}{name}, $wmi_down_event, "")
+						or eventExist($NI->{system}{name}, $failover_event, "")
+					))
 	{
 		$status = -1;
 	}
@@ -671,10 +674,12 @@ sub PreciseNodeStatus
 	{
 		$precise{overall} = 0;
 	}
-	# ping enabled, pingable but dead snmp or dead wmi -> degraded
+	# ping enabled, pingable but dead snmp or dead wmi or failover -> degraded
 	# only applicable is collect eq true, handles SNMP Down incorrectness
 	elsif ( ($precise{wmi_enabled} and !$precise{wmi_status})
-					or ($precise{snmp_enabled} and !$precise{snmp_status}) )
+					or ($precise{snmp_enabled} and !$precise{snmp_status})
+					or eventExist($nodename, "Node Polling Failover")
+			)
 	{
 		$precise{overall} = -1;
 	}
