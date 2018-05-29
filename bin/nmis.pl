@@ -1016,6 +1016,7 @@ sub doUpdate
 			{
 				logMsg("ERROR SNMP session open to $name failed: ".$S->status->{snmp_error});
 				$S->disable_source("snmp");
+				HandleNodeDown(sys => $S, type => "snmp", details => $S->status->{snmp_error});
 			}
 			# or did we have to fall back to the backup address for this node?
 			elsif ($candosnmp && $S->status->{fallback})
@@ -1036,6 +1037,7 @@ sub doUpdate
 									 level => "Normal",
 									 details => "SNMP Session using primary address \"$NC->{node}->{host}\"");
 			}
+			HandleNodeDown(sys => $S, type => "snmp", up => 1, details => "snmp ok") if ($candosnmp);
 		}
 
 		# this will try all enabled sources, 0 only if none worked
@@ -1346,6 +1348,7 @@ sub doCollect
 			{
 				logMsg("ERROR SNMP session open to $name failed: ".$S->status->{snmp_error});
 				$S->disable_source("snmp");
+				HandleNodeDown(sys => $S, type => "snmp", details => $S->status->{snmp_error});
 			}
 			# or did we have to fall back to the backup address for this node?
 			elsif ($candosnmp && $S->status->{fallback})
@@ -1366,6 +1369,7 @@ sub doCollect
 									 level => "Normal",
 									 details => "SNMP Session using primary address \"$NC->{node}->{host}\"");
 			}
+			HandleNodeDown(sys => $S, type => "snmp", up => 1, details => "snmp ok") if ($candosnmp);
 		}
 
 		# returns 1 if one or more sources have worked, also updates snmp/wmi down states in nodeinfo
