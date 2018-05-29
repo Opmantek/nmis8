@@ -1550,7 +1550,7 @@ sub runPing
 						&& (time - $PT->{$onekey}->{lastping}) < $staleafter)	 # and not stale, 15 minutes seems ample
 				{
 					# copy the fastping data...
-					($ping_min, $ping_avg, $ping_max, $ping_loss) = @{$PT->{$nodename}}{"min","avg","max","loss"};
+					($ping_min, $ping_avg, $ping_max, $ping_loss) = @{$PT->{$onekey}}{"min","avg","max","loss"};
 					$pingresult = ($ping_loss < 100)? 100 : 0;
 					info("INFO $nodename ($PT->{$onekey}->{ip}) PING min/avg/max = $ping_min/$ping_avg/$ping_max ms loss=$ping_loss%");
 					# ...but also try the fallback if the primary is unreachable
