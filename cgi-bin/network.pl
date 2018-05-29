@@ -1663,7 +1663,7 @@ EO_HTML
 				# skip if not present
 				elsif ($k eq "host_addr_backup")
 				{
-					next if (!defined $value);
+					next if (!defined $value or $value eq "");
 				}
 				# from outageCheck, neither nodeinfo nor view
 				elsif ($k eq 'outage')
