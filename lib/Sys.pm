@@ -68,6 +68,7 @@ sub new
 			error => undef,						# last internal error
 			wmi_error => undef,				# last wmi accessor error
 			snmp_error => undef,			# last snmp accessor error
+			fallback => undef,				# snmp session established but to backup address?
 
 			debug => 0,
 			update => 0,						 # flag for update vs collect operation - attention: read by others!
@@ -103,6 +104,7 @@ sub alerts	{ my $self = shift; return $self->{mdl}{alerts} };# my $CA = $S->aler
 # wmi_error is from wmi, undef if no wmi configured or not (yet) active or ok
 # wmi_enabled is 1 if the config was suitable for wmi and init() was called with wmi
 # snmp_enabled is 1 if config was suitable for snmp and init() was called with snmp
+# fallback is 1 iff all of: snmp is configured, host_backup property is given and session to primary address failed
 #
 # note: all info exept error is valid only AFTER init() was run
 sub status
@@ -113,6 +115,7 @@ sub status
 					 snmp_enabled => $self->{snmp}? 1 : 0,
 					 wmi_enabled => $self->{wmi}? 1 : 0,
 					 snmp_error => $self->{snmp_error},
+					 fallback => $self->{fallback},
 					 wmi_error => $self->{wmi_error} };
 }
 
@@ -404,12 +407,16 @@ sub wmi
 # and doesn't imply snmp works, just that it's configured
 sub snmp 	{ my $self = shift; return $self->{snmp} };
 
-# open snmp session based on host address
+# open snmp session based on host address, and test it end-to-end.
+# if a host_backup is configured, attempt to fall back to that if 
+# the primary address doesn't work.
 #
 # for max message size we try in order: host-specific value if set for this host,
 # what is given as argument or default 1472. argument is expected to reflect the
 # global default.
-# returns: 1 if ok, 0 otherwise
+#
+# args: timeout, retries, oidpkt, max_repetitions, max_msg_size (all optional)
+# returns: 1 if a working connection exists, 0 otherwise; fallback property in status() is also set.
 #
 # note: function MUST NOT skip connection opening based on collect t/f, because
 # otherwise update ops can never bootstrap stuff.
@@ -431,8 +438,29 @@ sub open
 
 	$snmpcfg->{max_msg_size} = $self->{cfg}->{node}->{max_msg_size} || $args{max_msg_size} || 1472;
 
-	return 0 if (!$self->{snmp}->open(config => $snmpcfg,
-																		debug => $self->{debug}));
+	undef $self->{fallback};
+	# first try to open the session and test it end to end;
+	# if that doesn't work but a backup host address is a/v, try that as well and flag the failover situation
+	dbg("Opening SNMP session for $self->{name} to $snmpcfg->{host}");
+	my $isok = $self->{snmp}->open(config => $snmpcfg, debug => $self->{debug})
+			&& $self->{snmp}->testsession;
+	if (!$isok)
+	{
+		if (defined($self->{cfg}->{node}->{host_backup}))
+		{
+			$snmpcfg->{host} = $self->{cfg}->{node}->{host_backup};
+			dbg("SNMP session using primary address for $self->{name} failed, trying backup address $snmpcfg->{host}");
+			$isok = $self->{snmp}->open(config => $snmpcfg,
+																	debug => $self->{debug})
+					&& $self->{snmp}->testsession;
+			$self->{fallback} = 1;
+		}
+		if (!$isok)
+		{
+			$self->{snmp_error} = $self->{snmp}->error;
+			return 0;
+		}
+	}
 
 	$self->{info}{system}{snmpVer} = $self->{snmp}->version; # get back actual info
 	return 1;

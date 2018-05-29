@@ -1001,21 +1001,41 @@ sub doUpdate
 	# fixme: not true unless node is ALSO marked as collect, or getnodeinfo will not do anything model-related
 	if (runPing(sys=>$S))
 	{
-		# snmp-enabled node? then try to create a session obj
-		# (but as snmp is still predominantly udp it won't connect yet!)
-		$S->open(timeout => $C->{snmp_timeout},
-						 retries => $C->{snmp_retries},
-						 max_msg_size => $C->{snmp_max_msg_size},
-						 # how many oids/pdus per bulk request, or let net::snmp guess a value
-						 max_repetitions => $NI->{system}->{max_repetitions} || $C->{snmp_max_repetitions} || undef,
-						 # how many oids per simple get request (for getarray), or default (no guessing)
-						 oidpkt => $NI->{system}->{max_repetitions} || $C->{snmp_max_repetitions} || 10 )
-				if ($S->status->{snmp_enabled});
-		# failed already?
-		if ($S->status->{snmp_error})
+		# snmp-enabled node? then try to open a session (and test it)
+		if ($S->status->{snmp_enabled})
 		{
-			logMsg("ERROR SNMP session open to $name failed: ".$S->status->{snmp_error});
-			$S->disable_source("snmp");
+			my $candosnmp = $S->open(timeout => $C->{snmp_timeout},
+															 retries => $C->{snmp_retries},
+															 max_msg_size => $C->{snmp_max_msg_size},
+															 # how many oids/pdus per bulk request, or let net::snmp guess a value
+															 max_repetitions => $NI->{system}->{max_repetitions} || $C->{snmp_max_repetitions} || undef,
+															 # how many oids per simple get request (for getarray), or default (no guessing)
+															 oidpkt => $NI->{system}->{max_repetitions} || $C->{snmp_max_repetitions} || 10 );
+			# failed altogether?
+			if (!$candosnmp or $S->status->{snmp_error})
+			{
+				logMsg("ERROR SNMP session open to $name failed: ".$S->status->{snmp_error});
+				$S->disable_source("snmp");
+			}
+			# or did we have to fall back to the backup address for this node?
+			elsif ($candosnmp && $S->status->{fallback})
+			{
+				notify(sys => $S,
+							 event => "Host Failover",
+							 element => undef,
+							 details => "SNMP Session switched to backup address \"$NC->{node}->{host_backup}\"",
+							 context => { type => "node" });
+			}
+			# or are we using the primary address?
+			elsif ($candosnmp)
+			{
+				checkEvent(sys => $S,
+									 event => "Host Failover",
+									 upevent => "Host Failover Closed", # please log this
+									 element => undef,
+									 level => "Normal",
+									 details => "SNMP Session using primary address \"$NC->{node}->{host}\"");
+			}
 		}
 
 		# this will try all enabled sources, 0 only if none worked
@@ -1310,20 +1330,42 @@ sub doCollect
 	# are we meant to and able to talk to the node?
 	if (runPing(sys=>$S) && getbool($NC->{node}{collect}))
 	{
-		# snmp-enabled node? then try to create a session obj (but as snmp is still predominantly udp it won't connect yet!)
-		$S->open(timeout => $C->{snmp_timeout},
-						 retries => $C->{snmp_retries},
-						 max_msg_size => $C->{snmp_max_msg_size},
-						 # how many oids/pdus per bulk request, or let net::snmp guess a value
-						 max_repetitions => $NI->{system}->{max_repetitions} || $C->{snmp_max_repetitions} || undef,
-						 # how many oids per simple get request for getarray, or default (no guessing)
-						 oidpkt => $NI->{system}->{max_repetitions} || $C->{snmp_max_repetitions} || 10 )
-				if ($S->status->{snmp_enabled});
-		# failed already?
-		if ($S->status->{snmp_error})
+		if ($S->status->{snmp_enabled})
 		{
-			logMsg("ERROR SNMP session open to $name failed: ".$S->status->{snmp_error});
-			$S->disable_source("snmp");
+			# snmp-enabled node? then try to open a session (and test it)
+			my $candosnmp = $S->open(timeout => $C->{snmp_timeout},
+															 retries => $C->{snmp_retries},
+															 max_msg_size => $C->{snmp_max_msg_size},
+															 # how many oids/pdus per bulk request, or let net::snmp guess a value
+															 max_repetitions => $NI->{system}->{max_repetitions} || $C->{snmp_max_repetitions} || undef,
+															 # how many oids per simple get request for getarray, or default (no guessing)
+															 oidpkt => $NI->{system}->{max_repetitions} || $C->{snmp_max_repetitions} || 10 );
+
+			# failed altogether?
+			if (!$candosnmp or $S->status->{snmp_error})
+			{
+				logMsg("ERROR SNMP session open to $name failed: ".$S->status->{snmp_error});
+				$S->disable_source("snmp");
+			}
+			# or did we have to fall back to the backup address for this node?
+			elsif ($candosnmp && $S->status->{fallback})
+			{
+				notify(sys => $S,
+							 event => "Host Failover",
+							 element => undef,
+							 details => "SNMP Session switched to backup address \"$NC->{node}->{host_backup}\"",
+							 context => { type => "node" });
+			}
+			# or are we using the primary address?
+			elsif ($candosnmp)
+			{
+				checkEvent(sys => $S,
+									 event => "Host Failover",
+									 upevent => "Host Failover Closed", # please log this
+									 element => undef,
+									 level => "Normal",
+									 details => "SNMP Session using primary address \"$NC->{node}->{host}\"");
+			}
 		}
 
 		# returns 1 if one or more sources have worked, also updates snmp/wmi down states in nodeinfo

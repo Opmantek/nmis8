@@ -220,7 +220,9 @@ sub checkResult
 
 
 
-# opens an actual session
+# opens an actual session, which normally does NOT cause any network traffic (udp)
+# or actual interactions with a remote snmp agent - use testsession() for that
+#
 # args: EITHER config (=hash with ALL the required args), OR individual arguments
 # returns: 1 if successful
 sub open
@@ -396,9 +398,9 @@ sub testsession
 {
 	my ($self) = @_;
 
-	my $oid = "1.3.6.1.2.1.1.2.0";
+	my $oid = "1.3.6.1.2.1.1.2.0"; # SNMPv2-MIB::sysObjectID.0
 	my $result = $self->get($oid);
-	return ref($result) eq "HASH" && $result->{$oid};
+	return (ref($result) eq "HASH" && $result->{$oid})? 1:0;
 }
 
 # retrieves X variables with one or more get requests, returns array

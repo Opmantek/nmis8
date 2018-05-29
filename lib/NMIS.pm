@@ -3916,7 +3916,7 @@ sub eventAdd
 # if it exists it deletes it from the event state table/log
 #
 # and then calls notify with a new Up event including the time of the outage
-# args: a LIVE sys object for the node, event(name);
+# args: a LIVE sys object for the node, event(name), upevent (name, optional)
 #  element, details and level are optional
 #
 # returns: nothing
@@ -3926,7 +3926,8 @@ sub checkEvent
 
 	my $S = $args{sys};
 	my $node = $S->{node};				# WARNING: this is the lowercased name!
-	my $event = $args{event};
+	my $event = $args{event};			# that's the name of the down event
+	my $upevent = $args{upevent};	# that's the optional name of the up event to log
 	my $element = $args{element};
 	my $details = $args{details};
 	my $level = $args{level};
@@ -3945,7 +3946,7 @@ sub checkEvent
 	$C->{'threshold_falling_reset_dampening'} ||= 1.1;
 	$C->{'threshold_rising_reset_dampening'} ||= 0.9;
 
-	# check if the event exists and load its details
+	# check if the (down) event exists and load its details
 	my $event_exists = eventExist($node, $event, $element);
 	my $erec = eventLoad(filename => $event_exists) if $event_exists;
 
@@ -4008,7 +4009,11 @@ sub checkEvent
 		{
 			$event =~ s/(\W)open($|\W)/$1Closed$2/i;
 		}
-
+		elsif ($upevent)						# caller has told us a preferred up event name
+		{
+			$event = $upevent;
+		}
+		
 		# event was renamed/inverted/massaged, need to get the right control record
 		# this is likely not needed
 		$thisevent_control = $events_config->{$event} || { Log => "true", Notify => "true", Status => "true"};
