@@ -2016,6 +2016,8 @@ sub viewInterface
 		my @causes;
 		push @causes, "SNMP ".($status{snmp_status}? "Up":"Down") if ($status{snmp_enabled});
 		push @causes, "WMI ".($status{wmi_status}? "Up":"Down") if ($status{wmi_enabled});
+		push @causes, "Node Polling Failover"
+				if (defined($status{failover_status}) && !$status{failover_status});
 
 		print Tr(td({class=>'Warning', colspan=>'2'},"Node degraded, "
 								. join(", ",@causes)
@@ -2177,6 +2179,8 @@ sub viewAllIntf {
 		my @causes;
 		push @causes, "SNMP ".($status{snmp_status}? "Up":"Down") if ($status{snmp_enabled});
 		push @causes, "WMI ".($status{wmi_status}? "Up":"Down") if ($status{wmi_enabled});
+		push @causes, "Node Polling Failover"
+				if (defined($status{failover_status}) && !$status{failover_status});
 
 		print Tr(td({class=>'Warning'},"Node degraded, "
 								. join(", ", @causes)
@@ -2335,6 +2339,8 @@ sub viewActivePort {
 		my @causes;
 		push @causes, "SNMP ".($status{snmp_status}? "Up":"Down") if ($status{snmp_enabled});
 		push @causes, "WMI ".($status{wmi_status}? "Up":"Down") if ($status{wmi_enabled});
+		push @causes, "Node Polling Failover"
+				if (defined($status{failover_status}) && !$status{failover_status});
 
 		print Tr(td({class=>'Warning'},"Node degraded, "
 								. join(", ", @causes)
@@ -2455,6 +2461,8 @@ sub viewStorage {
 		my @causes;
 		push @causes, "SNMP ".($status{snmp_status}? "Up":"Down") if ($status{snmp_enabled});
 		push @causes, "WMI ".($status{wmi_status}? "Up":"Down") if ($status{wmi_enabled});
+		push @causes, "Node Polling Failover"
+				if (defined($status{failover_status}) && !$status{failover_status});
 
 		print Tr(td({class=>'Warning',colspan=>'3'},"Node degraded, "
 								. join(", ",@causes)
@@ -2531,6 +2539,8 @@ sub viewService
 		my @causes;
 		push @causes, "SNMP ".($status{snmp_status}? "Up":"Down") if ($status{snmp_enabled});
 		push @causes, "WMI ".($status{wmi_status}? "Up":"Down") if ($status{wmi_enabled});
+		push @causes, "Node Polling Failover"
+				if (defined($status{failover_status}) && !$status{failover_status});
 
 		print Tr(td({class=>'Warning',colspan=>'3'},"Node degraded, "
 								. join(", ", @causes)
@@ -2627,6 +2637,8 @@ sub viewServiceList {
 		my @causes;
 		push @causes, "SNMP ".($status{snmp_status}? "Up":"Down") if ($status{snmp_enabled});
 		push @causes, "WMI ".($status{wmi_status}? "Up":"Down") if ($status{wmi_enabled});
+		push @causes, "Node Polling Failover"
+				if (defined($status{failover_status}) && !$status{failover_status});
 
 		print Tr(td({class=>'Warning',colspan=>'7'},"Node degraded, "
 								. join(", ", @causes)
@@ -2731,6 +2743,8 @@ sub viewCpuList {
 		my @causes;
 		push @causes, "SNMP ".($status{snmp_status}? "Up":"Down") if ($status{snmp_enabled});
 		push @causes, "WMI ".($status{wmi_status}? "Up":"Down") if ($status{wmi_enabled});
+		push @causes, "Node Polling Failover"
+				if (defined($status{failover_status}) && !$status{failover_status});
 
 		print Tr(td({class=>'Warning',colspan=>'7'},"Node degraded, "
 								. join(", ", @causes)
@@ -2804,6 +2818,8 @@ sub viewStatus {
 		my @causes;
 		push @causes, "SNMP ".($status{snmp_status}? "Up":"Down") if ($status{snmp_enabled});
 		push @causes, "WMI ".($status{wmi_status}? "Up":"Down") if ($status{wmi_enabled});
+		push @causes, "Node Polling Failover"
+				if (defined($status{failover_status}) && !$status{failover_status});
 
 		print Tr(td({class=>'Warning',colspan=>$colspan},"Node degraded, "
 								.join(", ", @causes)
@@ -2909,6 +2925,8 @@ sub viewEnvironment {
 		my @causes;
 		push @causes, "SNMP ".($status{snmp_status}? "Up":"Down") if ($status{snmp_enabled});
 		push @causes, "WMI ".($status{wmi_status}? "Up":"Down") if ($status{wmi_enabled});
+		push @causes, "Node Polling Failover"
+				if (defined($status{failover_status}) && !$status{failover_status});
 
 		print Tr(td({class=>'Warning',colspan=>'3'},"Node degraded, "
 								. join(", ", @causes)
@@ -3028,6 +3046,8 @@ sub viewSystemHealth
 				my @causes;
 				push @causes, "SNMP ".($status{snmp_status}? "Up":"Down") if ($status{snmp_enabled});
 				push @causes, "WMI ".($status{wmi_status}? "Up":"Down") if ($status{wmi_enabled});
+				push @causes, "Node Polling Failover"
+						if (defined($status{failover_status}) && !$status{failover_status});
 
 				print Tr(td({class=>'Warning',colspan=>$colspan},"Node degraded, "
 										. join(", ",@causes)
@@ -3133,6 +3153,8 @@ sub viewCSSGroup
 		my @causes;
 		push @causes, "SNMP ".($status{snmp_status}? "Up":"Down") if ($status{snmp_enabled});
 		push @causes, "WMI ".($status{wmi_status}? "Up":"Down") if ($status{wmi_enabled});
+		push @causes, "Node Polling Failover"
+				if (defined($status{failover_status}) && !$status{failover_status});
 
 		print Tr(td({class=>'Warning',colspan=>'3'},"Node degraded, "
 								. join(", ", @causes)
@@ -3184,6 +3206,8 @@ sub viewCSSContent
 		my @causes;
 		push @causes, "SNMP ".($status{snmp_status}? "Up":"Down") if ($status{snmp_enabled});
 		push @causes, "WMI ".($status{wmi_status}? "Up":"Down") if ($status{wmi_enabled});
+		push @causes, "Node Polling Failover"
+				if (defined($status{failover_status}) && !$status{failover_status});
 
 		print Tr(td({class=>'Warning',colspan=>'3'},"Node degraded, "
 								.join(", ", @causes)

@@ -632,7 +632,7 @@ sub nodeStatus {
 # this is a variation of nodeStatus, which doesn't say why a node is degraded
 # args: system object (doesn't have to be init'd with snmp/wmi)
 # returns: hash of error (if dud args), overall (-1,0,1), snmp_enabled (0,1), snmp_status (0,1,undef if unknown),
-# ping_enabled and ping_status, wmi_enabled and wmi_status
+# ping_enabled and ping_status, wmi_enabled and wmi_status, failover_status (0,1,undef if unknown/irrelevant)
 sub PreciseNodeStatus
 {
 	my (%args) = @_;
@@ -656,11 +656,13 @@ sub PreciseNodeStatus
 									ping_enabled => getbool($nisys->{ping}),
 									snmp_status => undef,
 									wmi_status => undef,
-									ping_status => undef );
+									ping_status => undef,
+									failover_status => undef ); # 1 ok, 0 in failover, undef if unknown
 
 	$precise{ping_status} = (eventExist($nodename, "Node Down")?0:1) if ($precise{ping_enabled}); # otherwise we don't care
 	$precise{wmi_status} = (eventExist($nodename, "WMI Down")?0:1) if ($precise{wmi_enabled});
 	$precise{snmp_status} = (eventExist($nodename, "SNMP Down")?0:1) if ($precise{snmp_enabled});
+	$precise{failover_status} = eventExist($nodename, "Node Polling Failover")? 0:1 if ($precise{snmp_enabled});
 
 	# overall status: ping disabled -> the WORSE one of snmp and wmi states is authoritative
 	if (!$precise{ping_enabled}
@@ -677,8 +679,8 @@ sub PreciseNodeStatus
 	# ping enabled, pingable but dead snmp or dead wmi or failover -> degraded
 	# only applicable is collect eq true, handles SNMP Down incorrectness
 	elsif ( ($precise{wmi_enabled} and !$precise{wmi_status})
-					or ($precise{snmp_enabled} and !$precise{snmp_status})
-					or eventExist($nodename, "Node Polling Failover")
+					or ($precise{snmp_enabled} and
+							(!$precise{snmp_status} or !$precise{failover_status}))
 			)
 	{
 		$precise{overall} = -1;
@@ -4018,7 +4020,7 @@ sub checkEvent
 		{
 			$event = $upevent;
 		}
-		
+
 		# event was renamed/inverted/massaged, need to get the right control record
 		# this is likely not needed
 		$thisevent_control = $events_config->{$event} || { Log => "true", Notify => "true", Status => "true"};
