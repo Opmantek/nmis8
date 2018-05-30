@@ -352,7 +352,8 @@ while (!$mustexit)
 			my $thisip = $state{$statekey}->{ip};
 
 			push @cmd, $thisip;
-			$ip2staterec{$thisip} = $statekey; # for associating the results
+			$ip2staterec{$thisip} //= []; # one ip can be associated with 2+ nodes
+			push @{$ip2staterec{$thisip}}, $statekey;
 		}
 		debug("about to run: ".join(" ",@cmd));
 
@@ -378,29 +379,32 @@ while (!$mustexit)
 					&& $ip2staterec{$hostnameorip}  # known?
 					&& $loss =~ /^\d+$/ )		  # structure good enough for the reachability at least?
 			{
-				my $thisstate = $state{ $ip2staterec{$hostnameorip} };
-				# what does the policy say about the interval?
-				# policy present, use that; fall back to 60 seconds otherwise
-				my $interval = ref($policies->{ $thisstate->{policy} }) eq "HASH"?
-						$policies->{ $thisstate->{policy} }->{ping} : 60; # seconds
-
-				# supports NNN (seconds) or MMMU with U being s, m, h or d, fractional NNN or MMM also ok
-				if ($interval =~ /^\s*(\d+(\.\d+)?)([smhd])$/)
+				for my $owner (@{$ip2staterec{$hostnameorip}})
 				{
-					my ($rawvalue, $unit) = ($1, $3);
-					$interval = $rawvalue * ($unit eq 'm'? 60 : $unit eq 'h'? 3600 : $unit eq 'd'? 86400 : 1);
+					my $thisstate = $state{$owner};
+					# what does the policy say about the interval?
+					# policy present, use that; fall back to 60 seconds otherwise
+					my $interval = ref($policies->{ $thisstate->{policy} }) eq "HASH"?
+							$policies->{ $thisstate->{policy} }->{ping} : 60; # seconds
+
+					# supports NNN (seconds) or MMMU with U being s, m, h or d, fractional NNN or MMM also ok
+					if ($interval =~ /^\s*(\d+(\.\d+)?)([smhd])$/)
+					{
+						my ($rawvalue, $unit) = ($1, $3);
+						$interval = $rawvalue * ($unit eq 'm'? 60 : $unit eq 'h'? 3600 : $unit eq 'd'? 86400 : 1);
+					}
+
+					# the regex extraction sets missing to blank string, would prefer undef or number
+					$thisstate->{loss} = int($loss);
+					$thisstate->{avg} = $avg ne ""? 0+$avg : undef;
+					$thisstate->{min} = $min ne ""? 0+$min : undef;
+					$thisstate->{max} = $max ne ""? 0+$max : undef;
+
+					$thisstate->{lastping} = $now;
+					$thisstate->{nextping} = $now + $interval;
+
+					debug("parsed result for node $thisstate->{name}: ".Dumper($thisstate)) if ($debug > 2);
 				}
-
-				# the regex extraction sets missing to blank string, would prefer undef or number
-				$thisstate->{loss} = int($loss);
-				$thisstate->{avg} = $avg ne ""? 0+$avg : undef;
-				$thisstate->{min} = $min ne ""? 0+$min : undef;
-				$thisstate->{max} = $max ne ""? 0+$max : undef;
-
-				$thisstate->{lastping} = $now;
-				$thisstate->{nextping} = $now + $interval;
-
-				debug("parsed result for node $thisstate->{name}: ".Dumper($thisstate)) if ($debug > 2);
 			}
 			else
 			{
