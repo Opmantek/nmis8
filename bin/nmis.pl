@@ -182,11 +182,13 @@ NMIS version $NMIS::VERSION
 
 # the first thing we do is to upgrade up the event
 # data structure - it's a nop if it was already done.
-&NMIS::upgrade_events_structure;
-# ditto for nodeconf
-&NMIS::upgrade_nodeconf_structure;
+NMIS::upgrade_events_structure();
+# then we create uuids for any nodes that might still need them...
+NMIS::UUID::createNodeUUID();
+# similar upgrade op for nodeconf - this also further sanitises nodes.nmis
+NMIS::upgrade_nodeconf_structure();
 # and for outages
-&NMIS::upgrade_outages;
+NMIS::upgrade_outages();
 
 if ($type =~ /^(collect|update|services)$/)
 {
@@ -351,16 +353,9 @@ sub	runThreads
 	loadEnterpriseTable() if $type eq 'update'; # load in cache
 	dbg("table Enterprise loaded",2);
 
-	my $NT = loadLocalNodeTable(); 	# only local nodes
+	my $NT = loadLocalNodeTable();
 	dbg("table Local Node loaded",2);
 
-	# create uuids for all nodes that might still need them
-	# this changes the local nodes table!
-	if (my $changed_nodes = NMIS::UUID::createNodeUUID())
-	{
-		$NT = loadLocalNodeTable();
-		dbg("table Local Node reloaded after uuid updates",2);
-	}
 	my $C = loadConfTable();		# config table from cache
 
 	# load the fping results now and cache them for all child processes
