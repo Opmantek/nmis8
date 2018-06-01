@@ -996,8 +996,9 @@ sub doUpdate
 	# fixme: not true unless node is ALSO marked as collect, or getnodeinfo will not do anything model-related
 	if (runPing(sys=>$S))
 	{
-		# snmp-enabled node? then try to open a session (and test it)
-		if ($S->status->{snmp_enabled})
+		# snmp-enabled node that SHOULD be collected, ie not pingonly?
+		# then try to open a session (and test it)
+		if ($S->status->{snmp_enabled} && getbool($NC->{node}->{collect}))
 		{
 			my $candosnmp = $S->open(timeout => $C->{snmp_timeout},
 															 retries => $C->{snmp_retries},
