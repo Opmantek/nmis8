@@ -182,11 +182,13 @@ NMIS version $NMIS::VERSION
 
 # the first thing we do is to upgrade up the event
 # data structure - it's a nop if it was already done.
-&NMIS::upgrade_events_structure;
-# ditto for nodeconf
-&NMIS::upgrade_nodeconf_structure;
+NMIS::upgrade_events_structure();
+# then we create uuids for any nodes that might still need them...
+NMIS::UUID::createNodeUUID();
+# similar upgrade op for nodeconf - this also further sanitises nodes.nmis
+NMIS::upgrade_nodeconf_structure();
 # and for outages
-&NMIS::upgrade_outages;
+NMIS::upgrade_outages();
 
 if ($type =~ /^(collect|update|services)$/)
 {
@@ -351,16 +353,9 @@ sub	runThreads
 	loadEnterpriseTable() if $type eq 'update'; # load in cache
 	dbg("table Enterprise loaded",2);
 
-	my $NT = loadLocalNodeTable(); 	# only local nodes
+	my $NT = loadLocalNodeTable();
 	dbg("table Local Node loaded",2);
 
-	# create uuids for all nodes that might still need them
-	# this changes the local nodes table!
-	if (my $changed_nodes = NMIS::UUID::createNodeUUID())
-	{
-		$NT = loadLocalNodeTable();
-		dbg("table Local Node reloaded after uuid updates",2);
-	}
 	my $C = loadConfTable();		# config table from cache
 
 	# load the fping results now and cache them for all child processes
@@ -1001,8 +996,9 @@ sub doUpdate
 	# fixme: not true unless node is ALSO marked as collect, or getnodeinfo will not do anything model-related
 	if (runPing(sys=>$S))
 	{
-		# snmp-enabled node? then try to open a session (and test it)
-		if ($S->status->{snmp_enabled})
+		# snmp-enabled node that SHOULD be collected, ie not pingonly?
+		# then try to open a session (and test it)
+		if ($S->status->{snmp_enabled} && getbool($NC->{node}->{collect}))
 		{
 			my $candosnmp = $S->open(timeout => $C->{snmp_timeout},
 															 retries => $C->{snmp_retries},

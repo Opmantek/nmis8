@@ -27,7 +27,7 @@
 #
 # *****************************************************************************
 package NMIS;
-our $VERSION = "8.6.6a";
+our $VERSION = "8.6.6G";
 
 use NMIS::uselib;
 use lib "$NMIS::uselib::rrdtool_lib";
@@ -188,14 +188,60 @@ sub loadLinkDetails {
 } #sub loadLinkDetails
 
 
-# load local node table and store also in cache
-sub loadLocalNodeTable {
-	my $C = loadConfTable();
-	if (getbool($C->{db_nodes_sql})) {
-		return DBfunc::->select(table=>'Nodes');
-	} else {
-		return loadTable(dir=>'conf',name=>'Nodes');
+# load local node table
+#
+# optionally sanitises nodes data:
+# nodes that lack critical properties are removed
+#
+# args: sanitise (optional, default: 0)
+# returns: hash ref
+sub loadLocalNodeTable
+{
+	my (%args) = @_;
+
+	my $C = loadConfTable();			# usually cached
+
+	my $lotsanodes = getbool($C->{db_nodes_sql})?
+			DBfunc::->select(table=>'Nodes')
+			: loadTable(dir=>'conf',name=>'Nodes');
+
+	return $lotsanodes if (!$args{sanitise});
+
+	my $badones;
+	# deemed critical: name, uuid, host, group properties
+	my @musthave = qw(name uuid host group);
+	for my $maybebad (keys %$lotsanodes)
+	{
+		my $noderec = $lotsanodes->{$maybebad};
+		my $because;
+
+		if (ref($noderec) ne "HASH")
+		{
+			$because = "invalid structure";
+		}
+		elsif (List::Util::any { !defined($noderec->{$_}) or $noderec->{$_} eq '' } (@musthave))
+		{
+			$because = "some required properties are missing";
+		}
+		elsif (lc($noderec->{name}) ne lc($maybebad))
+		{
+			$because = "invalid structure, name and key don't match";
+		}
+		if ($because)
+		{
+			++$badones;
+			delete $lotsanodes->{$maybebad};
+			# this is bad enough to justify stderr/cron noise...
+			my $msg = "WARNING: deleting invalid Node record for \"$maybebad\": $because";
+			logMsg($msg);
+			warn("$msg\n");
+		}
 	}
+	if ($badones)
+	{
+		writeHashtoFile(file => "$C->{'<nmis_conf>'}/Nodes", data => $lotsanodes);
+	}
+	return $lotsanodes;
 }
 
 sub loadNodeTable {
@@ -4324,7 +4370,7 @@ sub upgrade_events_structure
 sub upgrade_nodeconf_structure
 {
 	my $C = loadConfTable();			# likely cached
-	my $LNT = loadLocalNodeTable;
+	my $LNT = loadLocalNodeTable(sanitise => 1); # this removes garbage data
 
 	# anything left to do?
 	my $oldncf = func::getFileName(file => $C->{'<nmis_conf>'}."/nodeConf");

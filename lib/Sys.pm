@@ -408,7 +408,7 @@ sub wmi
 sub snmp 	{ my $self = shift; return $self->{snmp} };
 
 # open snmp session based on host address, and test it end-to-end.
-# if a host_backup is configured, attempt to fall back to that if 
+# if a host_backup is configured, attempt to fall back to that if
 # the primary address doesn't work.
 #
 # for max message size we try in order: host-specific value if set for this host,
@@ -1276,17 +1276,60 @@ sub loadModel
 
 	my $shortname = $model; $shortname =~ s/^Model-//;
 	my $thiscf = "$modelcachedir/$model.json";
+	my $mustloadfromsource = 1;
+
 	if ($self->{cache_models} && -f $thiscf)
 	{
+		# check if the cached data is stale: load the model, check all the mtimes of the common-xyz inputs and a few others
 		$self->{mdl} = readFiletoHash(file => $thiscf, json => 1, lock => 0);
 		if (ref($self->{mdl}) ne "HASH" or !keys %{$self->{mdl}})
 		{
 			$self->{error} = "ERROR ($self->{name}) failed to load Model (from cache)!";
-			$exit = 0;
+			undef $self->{mdl};
 		}
-		dbg("INFO, model $model loaded (from cache)");
+		else
+		{
+			my $cfage = (stat($thiscf))[9];
+			dbg("Verifying freshness of cached model \"$model\"", 2);
+
+			my $isstale;
+			my @depstocheck = ( ["conf","Config"],
+													["models","Model"],
+													["models",$model], );
+			map { push @depstocheck, ["models",
+																"Common-".$self->{mdl}->{"-common-"}->{class}->{$_}->{"common-model"} ]; }
+			(keys %{$self->{mdl}{'-common-'}{class}}) if (ref($self->{mdl}->{'-common-'}) eq "HASH"
+																										 && ref($self->{mdl}->{'-common-'}->{class}) eq "HASH");
+			for (@depstocheck)
+			{
+				my ($dir, $shortname) = @$_;
+				my $othermtime = mtimeFile(dir => $dir, name => $shortname);
+				if ($othermtime > $cfage)
+				{
+					dbg("Cached model \"$model\" stale: mtime $cfage, older than \"$dir/$shortname\" ($othermtime).",2);
+					$isstale = 1;
+					last;
+				}
+				else
+				{
+					dbg("Cached model \"$model\" mtime $cfage compares ok to \"$dir/$shortname\" ($othermtime).",2);
+				}
+			}
+			if ($isstale)
+			{
+				$mustloadfromsource = 1;
+				dbg("Cache for model $model stale, loading from source.");
+			}
+			else
+			{
+				dbg("INFO, model $model loaded (from cache)");
+				$mustloadfromsource = 0;
+			}
+		}
 	}
-	else
+
+	# is loading from source required?
+	if ($mustloadfromsource)
 	{
 		my $ext = getExtension(dir=>'models');
 		# loadtable returns live/shared/cached info, but we must not modify that shared original!
@@ -1332,7 +1375,6 @@ sub loadModel
 			}
 		}
 	}
-
 
 	# if the loading has succeeded (cache or from source), optionally amend with rules from the policy
 	if ($exit)
