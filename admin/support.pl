@@ -27,7 +27,7 @@
 #  http://support.opmantek.com/users/
 #
 # *****************************************************************************
-our $VERSION = "1.9.0";
+our $VERSION = "1.9.1";
 use strict;
 use Data::Dumper;
 use File::Basename;
@@ -417,7 +417,7 @@ sub collect_evidence
 		}
 	}
 	File::Path::make_path("$targetdir/conf/scripts", 
-												"$targetdir/conf/nodeconf"
+												"$targetdir/conf/nodeconf",
 												"$targetdir/conf/plugins", { chmod => 0755 });
 
 	# copy all of conf/ and models/ but NOT any stray stuff beneath
