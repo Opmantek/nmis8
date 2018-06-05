@@ -27,7 +27,7 @@
 #
 # *****************************************************************************
 package NMIS;
-our $VERSION = "8.6.5G";
+our $VERSION = "8.6.6G";
 
 use NMIS::uselib;
 use lib "$NMIS::uselib::rrdtool_lib";
@@ -188,14 +188,60 @@ sub loadLinkDetails {
 } #sub loadLinkDetails
 
 
-# load local node table and store also in cache
-sub loadLocalNodeTable {
-	my $C = loadConfTable();
-	if (getbool($C->{db_nodes_sql})) {
-		return DBfunc::->select(table=>'Nodes');
-	} else {
-		return loadTable(dir=>'conf',name=>'Nodes');
+# load local node table
+#
+# optionally sanitises nodes data:
+# nodes that lack critical properties are removed
+#
+# args: sanitise (optional, default: 0)
+# returns: hash ref
+sub loadLocalNodeTable
+{
+	my (%args) = @_;
+
+	my $C = loadConfTable();			# usually cached
+
+	my $lotsanodes = getbool($C->{db_nodes_sql})?
+			DBfunc::->select(table=>'Nodes')
+			: loadTable(dir=>'conf',name=>'Nodes');
+
+	return $lotsanodes if (!$args{sanitise});
+
+	my $badones;
+	# deemed critical: name, uuid, host, group properties
+	my @musthave = qw(name uuid host group);
+	for my $maybebad (keys %$lotsanodes)
+	{
+		my $noderec = $lotsanodes->{$maybebad};
+		my $because;
+
+		if (ref($noderec) ne "HASH")
+		{
+			$because = "invalid structure";
+		}
+		elsif (List::Util::any { !defined($noderec->{$_}) or $noderec->{$_} eq '' } (@musthave))
+		{
+			$because = "some required properties are missing";
+		}
+		elsif (lc($noderec->{name}) ne lc($maybebad))
+		{
+			$because = "invalid structure, name and key don't match";
+		}
+		if ($because)
+		{
+			++$badones;
+			delete $lotsanodes->{$maybebad};
+			# this is bad enough to justify stderr/cron noise...
+			my $msg = "WARNING: deleting invalid Node record for \"$maybebad\": $because";
+			logMsg($msg);
+			warn("$msg\n");
+		}
 	}
+	if ($badones)
+	{
+		writeHashtoFile(file => "$C->{'<nmis_conf>'}/Nodes", data => $lotsanodes);
+	}
+	return $lotsanodes;
 }
 
 sub loadNodeTable {
@@ -588,6 +634,7 @@ sub nodeStatus {
 	my $node_down = "Node Down";
 	my $snmp_down = "SNMP Down";
 	my $wmi_down_event = "WMI Down";
+	my $failover_event = "Node Polling Failover";
 
 	# ping disabled -> the WORSE one of snmp and wmi states is authoritative
 	if (getbool($NI->{system}{ping},"invert")
@@ -600,11 +647,13 @@ sub nodeStatus {
 	elsif ( eventExist($NI->{system}{name}, $node_down, "") ) {
 		$status = 0;
 	}
-	# ping enabled, pingable but dead snmp or dead wmi -> degraded
+	# ping enabled, pingable but dead snmp or dead wmi or failover'd -> degraded
 	# only applicable is collect eq true, handles SNMP Down incorrectness
 	elsif ( getbool($NI->{system}{collect}) and
 					( eventExist($NI->{system}{name}, $snmp_down, "")
-						or eventExist($NI->{system}{name}, $wmi_down_event, "")))
+						or eventExist($NI->{system}{name}, $wmi_down_event, "")
+						or eventExist($NI->{system}{name}, $failover_event, "")
+					))
 	{
 		$status = -1;
 	}
@@ -629,7 +678,7 @@ sub nodeStatus {
 # this is a variation of nodeStatus, which doesn't say why a node is degraded
 # args: system object (doesn't have to be init'd with snmp/wmi)
 # returns: hash of error (if dud args), overall (-1,0,1), snmp_enabled (0,1), snmp_status (0,1,undef if unknown),
-# ping_enabled and ping_status, wmi_enabled and wmi_status
+# ping_enabled and ping_status, wmi_enabled and wmi_status, failover_status (0,1,undef if unknown/irrelevant)
 sub PreciseNodeStatus
 {
 	my (%args) = @_;
@@ -653,11 +702,13 @@ sub PreciseNodeStatus
 									ping_enabled => getbool($nisys->{ping}),
 									snmp_status => undef,
 									wmi_status => undef,
-									ping_status => undef );
+									ping_status => undef,
+									failover_status => undef ); # 1 ok, 0 in failover, undef if unknown
 
 	$precise{ping_status} = (eventExist($nodename, "Node Down")?0:1) if ($precise{ping_enabled}); # otherwise we don't care
 	$precise{wmi_status} = (eventExist($nodename, "WMI Down")?0:1) if ($precise{wmi_enabled});
 	$precise{snmp_status} = (eventExist($nodename, "SNMP Down")?0:1) if ($precise{snmp_enabled});
+	$precise{failover_status} = eventExist($nodename, "Node Polling Failover")? 0:1 if ($precise{snmp_enabled});
 
 	# overall status: ping disabled -> the WORSE one of snmp and wmi states is authoritative
 	if (!$precise{ping_enabled}
@@ -671,10 +722,12 @@ sub PreciseNodeStatus
 	{
 		$precise{overall} = 0;
 	}
-	# ping enabled, pingable but dead snmp or dead wmi -> degraded
+	# ping enabled, pingable but dead snmp or dead wmi or failover -> degraded
 	# only applicable is collect eq true, handles SNMP Down incorrectness
 	elsif ( ($precise{wmi_enabled} and !$precise{wmi_status})
-					or ($precise{snmp_enabled} and !$precise{snmp_status}) )
+					or ($precise{snmp_enabled} and
+							(!$precise{snmp_status} or !$precise{failover_status}))
+			)
 	{
 		$precise{overall} = -1;
 	}
@@ -3916,7 +3969,7 @@ sub eventAdd
 # if it exists it deletes it from the event state table/log
 #
 # and then calls notify with a new Up event including the time of the outage
-# args: a LIVE sys object for the node, event(name);
+# args: a LIVE sys object for the node, event(name), upevent (name, optional)
 #  element, details and level are optional
 #
 # returns: nothing
@@ -3926,7 +3979,8 @@ sub checkEvent
 
 	my $S = $args{sys};
 	my $node = $S->{node};				# WARNING: this is the lowercased name!
-	my $event = $args{event};
+	my $event = $args{event};			# that's the name of the down event
+	my $upevent = $args{upevent};	# that's the optional name of the up event to log
 	my $element = $args{element};
 	my $details = $args{details};
 	my $level = $args{level};
@@ -3945,7 +3999,7 @@ sub checkEvent
 	$C->{'threshold_falling_reset_dampening'} ||= 1.1;
 	$C->{'threshold_rising_reset_dampening'} ||= 0.9;
 
-	# check if the event exists and load its details
+	# check if the (down) event exists and load its details
 	my $event_exists = eventExist($node, $event, $element);
 	my $erec = eventLoad(filename => $event_exists) if $event_exists;
 
@@ -4007,6 +4061,10 @@ sub checkEvent
 		elsif ($event =~ /\Wopen($|\W)/i)
 		{
 			$event =~ s/(\W)open($|\W)/$1Closed$2/i;
+		}
+		elsif ($upevent)						# caller has told us a preferred up event name
+		{
+			$event = $upevent;
 		}
 
 		# event was renamed/inverted/massaged, need to get the right control record
@@ -4312,7 +4370,7 @@ sub upgrade_events_structure
 sub upgrade_nodeconf_structure
 {
 	my $C = loadConfTable();			# likely cached
-	my $LNT = loadLocalNodeTable;
+	my $LNT = loadLocalNodeTable(sanitise => 1); # this removes garbage data
 
 	# anything left to do?
 	my $oldncf = func::getFileName(file => $C->{'<nmis_conf>'}."/nodeConf");

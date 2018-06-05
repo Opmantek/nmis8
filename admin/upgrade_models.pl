@@ -29,7 +29,7 @@
 # *****************************************************************************
 #
 # this helper upgrades model files where safe to do so
-our $VERSION="8.6.5G";
+our $VERSION="8.6.6G";
 
 use strict;
 use Digest::MD5;								# good enough
@@ -71,7 +71,7 @@ for (<DATA>)
 	# also complain if the purportedly known good new file doesn't match any of the known signatures
 	$newsig{$file} = compute_signature("$newdir/$file");
 	die "error: signature state ($newsig{$file}) for $newdir/$file not part of a known release!\n"
-			if (!grep($_ eq $newsig{$file}, @sigs) and 
+			if (!grep($_ eq $newsig{$file}, @sigs) and
 					(!$opts{n} or $file !~ qr{$opts{n}}));
 }
 

@@ -1195,23 +1195,6 @@ sub do_login_banner {
 # The following routines are courtesy of the NMIS source and copyrighted
 # by Sinclair Internetworking Ltd Pty and covered under the GNU GPL.
 #
-sub get_time {
-        # pull the system timezone and then the local time
-        if ($^O =~ /win32/i) { # could add timezone code here
-                return scalar localtime;
-        }
-        else { # assume UNIX box - look up the timezone as well.
-		my $lt = scalar localtime;
-		$lt =~ s/  / /;
-                return uc((split " ", `date`)[4]) . " " . $lt;
-        }
-}
-
-
-#####################################################################
-#
-# 5-10-06, Jan v. K.
-#
 
 sub _radius_verify {
 	my $self = shift;
@@ -1513,26 +1496,6 @@ sub get_failure_counter
 }
 
 
-#----------------------------------
-
-#sub loadAccessTable {
-#	return loadTable(dir=>'conf',name=>'Access'); # tables cashed by func.pm
-#}
-
-#----------------------------------
-
-#sub loadUsersTable {
-#	return loadTable(dir=>'conf',name=>'Users');
-#}
-
-#----------------------------------
-
-#sub loadPrivMapTable {
-#
-#	return loadTable(dir=>'conf',name=>'PrivMap');
-#}
-
-#----------------------------------
 
 # check if user logged in
 
@@ -1696,21 +1659,5 @@ sub _GetPrivs {
 	return 1;
 }
 
-#----------------------------------
-
-#sub AUTOLOAD {
-#	my $self = shift;
-#	my $type = ref($self) || croak "$self is not an object\n";
-#	my $name = our $AUTOLOAD;
-#	$name =~ s/.*://;
-#	unless (exists $self->{$name} ) {
-#		croak "cant access $name field in object $type\n";
-#	}
-#	if (@_) {
-#		return $self->{$name} = shift;
-#	} else {
-#		return $self->{$name};
-#	}
-#}
 
 1;

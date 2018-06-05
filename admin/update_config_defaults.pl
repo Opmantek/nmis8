@@ -29,10 +29,11 @@
 #  http://support.opmantek.com/users/
 #
 # *****************************************************************************
+our $VERSION = "8.6.6G";
 use strict;
-our $VERSION = "8.6.5G";
 
-# Auto configure to the <nmis-base>/lib
+use List::Util 1.33;
+
 use FindBin;
 use lib "$FindBin::Bin/../lib";
 
@@ -73,14 +74,26 @@ else {
 
 backupFile(file => $ARGV[0], backup => "$ARGV[0].backup");
 
-# patch in outages as the after status
-my @curfields = split(/,/, $conf->{system}->{network_viewNode_field_list});
-if (!grep($_ eq "outage", @curfields))
+# patch in outages after status, and host_addr_backup after host_addr
+for (["outage","status"],["host_addr_backup","host_addr"])
 {
-	$conf->{system}->{network_viewNode_field_list} = join("," ,
-																												$curfields[0], 
-																												"outage", 
-																												@curfields[1..$#curfields]);
+	my ($want, $after) = @$_;
+
+	my @curfields = split(/,/,
+												$conf->{system}->{network_viewNode_field_list});
+	if (!List::Util::any { $_ eq $want } @curfields)
+	{
+		my $wheretoputit = List::Util::first { $curfields[$_] eq $after } (0..$#curfields);
+		if (defined $wheretoputit)
+		{
+			@curfields = (@curfields[0..$wheretoputit], $want, @curfields[$wheretoputit+1..$#curfields]);
+		}
+		else
+		{
+			push @curfields, $want;
+		}
+		$conf->{system}->{network_viewNode_field_list} = join(",", @curfields);
+	}
 }
 
 $conf->{"system"}->{"nmis_executable"} = '(/(bin|admin|install/scripts|conf/scripts)/[a-zA-Z0-9_\\.-]+|\\.pl|\\.sh)$';
@@ -107,7 +120,7 @@ $conf->{'javascript'}{'highcharts'} = "";
 $conf->{'javascript'}{'highstock'} = "";
 $conf->{'javascript'}{'jquery'} = "<menu_url_base>/js/jquery-1.8.3.min.js";
 $conf->{'javascript'}{'jquery_ui'} = "<menu_url_base>/js/jquery-ui-1.9.2.custom.js";
-    
+
 $conf->{'css'}{'jquery_ui_css'} = "<menu_url_base>/css/smoothness/jquery-ui-1.9.2.custom.css";
 
 $conf->{'metrics'}{'weight_availability'} = "0.1";
@@ -120,7 +133,7 @@ $conf->{'metrics'}{'weight_response'} = "0.2";
 if ( $conf->{'authentication'}{'auth_method_1'} eq "apache" ) {
 	print "You are using Apache Authentication, please update your system to use htpasswd or other authentication\n";
 	print "Details @ https://community.opmantek.com/display/NMIS/Configuring+NMIS+to+use+Internal+Authentication\n";
-	
+
 }
 
 writeHashtoFile(file=>$ARGV[0],data=>$conf);

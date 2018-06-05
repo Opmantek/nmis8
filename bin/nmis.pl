@@ -182,11 +182,13 @@ NMIS version $NMIS::VERSION
 
 # the first thing we do is to upgrade up the event
 # data structure - it's a nop if it was already done.
-&NMIS::upgrade_events_structure;
-# ditto for nodeconf
-&NMIS::upgrade_nodeconf_structure;
+NMIS::upgrade_events_structure();
+# then we create uuids for any nodes that might still need them...
+NMIS::UUID::createNodeUUID();
+# similar upgrade op for nodeconf - this also further sanitises nodes.nmis
+NMIS::upgrade_nodeconf_structure();
 # and for outages
-&NMIS::upgrade_outages;
+NMIS::upgrade_outages();
 
 if ($type =~ /^(collect|update|services)$/)
 {
@@ -351,16 +353,9 @@ sub	runThreads
 	loadEnterpriseTable() if $type eq 'update'; # load in cache
 	dbg("table Enterprise loaded",2);
 
-	my $NT = loadLocalNodeTable(); 	# only local nodes
+	my $NT = loadLocalNodeTable();
 	dbg("table Local Node loaded",2);
 
-	# create uuids for all nodes that might still need them
-	# this changes the local nodes table!
-	if (my $changed_nodes = NMIS::UUID::createNodeUUID())
-	{
-		$NT = loadLocalNodeTable();
-		dbg("table Local Node reloaded after uuid updates",2);
-	}
 	my $C = loadConfTable();		# config table from cache
 
 	# load the fping results now and cache them for all child processes
@@ -1005,21 +1000,44 @@ sub doUpdate
 	# fixme: not true unless node is ALSO marked as collect, or getnodeinfo will not do anything model-related
 	if (runPing(sys=>$S))
 	{
-		# snmp-enabled node? then try to create a session obj
-		# (but as snmp is still predominantly udp it won't connect yet!)
-		$S->open(timeout => $C->{snmp_timeout},
-						 retries => $C->{snmp_retries},
-						 max_msg_size => $C->{snmp_max_msg_size},
-						 # how many oids/pdus per bulk request, or let net::snmp guess a value
-						 max_repetitions => $NI->{system}->{max_repetitions} || $C->{snmp_max_repetitions} || undef,
-						 # how many oids per simple get request (for getarray), or default (no guessing)
-						 oidpkt => $NI->{system}->{max_repetitions} || $C->{snmp_max_repetitions} || 10 )
-				if ($S->status->{snmp_enabled});
-		# failed already?
-		if ($S->status->{snmp_error})
+		# snmp-enabled node that SHOULD be collected, ie not pingonly?
+		# then try to open a session (and test it)
+		if ($S->status->{snmp_enabled} && getbool($NC->{node}->{collect}))
 		{
-			logMsg("ERROR SNMP session open to $name failed: ".$S->status->{snmp_error});
-			$S->disable_source("snmp");
+			my $candosnmp = $S->open(timeout => $C->{snmp_timeout},
+															 retries => $C->{snmp_retries},
+															 max_msg_size => $C->{snmp_max_msg_size},
+															 # how many oids/pdus per bulk request, or let net::snmp guess a value
+															 max_repetitions => $NI->{system}->{max_repetitions} || $C->{snmp_max_repetitions} || undef,
+															 # how many oids per simple get request (for getarray), or default (no guessing)
+															 oidpkt => $NI->{system}->{max_repetitions} || $C->{snmp_max_repetitions} || 10 );
+			# failed altogether?
+			if (!$candosnmp or $S->status->{snmp_error})
+			{
+				logMsg("ERROR SNMP session open to $name failed: ".$S->status->{snmp_error});
+				$S->disable_source("snmp");
+				HandleNodeDown(sys => $S, type => "snmp", details => $S->status->{snmp_error});
+			}
+			# or did we have to fall back to the backup address for this node?
+			elsif ($candosnmp && $S->status->{fallback})
+			{
+				notify(sys => $S,
+							 event => "Node Polling Failover",
+							 element => undef,
+							 details => "SNMP Session switched to backup address \"$NC->{node}->{host_backup}\"",
+							 context => { type => "node" });
+			}
+			# or are we using the primary address?
+			elsif ($candosnmp)
+			{
+				checkEvent(sys => $S,
+									 event => "Node Polling Failover",
+									 upevent => "Node Polling Failover Closed", # please log it with this name
+									 element => undef,
+									 level => "Normal",
+									 details => "SNMP Session using primary address \"$NC->{node}->{host}\"");
+			}
+			HandleNodeDown(sys => $S, type => "snmp", up => 1, details => "snmp ok") if ($candosnmp);
 		}
 
 		# this will try all enabled sources, 0 only if none worked
@@ -1314,20 +1332,44 @@ sub doCollect
 	# are we meant to and able to talk to the node?
 	if (runPing(sys=>$S) && getbool($NC->{node}{collect}))
 	{
-		# snmp-enabled node? then try to create a session obj (but as snmp is still predominantly udp it won't connect yet!)
-		$S->open(timeout => $C->{snmp_timeout},
-						 retries => $C->{snmp_retries},
-						 max_msg_size => $C->{snmp_max_msg_size},
-						 # how many oids/pdus per bulk request, or let net::snmp guess a value
-						 max_repetitions => $NI->{system}->{max_repetitions} || $C->{snmp_max_repetitions} || undef,
-						 # how many oids per simple get request for getarray, or default (no guessing)
-						 oidpkt => $NI->{system}->{max_repetitions} || $C->{snmp_max_repetitions} || 10 )
-				if ($S->status->{snmp_enabled});
-		# failed already?
-		if ($S->status->{snmp_error})
+		if ($S->status->{snmp_enabled})
 		{
-			logMsg("ERROR SNMP session open to $name failed: ".$S->status->{snmp_error});
-			$S->disable_source("snmp");
+			# snmp-enabled node? then try to open a session (and test it)
+			my $candosnmp = $S->open(timeout => $C->{snmp_timeout},
+															 retries => $C->{snmp_retries},
+															 max_msg_size => $C->{snmp_max_msg_size},
+															 # how many oids/pdus per bulk request, or let net::snmp guess a value
+															 max_repetitions => $NI->{system}->{max_repetitions} || $C->{snmp_max_repetitions} || undef,
+															 # how many oids per simple get request for getarray, or default (no guessing)
+															 oidpkt => $NI->{system}->{max_repetitions} || $C->{snmp_max_repetitions} || 10 );
+
+			# failed altogether?
+			if (!$candosnmp or $S->status->{snmp_error})
+			{
+				logMsg("ERROR SNMP session open to $name failed: ".$S->status->{snmp_error});
+				$S->disable_source("snmp");
+				HandleNodeDown(sys => $S, type => "snmp", details => $S->status->{snmp_error});
+			}
+			# or did we have to fall back to the backup address for this node?
+			elsif ($candosnmp && $S->status->{fallback})
+			{
+				notify(sys => $S,
+							 event => "Node Polling Failover",
+							 element => undef,
+							 details => "SNMP Session switched to backup address \"$NC->{node}->{host_backup}\"",
+							 context => { type => "node" });
+			}
+			# or are we using the primary address?
+			elsif ($candosnmp)
+			{
+				checkEvent(sys => $S,
+									 event => "Node Polling Failover",
+									 upevent => "Node Polling Failover Closed", # please log it thusly
+									 element => undef,
+									 level => "Normal",
+									 details => "SNMP Session using primary address \"$NC->{node}->{host}\"");
+			}
+			HandleNodeDown(sys => $S, type => "snmp", up => 1, details => "snmp ok") if ($candosnmp);
 		}
 
 		# returns 1 if one or more sources have worked, also updates snmp/wmi down states in nodeinfo
@@ -1462,8 +1504,8 @@ sub doCollect
 	return;
 }
 
-# normaly a daemon fpingd.pl is running permanently and stores ping result in var/nmis-fping.json
-# if node info missing then ping.pm is used
+# normaly a daemon fpingd.pl is running asynchronously and stores ping result in var/nmis-fping.json
+# if node info missing or too old then this function invokes ping::ext_ping() synchronously
 # returns: 1 if pingable, 0 otherwise
 sub runPing
 {
@@ -1489,26 +1531,40 @@ sub runPing
 
 	if (getbool($NC->{node}{ping}))
 	{
-		my ($PT, $didfallback);
-
+		my $PT;
+		my $mustinternal = 1;
 		my $staleafter = $C->{daemon_fping_maxage} || 900;
+
 		# use fastping info if available and not stale
 		if ( getbool($C->{daemon_fping_active})
-				 && ($PT = loadTable(dir=>'var',name=>'nmis-fping')) # cached
-				 && ref($PT->{$nodename}) eq "HASH"									 # record present
-				 && (time - $PT->{$nodename}->{lastping}) < $staleafter	 # and not stale, 15 minutes seems ample
-				)
+				 && ($PT = loadTable(dir=>'var',name=>'nmis-fping')) # cachable while not changing
+				 && ref($PT) eq "HASH")
 		{
-			# copy values
-			($ping_min, $ping_avg, $ping_max, $ping_loss) = @{$PT->{$nodename}}{"min","avg","max","loss"};
-			$pingresult = ($ping_loss < 100)? 100 : 0;
-			info("INFO ($nodename) PING min/avg/max = $ping_min/$ping_avg/$ping_max ms loss=$ping_loss%");
+			# for multihomed nodes there are two records to check, keyed nodename:N
+			my @tocheck = (defined $NC->{node}->{host_backup}?
+										 grep($_ =~ /^$nodename:\d$/, keys %$PT)
+										 : $nodename);
+			for my $onekey (@tocheck)
+			{
+				if (ref($PT->{$onekey}) eq "HASH"
+						&& (time - $PT->{$onekey}->{lastping}) < $staleafter)	 # and not stale, 15 minutes seems ample
+				{
+					# copy the fastping data...
+					($ping_min, $ping_avg, $ping_max, $ping_loss) = @{$PT->{$onekey}}{"min","avg","max","loss"};
+					$pingresult = ($ping_loss < 100)? 100 : 0;
+					info("INFO $nodename ($PT->{$onekey}->{ip}) PING min/avg/max = $ping_min/$ping_avg/$ping_max ms loss=$ping_loss%");
+					# ...but also try the fallback if the primary is unreachable
+					last if ($pingresult);
+				}
+			}
+
+			$mustinternal = !defined($pingresult); # nothing or nothing fresh found?
 		}
-		else
+
+		# fallback to synchronous/internal pinging
+		if ($mustinternal)
 		{
-			# fallback to OLD/internal system
-			$didfallback = 1;
-			# but warn about that only if not in update
+			# and warn about that, if not in type=update
 			logMsg("INFO ($nodename) using internal ping system, daemon fpingd had no or oudated information")
 					if (getbool($C->{daemon_fping_active})
 							and !getbool($S->{update})); # fixme: unclean access to internal property
@@ -1518,16 +1574,22 @@ sub runPing
 			my $packet = $C->{ping_packet} ? $C->{ping_packet} : 56 ;
 			my $host = $NC->{node}{host};			# ip name/adress of node
 
-			info("Starting internal ping of ($nodename = $host) with timeout=$timeout retries=$retries packet=$packet");
-
+			info("Starting internal ping of $nodename ($host) with timeout=$timeout retries=$retries packet=$packet");
 			( $ping_min, $ping_avg, $ping_max, $ping_loss) = ext_ping($host, $packet, $retries, $timeout );
 			$pingresult = defined $ping_min ? 100 : 0;		# ping_min is undef if unreachable.
+
+			if (!$pingresult && (my $fallback = $NC->{node}->{host_backup}))
+			{
+				info("Starting internal ping of $nodename, (backup address $fallback) with timeout=$timeout retries=$retries packet=$packet");
+				( $ping_min, $ping_avg, $ping_max, $ping_loss) = ext_ping($fallback, $packet, $retries, $timeout );
+				$pingresult = defined $ping_min ? 100 : 0;		# ping_min is undef if unreachable.
+			}
 		}
 		# at this point ping_{min,avg,max,loss} and pingresult are all set
 
 		# in the fpingd case all up/down events are handled by it, otherwise we need to do that here
 		# this includes the case of a faulty fpingd
-		if ($didfallback)
+		if ($mustinternal)
 		{
 			if ($pingresult)
 			{
@@ -1894,19 +1956,22 @@ sub getNodeInfo
 		# override the sysLocation title to indicate that it is coming from SNMP sysLocation
 		$V->{system}{sysLocation_title} = 'SNMP Location';
 
-		# get the current ip address if the host property was a name
-		if ((my $addr = resolveDNStoAddr($NI->{system}{host})))
+		# get the current ip address if the host property was a name, ditto host_backup
+		for (["host","host_addr","IP Address"], ["host_backup", "host_addr_backup", "Backup IP Address"])
 		{
-			$NI->{system}{host_addr} = $addr; # cache it
-			$V->{system}{host_addr_value} = $addr;
-			$V->{system}{host_addr_value} .= " ($NI->{system}{host})" if ($addr ne $NI->{system}{host});
-			$V->{system}{host_addr_title} = 'IP Address';
-		}
-		else
-		{
-			$NI->{system}->{host_addr} = ''; # leave the system data clean...
-			$V->{system}{host_addr_value} = $NI->{system}{host}; # ...but give network.pl something to show
-			$V->{system}{host_addr_title} = 'IP Address';
+			my ($sourceprop, $targetprop, $title) = @$_;
+			$V->{system}->{"${targetprop}_title"} = $title;
+
+			if ((my $addr = resolveDNStoAddr($NI->{system}->{$sourceprop})))
+			{
+				$NI->{system}{$targetprop} = $V->{system}{"${targetprop}_value"} = $addr; # cache and display
+				$V->{system}{"${targetprop}_value"} .= " ($NI->{system}->{$sourceprop})" if ($addr ne $NI->{system}->{$sourceprop});
+			}
+			else
+			{
+				$NI->{system}->{$targetprop} = ''; # leave the system data clean...
+				$V->{system}{"${targetprop}_value"} = $NI->{system}->{$sourceprop}; # ...but give network.pl something to show
+			}
 		}
 	}
 	else

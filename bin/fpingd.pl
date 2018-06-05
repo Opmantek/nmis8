@@ -27,7 +27,7 @@
 #  http://support.opmantek.com/users/
 #
 # *****************************************************************************
-our $VERSION = "8.6.5G";
+our $VERSION = "8.6.6G";
 
 use FindBin qw($Bin);
 use lib "$FindBin::Bin/../lib";
@@ -40,6 +40,7 @@ use Fcntl qw(:DEFAULT :flock);
 use File::Basename;
 use Test::Deep::NoTest;
 use Statistics::Lite;
+use List::Util 1.33;
 
 use NMIS;
 use func;
@@ -207,7 +208,7 @@ my $origscript = $FindBin::RealBin."/".$FindBin::Script;
 my @restartparams = map { "$_=".$nvp{$_}; } (grep($_ ne "kill", keys %nvp));
 $0 = $me;
 
-my (%state,											# nodename -> ip, lastping, nextping, nextdns, avg, loss
+my (%state,											# node name (plus declashing bits) -> hash of name, uuid, ip, lastping, nextping, nextdns, avg, loss
 		$preveventcfg,							# change detection
 		$prevmaincfg,								# change detection - loadconftable is not mtime-aware...
 		$mustexit);
@@ -231,7 +232,7 @@ while (!$mustexit)
 
 	my $whichchanged = (defined($preveventcfg) && !eq_deeply($preveventcfg, $eventconfig) ?
 											"Events List" :
-											(defined($prevmaincfg) && !eq_deeply($prevmaincfg,$mainconfig) ? 
+											(defined($prevmaincfg) && !eq_deeply($prevmaincfg,$mainconfig) ?
 											 "Config" : undef));
 	if ($whichchanged)
 	{
@@ -249,24 +250,59 @@ while (!$mustexit)
 	# first: find the candidate nodes (and ditch deleted/disabled ones)
 	for my $maybegoner (keys %state)
 	{
+		my ($nodename,$declash) = split(/:/, $maybegoner);
+
 		delete $state{$maybegoner}
-		if (ref($lnt->{$maybegoner}) ne "HASH"
-				or  !getbool($lnt->{$maybegoner}->{active})
-				or !getbool($lnt->{$maybegoner}->{ping}));
+		if (ref($lnt->{$nodename}) ne "HASH"
+				or  !getbool($lnt->{$nodename}->{active})
+				or !getbool($lnt->{$nodename}->{ping}));
+	}
+	# the same needs to happen for no-longer multi-homed nodes
+	for my $maybegoner (grep(defined($state{$_}->{has_sibling}),
+													 keys %state))
+	{
+		delete $state{$maybegoner}
+		if (!$lnt->{ $state{$maybegoner}->{name} }->{host_backup});
 	}
 
-	my @todos;
-	for my $noderec (values %$lnt)
-	{
-		next if (!getbool($noderec->{active}) or !getbool($noderec->{ping}));
+	my @todos;										# things to ping this time
+	my @tocheck = values %$lnt;		# node instances to consider
+	my %multihomed;
 
-		my $thisstate = $state{ $noderec->{name} } ||= {
+	while (my $noderec = pop @tocheck)
+	{
+		next if (!getbool($noderec->{active})
+						 or !getbool($noderec->{ping}));
+
+		# if a node is dual-homed then it needs to be pinged twice, so two records with two keys...
+		my $statekey = $noderec->{name};
+		if ($noderec->{host_backup})
+		{
+			# first time round, handle primary and add the secondary
+			if (!$multihomed{$noderec->{uuid}})
+			{
+				$multihomed{$noderec->{uuid}} = 1;
+				push @tocheck, $noderec;
+				$statekey .= ":0";
+				debug("Node $noderec->{name} is multi-homed, will ping both $noderec->{host} and $noderec->{host_backup}");
+			}
+			# second time round, handle the secondary
+			else
+			{
+				$noderec->{host} = $noderec->{host_backup};
+				$statekey .= ":1";
+			}
+		}
+		my $thisstate = $state{ $statekey } ||= {
 			name => $noderec->{name},
-			# dynamically managed: ip, lastping,nextping, policy , nextdns, avg min max loss
+			uuid => $noderec->{uuid},	# for finding siblings/host_backup
+			host => $noderec->{host},	# this is either the  primary or the secondary host/ip
+			policy => $noderec->{polling_policy} || 'default',
 		};
-		# what needs filling in, what could change between poll cycles?
-		$thisstate->{host} = $noderec->{host};
-		$thisstate->{policy} = $noderec->{polling_policy} || 'default';
+		$thisstate->{has_sibling} = $thisstate->{uuid}
+		if (exists($multihomed{$thisstate->{uuid}})); # temporary property is present for both
+
+		# dynamically managed: ip, lastping,nextping, policy , nextdns, avg min max loss
 
 		# honor fixed ip address given
 		# fixme: fping doesn't do ipv6, we would have to use fping6 for that.
@@ -291,31 +327,33 @@ while (!$mustexit)
 		# otherwise leave it to fping to Do Something with the host (name or whatever)
 		else
 		{
-				$thisstate->{ip} = $thisstate->{host};
+			$thisstate->{ip} = $thisstate->{host};
 		}
 
 		# second: find out which ones are due for pinging this cycle
 		if (!$thisstate->{nextping} or $thisstate->{nextping} <= $now)
 		{
-			debug("will ping node $thisstate->{name} this cycle"
+			debug("will ping node $thisstate->{name} ($thisstate->{ip}) this cycle"
 						. ($thisstate->{nextping}? sprintf(", was due %.2fs ago", $now - $thisstate->{nextping}): "" ))
 						if ($debug > 1);
-			push @todos, $thisstate->{name};
+			push @todos, $statekey;
 		}
 	}
 
-	my @thistime = @todos;				# todos is consumed
+	my @thistime = @todos;	# todos is consumed
 	# third: ping the ones in need, in chunks if necessary
 	while (my @chunk = splice(@todos, 0, $maxnodes))
 	{
-		my %ip2node;
+		my %ip2staterec;
+
 		my @cmd = @fpingcmd;
-		for my $nodename (@chunk)
+		for my $statekey (@chunk)
 		{
-			my $thisip = $state{$nodename}->{ip};
+			my $thisip = $state{$statekey}->{ip};
 
 			push @cmd, $thisip;
-			$ip2node{$thisip} = $nodename; # for associating the results
+			$ip2staterec{$thisip} //= []; # one ip can be associated with 2+ nodes
+			push @{$ip2staterec{$thisip}}, $statekey;
 		}
 		debug("about to run: ".join(" ",@cmd));
 
@@ -334,36 +372,39 @@ while (!$mustexit)
 			# or nothing for unresolvable.
 			debug("fping returned: $line") if ($debug > 2);
 
-			my ($hostname,$loss,$min,$avg,$max) = ($1,$2,$3,$4,$5,$6)
+			my ($hostnameorip,$loss,$min,$avg,$max) = ($1,$2,$3,$4,$5,$6)
 					if ($line =~ m!^\s*(\S+)\s*:\s*xmt/rcv/%loss\s*=\s*\d+/\d+/(\d+)%(?:,\s*min/avg/max\s*=\s*(\d+(?:\.\d+)?)/(\d+(?:\.\d+)?)/(\d+(?:\.\d+)?))?$!);
 
-			if ($hostname								# parseable?
-					&& $ip2node{$hostname}  # known?
+			if ($hostnameorip								# parseable?
+					&& $ip2staterec{$hostnameorip}  # known?
 					&& $loss =~ /^\d+$/ )		  # structure good enough for the reachability at least?
 			{
-				my $thisstate = $state{ $ip2node{$hostname} };
-				# what does the policy say about the interval?
-				# policy present, use that; fall back to 60 seconds otherwise
-				my $interval = ref($policies->{ $thisstate->{policy} }) eq "HASH"?
-						$policies->{ $thisstate->{policy} }->{ping} : 60; # seconds
-
-				# supports NNN (seconds) or MMMU with U being s, m, h or d, fractional NNN or MMM also ok
-				if ($interval =~ /^\s*(\d+(\.\d+)?)([smhd])$/)
+				for my $owner (@{$ip2staterec{$hostnameorip}})
 				{
-					my ($rawvalue, $unit) = ($1, $3);
-					$interval = $rawvalue * ($unit eq 'm'? 60 : $unit eq 'h'? 3600 : $unit eq 'd'? 86400 : 1);
+					my $thisstate = $state{$owner};
+					# what does the policy say about the interval?
+					# policy present, use that; fall back to 60 seconds otherwise
+					my $interval = ref($policies->{ $thisstate->{policy} }) eq "HASH"?
+							$policies->{ $thisstate->{policy} }->{ping} : 60; # seconds
+
+					# supports NNN (seconds) or MMMU with U being s, m, h or d, fractional NNN or MMM also ok
+					if ($interval =~ /^\s*(\d+(\.\d+)?)([smhd])$/)
+					{
+						my ($rawvalue, $unit) = ($1, $3);
+						$interval = $rawvalue * ($unit eq 'm'? 60 : $unit eq 'h'? 3600 : $unit eq 'd'? 86400 : 1);
+					}
+
+					# the regex extraction sets missing to blank string, would prefer undef or number
+					$thisstate->{loss} = int($loss);
+					$thisstate->{avg} = $avg ne ""? 0+$avg : undef;
+					$thisstate->{min} = $min ne ""? 0+$min : undef;
+					$thisstate->{max} = $max ne ""? 0+$max : undef;
+
+					$thisstate->{lastping} = $now;
+					$thisstate->{nextping} = $now + $interval;
+
+					debug("parsed result for node $thisstate->{name}: ".Dumper($thisstate)) if ($debug > 2);
 				}
-
-				# the regex extraction sets missing to blank string, would prefer undef or number
-				$thisstate->{loss} = int($loss);
-				$thisstate->{avg} = $avg ne ""? 0+$avg : undef;
-				$thisstate->{min} = $min ne ""? 0+$min : undef;
-				$thisstate->{max} = $max ne ""? 0+$max : undef;
-
-				$thisstate->{lastping} = $now;
-				$thisstate->{nextping} = $now + $interval;
-
-				debug("parsed result for node $ip2node{$hostname}: ".Dumper($thisstate)) if ($debug > 2);
 			}
 			else
 			{
@@ -377,9 +418,9 @@ while (!$mustexit)
 	writeTable(dir => 'var', name => "nmis-fping", data => \%state);
 
 	# fourth: analyse the results we've got this time, trigger nmis operations as needed
-	for my $nodename (@thistime)
+	for my $statekey (@thistime)
 	{
-		my $thisstate = $state{$nodename};
+		my $thisstate = $state{$statekey};
 
 		# write raw events if requested - regardless of state change or not!
 		# note that this is a debugging aid only.
@@ -403,43 +444,68 @@ while (!$mustexit)
 					my $level = $down? "Critical":"Normal";
 					my $details = $down? "Ping failed" : "Ping succeeded, loss=$thisstate->{loss}%";
 
-					print RF join(",", time, $nodename, $event, $level, '', $details),"\n";
+					print RF join(",", time, $thisstate->{name}, $event, $level, '', $details),"\n";
 					close RF or push(@problems,"ERROR could now write to or close $raweventlog: $!");
 				}
 			}
 			map { logMsg($_) } (@problems); # DO NOT run logMsg inside a critical section or while holding a lock!
 		}
 
-		# submit changes in status to the nmis event system
-		if ( $thisstate->{loss} == 100 )
+		# now raise/close nmis events according to the node status
+		# note that multi-homed nodes are down IFF all ips are unreachable
+		if ($thisstate->{loss} == 100)
 		{
-			debug("Node $nodename is NOT REACHABLE, fping reported loss=$thisstate->{loss}%");
-			# for unreachable nodes where we're caching the dns-ip assocition, we mark it as 'recheck dns'
-			# for fixed-ip nodes this is not relevant
-			undef $thisstate->{nextdns};
+			my $raisenodedown;
 
-			if (!eventExist($nodename, "Node Down", undef))
+			# not multihomed? normal down handling
+			if (!$thisstate->{has_sibling})
 			{
-				# Device is DOWN, was up, as no entry in event database
-				debug("$nodename is now DOWN, was UP, updating event database");
-				fpingNotify($nodename);
-				++$escalatables;
+				debug("Node $thisstate->{name} ($thisstate->{ip}) is NOT REACHABLE, fping reported loss=$thisstate->{loss}%");
+				$raisenodedown = 1;
+			}
+			# multihomed and all dead
+			elsif (List::Util::none { $_->{has_sibling} eq $thisstate->{has_sibling}
+																&& $_->{loss} != 100 } (values %state))
+			{
+				debug("Node $thisstate->{name} ($thisstate->{ip} and all siblings) is NOT REACHABLE, fping reported loss=$thisstate->{loss}%");
+				$raisenodedown = 1;
+			}
+			# multihomed but somebody else is up
+			else
+			{
+				debug("Node $thisstate->{name} ($thisstate->{ip}) is NOT REACHABLE, fping reported loss=$thisstate->{loss}%, but other siblings are up.");
+			}
+
+			if ($raisenodedown)
+			{
+				# for unreachable nodes where we're caching the dns-ip assocition, we mark it as 'recheck dns'
+				# for fixed-ip nodes this is not relevant
+				undef $thisstate->{nextdns};
+
+
+				if (!eventExist($thisstate->{name}, "Node Down", undef))
+				{
+					# Device is DOWN, was up, as no entry in event database
+					debug("$thisstate->{name} is now DOWN, was UP, updating event database");
+					fpingNotify($thisstate->{name});
+					++$escalatables;
+				}
 			}
 		}
 		else # node somewhat pingable, not 100% loss
 		{
-			debug("$nodename is pingable: returned min/avg/max = $thisstate->{min}/$thisstate->{avg}/$thisstate->{max}ms loss=$thisstate->{loss}%");
+			debug("$thisstate->{name} ($thisstate->{ip}) is pingable: returned min/avg/max = $thisstate->{min}/$thisstate->{avg}/$thisstate->{max}ms loss=$thisstate->{loss}%");
 
 			# check the event existence AND its currency!
-			my $event_exists = eventExist($nodename, "Node Down", undef);
+			my $event_exists = eventExist($thisstate->{name}, "Node Down", undef);
 			my $erec = eventLoad(filename => $event_exists) if ($event_exists);
 
 			if ($event_exists and $erec and getbool($erec->{current}))
 			{
 				# Device was down is now UP!
 				# Only post the status if the event database records as currently down
-				debug("$nodename is now UP, was DOWN, updating event database");
-				fpingCheckEvent($nodename);
+				debug("$thisstate->{name} ($thisstate->{ip}) is now UP, was DOWN, updating event database");
+				fpingCheckEvent($thisstate->{name});
 				++$escalatables;
 			}
 		}

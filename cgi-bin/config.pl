@@ -30,7 +30,7 @@
 #
 # *****************************************************************************
 use strict;
-our $VERSION="8.6.5G";
+our $VERSION="8.6.6G";
 
 use FindBin;
 use lib "$FindBin::Bin/../lib";
@@ -457,10 +457,11 @@ sub doEditConfig
 		# "int" => [ min, max ], undef can be used for no min/max - rejects X < min or > max
 		# "float" => [ min, max, above, below ] - rejects X < min or X <= above, X > max or X >= below
 		#   that's required to express 'positive float' === strictly above zero: [0 or undef,dontcare,0,dontcare]
-		# "int-or-empty", "float-or-empty" work like their namesakes, but accept nothing/blank/undef as well.
+		# "resolvable" => [ 4 or 6 or 4, 6] - accepts ip of that type or hostname that resolves to that ip type
+		# "int-or-empty", "float-or-empty", "resolvable-or-empty" work like their namesakes,
+		#  but accept nothing/blank/undef as well.
 		# "regex" => qr//,
 		# "ip" => [ 4 or 6 or 4, 6],
-		# "resolvable" => [ 4 or 6 or 4, 6] - accepts ip of that type or hostname that resolves to that ip type
 		# "onefromlist" => [ list of accepted values ] or undef - if undef, 'value' list is used
 		#   accepts exactly one value
 		# "multifromlist" => [ list of accepted values ] or undef, like fromlist but more than one
@@ -521,35 +522,39 @@ sub doEditConfig
 						if (($ipobj->version == 6 and !grep($_ == 6, @ipversions))
 								or $ipobj->version == 4 and !grep($_ == 4, @ipversions));
 			}
-			elsif ($valtype eq "resolvable")
+			elsif ($valtype =~ /^resolvable(-or-empty)?$/)
 			{
-				return validation_abort($item, "'$value' is not a resolvable name or IP address!")
-						if (!$value);
+				my $emptyisok = $1;
+				if (!$emptyisok or (defined($value) and $value ne ""))
+				{
+					return validation_abort($item, "'$value' is not a resolvable name or IP address!")
+							if (!$value);
 
-				my @ipversions = ref($valprops) eq "ARRAY"? @$valprops : (4,6);
+					my @ipversions = ref($valprops) eq "ARRAY"? @$valprops : (4,6);
 
-				my $alreadyip = Net::IP->new($value);
-				if ($alreadyip)
+					my $alreadyip = Net::IP->new($value);
+					if ($alreadyip)
 					{
 						return validation_abort($item, "'$value' is IP address of the wrong type!")
 								if (!grep($_ == $alreadyip->version, @ipversions));
 						# otherwise, we're happy...
 					}
-				else
-				{
-					my @addresses = NMIS::resolve_dns_name($value);
-					return validation_abort($item, "DNS failed to resolve '$value'!")
-							if (!@addresses);
+					else
+					{
+						my @addresses = NMIS::resolve_dns_name($value);
+						return validation_abort($item, "DNS failed to resolve '$value'!")
+								if (!@addresses);
 
-					my @addr_objs = map { Net::IP->new($_) } (@addresses);
-					my $goodones;
+						my @addr_objs = map { Net::IP->new($_) } (@addresses);
+						my $goodones;
 						for my $type (4,6)
 						{
 							$goodones += grep($_->version == $type, @addr_objs) if (grep($_ == $type, @ipversions));
 						}
-					return validation_abort($item,
-																	"'$value' does not resolve to an IP address of the right type!")
-							if (!$goodones);
+						return validation_abort($item,
+																		"'$value' does not resolve to an IP address of the right type!")
+								if (!$goodones);
+					}
 				}
 			}
 			elsif ($valtype eq "onefromlist" or $valtype eq "multifromlist")
