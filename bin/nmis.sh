@@ -36,7 +36,7 @@ nmis=$nmis_base/bin/nmis.pl
 nmis_log=$nmis_base/logs/nmis.log
 event_log=$nmis_base/logs/event.log
 error_log=/var/log/httpd/error_log
-editor=/bin/vi
+editor=`which vi`
 DEBUG="debug=false"
 MODEL="model=false"
 
