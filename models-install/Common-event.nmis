@@ -151,6 +151,23 @@
           'level' => 'Major'
         }
       },
+      'node polling failover' => {
+        'core' => {
+          'logging' => 'true',
+          'syslog' => 'true',
+          'level' => 'Critical'
+        },
+        'access' => {
+          'logging' => 'true',
+          'syslog' => 'true',
+          'level' => 'Warning'
+        },
+        'distribution' => {
+          'logging' => 'true',
+          'syslog' => 'true',
+          'level' => 'Major'
+        }
+      },
       'default' => {
         'core' => {
           'logging' => 'true',
