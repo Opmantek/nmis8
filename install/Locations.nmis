@@ -1,32 +1,3 @@
-#
-#  Copyright Opmantek Limited (www.opmantek.com)
-#  
-#  ALL CODE MODIFICATIONS MUST BE SENT TO CODE@OPMANTEK.COM
-#  
-#  This file is part of Network Management Information System ("NMIS").
-#  
-#  NMIS is free software: you can redistribute it and/or modify
-#  it under the terms of the GNU General Public License as published by
-#  the Free Software Foundation, either version 3 of the License, or
-#  (at your option) any later version.
-#  
-#  NMIS is distributed in the hope that it will be useful,
-#  but WITHOUT ANY WARRANTY; without even the implied warranty of
-#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-#  GNU General Public License for more details.
-#  
-#  You should have received a copy of the GNU General Public License
-#  along with NMIS (most likely in a file named LICENSE).  
-#  If not, see <http://www.gnu.org/licenses/>
-#  
-#  For further information on NMIS or for a license other than GPL please see
-#  www.opmantek.com or email contact@opmantek.com 
-#  
-#  User group details:
-#  http://support.opmantek.com/users/
-#  
-# *****************************************************************************
-
 %hash = (
   'default' => {
     'Address1' => '',
@@ -43,22 +14,7 @@
     'State' => '',
     'Suburb' => ''
   },
-  'Cloud' => {
-    'Address1' => '',
-    'Address2' => '',
-    'City' => '',
-    'Country' => '',
-    'Floor' => '',
-    'Geocode' => 'St Louis, Misouri',
-    'Latitude' => '38.612469',
-    'Location' => 'Cloud',
-    'Longitude' => '-90.198830',
-    'Postcode' => '',
-    'Room' => '',
-    'State' => '',
-    'Suburb' => ''
-  },
-  'HeadOffice' => {
+  'Head Office' => {
     'Address1' => '',
     'Address2' => '',
     'City' => '',
@@ -66,14 +22,14 @@
     'Floor' => '',
     'Geocode' => 'Charlotte, NC',
     'Latitude' => '35.215215',
-    'Location' => 'Cloud',
+    'Location' => 'Head Office',
     'Longitude' => '-80.840213',
     'Postcode' => '',
     'Room' => '',
     'State' => '',
     'Suburb' => ''
   },
-  'DataCenter' => {
+  'Data Center' => {
     'Address1' => '',
     'Address2' => '',
     'City' => '',
@@ -81,11 +37,477 @@
     'Floor' => '',
     'Geocode' => 'Lenior, NC',
     'Latitude' => '35.914635',
-    'Location' => 'DataCenter',
+    'Location' => 'Data Center',
     'Longitude' => '-81.526108',
     'Postcode' => '',
     'Room' => '',
     'State' => '',
     'Suburb' => ''
+  },
+  'Kabul' => {
+    'Country' => 'Afghanistan',
+    'Location' => 'Kabul',
+    'City' => 'Kabul',
+    'Latitude' => '34.543896',
+    'Longitude' => '69.160652',
+  },
+  'Buenos Aires' => {
+    'Country' => 'Argentina',
+    'Location' => 'Buenos Aires',
+    'City' => 'Buenos Aires',
+    'Latitude' => '-34.603722',
+    'Longitude' => '-58.381592',
+  },
+  'Sydney' => {
+    'Country' => 'Australia',
+    'Location' => 'Sydney',
+    'City' => 'Sydney',
+    'Latitude' => '-33.865143',
+    'Longitude' => '151.209900',
+  },
+  'Brisbane' => {
+    'Country' => 'Australia',
+    'Location' => 'Brisbane',
+    'City' => 'Brisbane',
+    'Latitude' => '-27.470125',
+    'Longitude' => '153.021072',
+  },
+  'Gold Coast' => {
+    'Country' => 'Australia',
+    'Location' => 'Gold Coast',
+    'City' => 'Gold Coast',
+    'Latitude' => '-28.0167',
+    'Longitude' => '153.4000',
+  },
+  'Dhaka' => {
+    'Country' => 'Bangladesh',
+    'Location' => 'Dhaka',
+    'City' => 'Dhaka',
+    'Latitude' => '23.777176',
+    'Longitude' => '90.399452',
+  },
+  'Brussels' => {
+    'Country' => 'Belgium',
+    'Location' => 'Brussels',
+    'City' => 'Brussels',
+    'Latitude' => '50.85045',
+    'Longitude' => '4.34878',
+  },
+  'Sao Paulo' => {
+    'Country' => 'Brazil',
+    'Location' => 'Sao Paulo',
+    'City' => 'Sao Paulo',
+    'Latitude' => '-23.533773',
+    'Longitude' => '-46.625290',
+  },
+  'Rio De Janeiro' => {
+    'Country' => 'Brazil',
+    'Location' => 'Rio De Janeiro',
+    'City' => 'Rio De Janeiro',
+    'Latitude' => '-22.752754',
+    'Longitude' => '-42.864876',
+  },
+  'Quebec' => {
+    'Country' => 'Canada',
+    'Location' => 'Quebec',
+    'City' => 'Quebec',
+    'Latitude' => '46.803284',
+    'Longitude' => '-71.242798',
+  },
+  'Winnipeg' => {
+    'Country' => 'Canada',
+    'Location' => 'Winnipeg',
+    'City' => 'Winnipeg',
+    'Latitude' => '49.895077',
+    'Longitude' => '-97.138451',
+  },
+  'Santiago' => {
+    'Country' => 'Chile',
+    'Location' => 'Santiago',
+    'City' => 'Santiago',
+    'Latitude' => '-33.447487',
+    'Longitude' => '-70.673676',
+  },
+  'Beijing' => {
+    'Country' => 'China',
+    'Location' => 'Beijing',
+    'City' => 'Beijing',
+    'Latitude' => '39.913818',
+    'Longitude' => '116.363625',
+  },
+  'Bogota' => {
+    'Country' => 'Colombia',
+    'Location' => 'Bogota',
+    'City' => 'Bogota',
+    'Latitude' => '4.624335',
+    'Longitude' => '-74.063644',
+  },
+  'Cali' => {
+    'Country' => 'Colombia',
+    'Location' => 'Cali',
+    'City' => 'Cali',
+    'Latitude' => '3.359889',
+    'Longitude' => '-76.638565',
+  },
+  'San Jose' => {
+    'Country' => 'Costa Rica',
+    'Location' => 'San Jose',
+    'City' => 'San Jose',
+    'Latitude' => '9.934739',
+    'Longitude' => '-84.087502',
+  },
+  'Havana' => {
+    'Country' => 'Cuba',
+    'Location' => 'Havana',
+    'City' => 'Havana',
+    'Latitude' => '23.113592',
+    'Longitude' => '-82.366592',
+  },
+  'Copenhagen' => {
+    'Country' => 'Denmark',
+    'Location' => 'Copenhagen',
+    'City' => 'Copenhagen',
+    'Latitude' => '55.676098',
+    'Longitude' => '12.568337',
+  },
+  'Santo Domingo' => {
+    'Country' => 'Dominican Republic',
+    'Location' => 'Santo Domingo',
+    'City' => 'Santo Domingo',
+    'Latitude' => '18.483402',
+    'Longitude' => '-69.929611',
+  },
+  'Quito' => {
+    'Country' => 'Ecuador',
+    'Location' => 'Quito',
+    'City' => 'Quito',
+    'Latitude' => '-0.180653',
+    'Longitude' => '-78.467834',
+  },
+  'Cairo' => {
+    'Country' => 'Egypt',
+    'Location' => 'Cairo',
+    'City' => 'Cairo',
+    'Latitude' => '30.044420',
+    'Longitude' => '31.235712',
+  },
+  'San Salvador' => {
+    'Country' => 'El Salvador',
+    'Location' => 'San Salvador',
+    'City' => 'San Salvador',
+    'Latitude' => '13.692940',
+    'Longitude' => '-89.218191',
+  },
+  'London' => {
+    'Country' => 'England',
+    'Location' => 'London',
+    'City' => 'London',
+    'Latitude' => '51.507351',
+    'Longitude' => '-0.127758',
+  },
+  'Helsinki' => {
+    'Country' => 'Finland',
+    'Location' => 'Helsinki',
+    'City' => 'Helsinki',
+    'Latitude' => '60.169856',
+    'Longitude' => '24.938379',
+  },
+  'Paris' => {
+    'Country' => 'France',
+    'Location' => 'Paris',
+    'City' => 'Paris',
+    'Latitude' => '48.856614',
+    'Longitude' => '2.352222',
+  },
+  'Berlin' => {
+    'Country' => 'Germany',
+    'Location' => 'Berlin',
+    'City' => 'Berlin',
+    'Latitude' => '52.520007',
+    'Longitude' => '13.404954',
+  },
+  'Athens' => {
+    'Country' => 'Greece',
+    'Location' => 'Athens',
+    'City' => 'Athens',
+    'Latitude' => '37.983810',
+    'Longitude' => '23.727539',
+  },
+  'Guatemala City' => {
+    'Country' => 'Guatemala',
+    'City' => 'Guatemala City',
+    'Location' => 'Guatemala City',
+    'Latitude' => '14.634915',
+    'Longitude' => '-90.506882',
+  },
+  'Tegucigalpa' => {
+    'Country' => 'Honduras',
+    'Location' => 'Tegucigalpa',
+    'City' => 'Tegucigalpa',
+    'Latitude' => '14.072275',
+    'Longitude' => '-87.192136',
+  },
+  'Budapest' => {
+    'Country' => 'Hungary',
+    'Location' => 'Budapest',
+    'City' => 'Budapest',
+    'Latitude' => '47.497912',
+    'Longitude' => '19.040235',
+  },
+  'New Dehli' => {
+    'Country' => 'India',
+    'Location' => 'New Dehli',
+    'City' => 'New Dehli',
+    'Latitude' => '28.613939',
+    'Longitude' => '77.209021',
+  },
+  'Jakarta' => {
+    'Country' => 'Indonesia',
+    'Location' => 'Jakarta',
+    'City' => 'Jakarta',
+    'Latitude' => '-6.175110',
+    'Longitude' => '106.865039',
+  },
+  'Tehran' => {
+    'Country' => 'Iran',
+    'Location' => 'Tehran',
+    'City' => 'Tehran',
+    'Latitude' => '35.689197',
+    'Longitude' => '51.388974',
+  },
+  'Baghdad' => {
+    'Country' => 'Iraq',
+    'Location' => 'Baghdad',
+    'City' => 'Baghdad',
+    'Latitude' => '33.312806',
+    'Longitude' => '44.361488',
+  },
+  'Dublin' => {
+    'Country' => 'Ireland',
+    'Location' => 'Dublin',
+    'City' => 'Dublin',
+    'Latitude' => '53.349805',
+    'Longitude' => '-6.260310',
+  },
+  'Jerusalem' => {
+    'Country' => 'Israel',
+    'Location' => 'Jerusalem',
+    'City' => 'Jerusalem',
+    'Latitude' => '31.768319',
+    'Longitude' => '35.213710',
+  },
+  'Rome' => {
+    'Country' => 'Italy',
+    'Location' => 'Rome',
+    'City' => 'Rome',
+    'Latitude' => '41.902783',
+    'Longitude' => '12.496366',
+  },
+  'Kingston' => {
+    'Country' => 'Jamaica',
+    'Location' => 'Kingston',
+    'City' => 'Kingston',
+    'Latitude' => '18.017874',
+    'Longitude' => '-76.809904',
+  },
+  'Tokyo' => {
+    'Country' => 'Japan',
+    'Location' => 'Tokyo',
+    'City' => 'Tokyo',
+    'Latitude' => '35.689487',
+    'Longitude' => '139.691706',
+  },
+  'Nairobi' => {
+    'Country' => 'Kenya',
+    'Location' => 'Nairobi',
+    'City' => 'Nairobi',
+    'Latitude' => '-1.292066',
+    'Longitude' => '36.821946',
+  },
+  'Seoul' => {
+    'Country' => 'Korea',
+    'Location' => 'Seoul',
+    'City' => 'Seoul',
+    'Latitude' => '37.566535',
+    'Longitude' => '126.977969',
+  },
+  'Beirut' => {
+    'Country' => 'Lebanon',
+    'Location' => 'Beirut',
+    'City' => 'Beirut',
+    'Latitude' => '33.893791',
+    'Longitude' => '35.501777',
+  },
+  'Mexico City' => {
+    'Country' => 'Mexico',
+    'Location' => 'Mexico City',
+    'City' => 'Mexico City',
+    'Latitude' => '19.432608',
+    'Longitude' => '-99.133208',
+  },
+  'Amsterdam' => {
+    'Country' => 'Netherlands',
+    'Location' => 'Amsterdam',
+    'City' => 'Amsterdam',
+    'Latitude' => '52.370216',
+    'Longitude' => '4.895168',
+  },
+  'Wellington' => {
+    'Country' => 'New Zealand',
+    'Location' => 'Wellington',
+    'City' => 'Wellington',
+    'Latitude' => '-41.286460',
+    'Longitude' => '174.776236',
+  },
+  'Oslo' => {
+    'Country' => 'Norway',
+    'Location' => 'Oslo',
+    'City' => 'Oslo',
+    'Latitude' => '59.913869',
+    'Longitude' => '10.752245',
+  },
+  'Islamabad' => {
+    'Country' => 'Pakistan',
+    'Location' => 'Islamabad',
+    'City' => 'Islamabad',
+    'Latitude' => '33.684420',
+    'Longitude' => '73.047885',
+  },
+  'Panama City' => {
+    'Country' => 'Panama',
+    'Location' => 'Panama City',
+    'City' => 'Panama City',
+    'Latitude' => '8.982379',
+    'Longitude' => '-79.519870',
+  },
+  'Lima' => {
+    'Country' => 'Peru',
+    'Location' => 'Lima',
+    'City' => 'Lima',
+    'Latitude' => '-12.046373',
+    'Longitude' => '-77.042754',
+  },
+  'Manila' => {
+    'Country' => 'Philippines',
+    'Location' => 'Manila',
+    'City' => 'Manila',
+    'Latitude' => '14.599512',
+    'Longitude' => '120.984219',
+  },
+  'Warsaw' => {
+    'Country' => 'Poland',
+    'Location' => 'Warsaw',
+    'City' => 'Warsaw',
+    'Latitude' => '52.229676',
+    'Longitude' => '21.012229',
+  },
+  'San Juan' => {
+    'Country' => 'Puerto Rico',
+    'Location' => 'San Juan',
+    'City' => 'San Juan',
+    'Latitude' => '18.465539',
+    'Longitude' => '-66.105735',
+  },
+  'Moscow' => {
+    'Country' => 'Russia',
+    'Location' => 'Moscow',
+    'City' => 'Moscow',
+    'Latitude' => '55.755826',
+    'Longitude' => '37.617300',
+  },
+  'Glasgow' => {
+    'Country' => 'Scotland',
+    'Location' => 'Glasgow',
+    'City' => 'Glasgow',
+    'Latitude' => '55.864237',
+    'Longitude' => '-4.251806',
+  },
+  'Singapore' => {
+    'Country' => 'Singapore',
+    'Location' => 'Singapore',
+    'City' => 'Singapore',
+    'Latitude' => '1.352083',
+    'Longitude' => '103.819836',
+  },
+  'Cape Town' => {
+    'Country' => 'South Africa',
+    'Location' => 'Cape Town',
+    'City' => 'Cape Town',
+    'Latitude' => '-33.924869',
+    'Longitude' => '18.424055',
+  },
+  'Barcelona' => {
+    'Country' => 'Spain',
+    'Location' => 'Barcelona',
+    'City' => 'Barcelona',
+    'Latitude' => '41.385064',
+    'Longitude' => '2.173403',
+  },
+  'Stockholm' => {
+    'Country' => 'Sweden',
+    'Location' => 'Stockholm',
+    'City' => 'Stockholm',
+    'Latitude' => '59.329323',
+    'Longitude' => '18.068581',
+  },
+  'Kiev' => {
+    'Country' => 'Ukraine',
+    'Location' => 'Kiev',
+    'City' => 'Kiev',
+    'Latitude' => '50.450100',
+    'Longitude' => '30.523400',
+  },
+  'Los Angeles' => {
+    'Country' => 'United States',
+    'Location' => 'Los Angeles',
+    'City' => 'Los Angeles',
+    'Latitude' => '34.052234',
+    'Longitude' => '-118.243685',
+  },
+  'Caracas' => {
+    'Country' => 'Venezuela',
+    'Location' => 'Caracas',
+    'City' => 'Caracas',
+    'Latitude' => '10.480594',
+    'Longitude' => '-66.903606',
+  },
+  'Hanoi' => {
+    'Country' => 'Vietnam',
+    'Location' => 'Hanoi',
+    'City' => 'Hanoi',
+    'Latitude' => '21.027764',
+    'Longitude' => '105.834160',
+  },
+  'Scottsdale, AZ' => {
+    'Location' => 'Scottsdale, AZ',
+    'Country' => 'United States',
+    'State' => 'Arizona',
+    'City' => 'Scottsdale',
+    'Latitude' => '33.501324',
+    'Longitude' => '-111.925278',
+  },
+  'Dallas, TX' => {
+    'Location' => 'allas, TX',
+    'Country' => 'United States',
+    'State' => 'Texas',
+    'City' => 'Dallas',
+    'Latitude' => '32.736259',
+    'Longitude' => '-96.864586',
+  },
+  'San Jose, CA' => {
+    'Country' => 'United States',
+    'Location' => 'San Jose, CA',
+    'State' => 'California',
+    'City' => 'San Jose',
+    'Latitude' => '37.3388',
+    'Longitude' => '-121.8910',
+  },
+  'Herndon, VA' => {
+    'Country' => 'United States',
+    'Location' => 'Herndon, VA',
+    'State' => 'Virginia',
+    'City' => 'Herndon',
+    'Latitude' => '38.971389',
+    'Longitude' => '-77.388611',
   },
 );
