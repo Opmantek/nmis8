@@ -36,7 +36,7 @@ nmis=$nmis_base/bin/nmis.pl
 nmis_log=$nmis_base/logs/nmis.log
 event_log=$nmis_base/logs/event.log
 error_log=/var/log/httpd/error_log
-editor=/bin/vi
+editor=`which vi`
 DEBUG="debug=false"
 MODEL="model=false"
 
@@ -55,8 +55,10 @@ helptext() {
 	echo "    $0 crontab"
 	echo "    $0 config"
 	echo "    $0 audit"
-	echo "    $0 Nodes"
 	echo "    $0 Config"
+	echo "    $0 Locations"
+	echo "    $0 Nodes"
+	echo "    $0 Services"
 	echo "    $0 Users"
 	echo "    $0 fixperms"
 	echo "    $0 fpingd restart"
@@ -164,9 +166,21 @@ then
 	exit 0
 fi
 
+if [ "$1" = "Locations" ]
+then
+	$editor $nmis_base/conf/Locations.nmis
+	exit 0
+fi
+
 if [ "$1" = "Nodes" ]
 then
 	$editor $nmis_base/conf/Nodes.nmis
+	exit 0
+fi
+
+if [ "$1" = "Services" ]
+then
+	$editor $nmis_base/conf/Services.nmis
 	exit 0
 fi
 

@@ -30,7 +30,7 @@
 # a small update plugin for handling various Cisco features like CBQoS and Netflow
 
 package Cisco_Features;
-our $VERSION = "1.0.1";
+our $VERSION = "1.1.0";
 
 use strict;
 
@@ -117,9 +117,55 @@ sub update_plugin
 				$changesweremade = 1;
 			}
 		}
-	}	
+	}
 
+	# if there is EntityMIB data then load map out the entPhysicalVendorType to the vendor type fields
+	# store in the field called Type.
+	if (ref($NI->{entityMib}) eq "HASH") {
+		info("Working on $node entityMib");
+		
+		my $vendorOids = loadVendorOids($C);
+
+		for my $key (keys %{$NI->{entityMib}})
+		{
+			my $entry = $NI->{entityMib}->{$key};
+
+			if ( defined $entry->{entPhysicalVendorType} and $vendorOids->{$entry->{entPhysicalVendorType}} ne "" ) {
+				$entry->{cardType} = $vendorOids->{$entry->{entPhysicalVendorType}};
+				$entry->{cardType} =~ s/^cev//;
+			}
+		}
+	}
+	
 	return ($changesweremade,undef); # report if we changed anything
+}
+
+sub loadVendorOids {
+	my $C = shift;
+	
+	my $oids = "$C->{mib_root}/CISCO-ENTITY-VENDORTYPE-OID-MIB.oid";
+	my $vendorOids;
+	
+	print "Loading Vendor OIDs from $oids\n";
+	
+	open(OIDS,$oids) or warn "ERROR could not load $oids: $!\n";
+	
+	my $match = qr/\"(\w+)\"\s+\"([\d+\.]+)\"/;
+	
+	while (<OIDS>) {
+		if ( $_ =~ /$match/ ) {
+			$vendorOids->{$2} = $1;
+		}
+		elsif ( $_ =~ /^#|^\s+#/ ) {
+			#all good comment
+		}
+		else {
+			print "ERROR: no match $_\n";
+		}
+	}
+	close(OIDS);
+	
+	return ($vendorOids);
 }
 
 1;
