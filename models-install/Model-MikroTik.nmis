@@ -367,6 +367,7 @@
     'nodeType' => 'router',
     'rrd' => {
       'mikrotikCpu' => {
+        'control' => '$sysDescr !~ /RB951G|RB433AH|RB\d+/',
         #'indexed' => 'true',
         'graphtype' => 'mikrotikCpu',
         'snmp' => {
