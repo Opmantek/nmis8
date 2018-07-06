@@ -34,7 +34,7 @@
     'sys' => {
       'entityMib' => {
         'indexed' => 'entPhysicalDescr',
-        'headers' => 'index,entPhysicalDescr,entPhysicalContainedIn,entPhysicalName,entPhysicalModelName,entPhysicalVendorType,entPhysicalClass,entPhysicalParentRelPos,entPhysicalHardwareRev,entPhysicalFirmwareRev,entPhysicalSerialNum',
+        'headers' => 'index,entPhysicalDescr,entPhysicalContainedIn,entPhysicalName,entPhysicalModelName,cardType,entPhysicalVendorType,entPhysicalClass,entPhysicalParentRelPos,entPhysicalHardwareRev,entPhysicalFirmwareRev,entPhysicalSerialNum',
         'snmp' => {
           'entPhysicalDescr' => {
             'oid' => 'entPhysicalDescr',
@@ -93,6 +93,9 @@
           'entPhysicalModelName' => {
             'oid' => 'entPhysicalModelName',
             'title' => 'Model Name'
+          },
+          'cardType' => {
+            'title' => 'Type'
           },
           #'entAliasMappingIdentifier' => {
           #  'oid' => 'entAliasMappingIdentifier',
