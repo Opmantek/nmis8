@@ -805,7 +805,7 @@ sub	runThreads
 		$D->{collect}{option} = 'gauge,0:U';
 		$D->{total}{value} = Time::HiRes::time() - $starttime;
 		$D->{total}{option} = 'gauge,0:U';
-		
+
 		# OMK-4630 add nodecount to be saved, probably the following will work well
 		#$D->{nodecount}{value} = $nodecount;
 		#$D->{nodecount}{option} = 'gauge,0:U';
@@ -1541,12 +1541,14 @@ sub runPing
 				 && ref($PT) eq "HASH")
 		{
 			# for multihomed nodes there are two records to check, keyed nodename:N
-			my @tocheck = (defined $NC->{node}->{host_backup}?
+			my @tocheck = ((defined($NC->{node}->{host_backup})
+											&& $NC->{node}->{host_backup})?
 										 grep($_ =~ /^$nodename:\d$/, keys %$PT)
 										 : $nodename);
 			for my $onekey (@tocheck)
 			{
-				if (ref($PT->{$onekey}) eq "HASH"
+				if (ref($PT->{$onekey}) eq "HASH" # present
+						&& defined($PT->{$onekey}->{lastping}) # and valid
 						&& (time - $PT->{$onekey}->{lastping}) < $staleafter)	 # and not stale, 15 minutes seems ample
 				{
 					# copy the fastping data...
