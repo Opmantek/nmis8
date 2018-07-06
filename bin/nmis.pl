@@ -1548,8 +1548,9 @@ sub runPing
 			for my $onekey (@tocheck)
 			{
 				if (ref($PT->{$onekey}) eq "HASH" # present
-						&& defined($PT->{$onekey}->{lastping}) # and valid
-						&& (time - $PT->{$onekey}->{lastping}) < $staleafter)	 # and not stale, 15 minutes seems ample
+						&& defined($PT->{$onekey}->{lastping}) # and valid past data is a/v
+						&& defined($PT->{$onekey}->{nextping}) # and there's a working polling policy
+						&& (time - $PT->{$onekey}->{nextping}) < $staleafter) # and the daemon isn't too far behind with its work
 				{
 					# copy the fastping data...
 					($ping_min, $ping_avg, $ping_max, $ping_loss) = @{$PT->{$onekey}}{"min","avg","max","loss"};
