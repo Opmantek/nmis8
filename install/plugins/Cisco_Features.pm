@@ -133,6 +133,7 @@ sub update_plugin
 			if ( defined $entry->{entPhysicalVendorType} and $vendorOids->{$entry->{entPhysicalVendorType}} ne "" ) {
 				$entry->{cardType} = $vendorOids->{$entry->{entPhysicalVendorType}};
 				$entry->{cardType} =~ s/^cev//;
+				$changesweremade = 1;
 			}
 		}
 	}
