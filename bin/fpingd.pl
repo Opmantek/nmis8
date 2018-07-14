@@ -41,6 +41,7 @@ use File::Basename;
 use Test::Deep::NoTest;
 use Statistics::Lite;
 use List::Util 1.33;
+use Clone;
 
 use NMIS;
 use func;
@@ -289,6 +290,7 @@ while (!$mustexit)
 			# second time round, handle the secondary
 			else
 			{
+				$noderec = Clone::clone($noderec); # no overwriting of the original record!
 				$noderec->{host} = $noderec->{host_backup};
 				$statekey .= ":1";
 			}
@@ -337,6 +339,7 @@ while (!$mustexit)
 						. ($thisstate->{nextping}? sprintf(", was due %.2fs ago", $now - $thisstate->{nextping}): "" ))
 						if ($debug > 1);
 			push @todos, $statekey;
+			$thisstate->{pending} = 1;
 		}
 	}
 
@@ -369,11 +372,18 @@ while (!$mustexit)
 			chomp $line;
 			# goodnode : xmt/rcv/%loss = 5/5/0%, min/avg/max = 0.89/0.96/1.05
 			# badnode : xmt/rcv/%loss = 5/0/100%
+			# or weirdnode : xmt/rcv/%return = 2/64/3200%, min/avg/max = 0.49/7.39/8.13
 			# or nothing for unresolvable.
 			debug("fping returned: $line") if ($debug > 2);
 
-			my ($hostnameorip,$loss,$min,$avg,$max) = ($1,$2,$3,$4,$5,$6)
-					if ($line =~ m!^\s*(\S+)\s*:\s*xmt/rcv/%loss\s*=\s*\d+/\d+/(\d+)%(?:,\s*min/avg/max\s*=\s*(\d+(?:\.\d+)?)/(\d+(?:\.\d+)?)/(\d+(?:\.\d+)?))?$!);
+			my ($hostnameorip,$dupsorloss,$loss,$min,$avg,$max) = ($1,$2,$3,$4,$5,$6,$7)
+					if ($line =~ m!^\s*(\S+)\s*:\s*xmt/rcv/%(loss|return)\s*=\s*\d+/\d+/(\d+)%(?:,\s*min/avg/max\s*=\s*(\d+(?:\.\d+)?)/(\d+(?:\.\d+)?)/(\d+(?:\.\d+)?))?$!);
+
+			if ($dupsorloss eq "return")
+			{
+				logMsg("WARN fping reports ICMP packet duplication: \"$line\"");
+				$loss = 0;
+			}
 
 			if ($hostnameorip								# parseable?
 					&& $ip2staterec{$hostnameorip}  # known?
@@ -402,6 +412,7 @@ while (!$mustexit)
 
 					$thisstate->{lastping} = $now;
 					$thisstate->{nextping} = $now + $interval;
+					delete $thisstate->{pending};
 
 					debug("parsed result for node $thisstate->{name}: ".Dumper($thisstate)) if ($debug > 2);
 				}
@@ -453,7 +464,15 @@ while (!$mustexit)
 
 		# now raise/close nmis events according to the node status
 		# note that multi-homed nodes are down IFF all ips are unreachable
-		if ($thisstate->{loss} == 100)
+
+		# no answers whatsoever? then complain, we don't know if up or down so can't really raise any events
+		if ($thisstate->{pending})
+		{
+			logMsg("ERROR fping has not reported any state for Node $thisstate->{name} ($thisstate->{ip})!");
+			# remove any misleading data from previous runs
+			delete @{$thisstate}{qw(avg min max loss lastping)};
+		}
+		elsif ($thisstate->{loss} == 100)
 		{
 			my $raisenodedown;
 
