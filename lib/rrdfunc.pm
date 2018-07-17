@@ -27,7 +27,7 @@
 #
 # *****************************************************************************
 package rrdfunc;
-our $VERSION = "2.4.1";
+our $VERSION = "2.5.0";
 
 use NMIS::uselib;
 use lib "$NMIS::uselib::rrdtool_lib";
@@ -720,9 +720,13 @@ sub updateRRD
 
 		push @ds, $var;
 
-		# type health, ds outage, polltime, updatetime: are never overridden
-		if ( ($NI->{admin}->{node_was_reset} or $NI->{admin}->{outage_nostats})
-				 and ($type ne "health" or  $var !~ /^(outage|polltime|updatetime)$/))
+		# in outage with nostats option active?
+		# then all rrds INCL health but EXCEPT health's outage/polltime/updatetime DS are overwritten
+		# or was the node reset? then all rrds EXCEPT health are overwritten
+		# (as health holds only gauges and no counters the U isn't needed to avoid spikes)
+		if (($NI->{admin}->{node_was_reset} and $type ne "health")
+				or ($NI->{admin}->{outage_nostats}
+						and ($type ne "health" or $var !~ /^(outage|polltime|updatetime)$/)))
 		{
 			push @values, 'U';
 		}
