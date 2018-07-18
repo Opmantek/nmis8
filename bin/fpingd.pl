@@ -366,6 +366,9 @@ while (!$mustexit)
 			logMsg("ERROR failed to run fping: $!");
 			die "Failed to run fping: $!\n";
 		}
+		
+		# compile a regex for faster use later
+		my $ignoreIcmpMessages =~ qr/(ICMP Time Exceeded|ICMP Host Unreachable)/;
 
 		while (my $line = <FROMFPING>)
 		{
@@ -420,7 +423,9 @@ while (!$mustexit)
 			else
 			{
 				debug("ERROR fping result \"$line\" was not parseable!");
-				logMsg("ERROR result \"$line\" was not parseable!");
+				if ( $line !~ /$ignoreIcmpMessages/ ) {
+					logMsg("ERROR result \"$line\" was not parseable!");
+				}
 			}
 		}
 		close FROMFPING;
