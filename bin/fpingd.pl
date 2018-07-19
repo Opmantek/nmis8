@@ -27,7 +27,7 @@
 #  http://support.opmantek.com/users/
 #
 # *****************************************************************************
-our $VERSION = "8.6.6G";
+our $VERSION = "8.6.6G-1";
 
 use FindBin qw($Bin);
 use lib "$FindBin::Bin/../lib";
@@ -88,26 +88,40 @@ my $logfile = $C->{'fpingd_log'};
 my $pidfile = $C->{'<nmis_var>'}."/nmis-fpingd.pid";
 
 # check for any running fpingd instance
-my $alreadyrunning;
+my @others;
 if ( -f $pidfile )
 {
 	open(F, "<$pidfile") or die "failed to read $pidfile: $!\n";
-	$alreadyrunning = <F>;
+	my $alreadyrunning = <F>;
 	chomp $alreadyrunning;
+
+	push @others, $alreadyrunning
+			if (int($alreadyrunning)			# it's numeric
+					and $alreadyrunning != $$	# it's not me (should be impossible)
+					and kill(0, $alreadyrunning)); # and it's really alive
 	close(F);
 }
 
-if ( int($alreadyrunning)				# it's a number
-		 and $alreadyrunning != $$	# and it's not me (should be impossible)
-		 and kill(0, $alreadyrunning) # and it's really alive
-		 and ( $killwanted or $restartwanted )) # and we're to get rid of it
+# and also make sure no others are lurking
+my $ptable = Proc::ProcessTable->new(enable_ttys => 0);
+# note: strict equality is required, or wrapping processes like sudo ./bin/fpingd.pl will be killed as well.
+for my $maybe (grep($_->cmndline eq $C->{'daemon_fping_filename'},
+										@{$ptable->table}))
 {
-	kill('TERM', $alreadyrunning);				# polite then firm
-	sleep(1);
-	kill('KILL', $alreadyrunning);
-	unlink($pidfile);
+	my $thatpid = $maybe->pid;
+	next if ($thatpid == $$);
 
-	debug("Killed process $alreadyrunning");
+	push @others, $thatpid
+			if (!grep($_ eq $thatpid, @others));
+}
+# there must be at most one fpingd instanc under any circumstances
+for my $unwanted (@others)
+{
+	kill('TERM', $unwanted);				# polite then firm
+	sleep(1);
+	kill('KILL', $unwanted);
+
+	logMsg("INFO killed fpingd process $unwanted");
 }
 exit(0) if ($killwanted);
 
@@ -366,7 +380,7 @@ while (!$mustexit)
 			logMsg("ERROR failed to run fping: $!");
 			die "Failed to run fping: $!\n";
 		}
-		
+
 		# compile a regex for faster use later
 		my $ignoreIcmpMessages =~ qr/(ICMP Time Exceeded|ICMP Host Unreachable)/;
 
@@ -422,10 +436,7 @@ while (!$mustexit)
 			}
 			else
 			{
-				debug("ERROR fping result \"$line\" was not parseable!");
-				if ( $line !~ /$ignoreIcmpMessages/ ) {
-					logMsg("ERROR result \"$line\" was not parseable!");
-				}
+				debug("WARN fping result \"$line\" was not parseable!");
 			}
 		}
 		close FROMFPING;
@@ -631,7 +642,6 @@ sub catch_zap
 	debug("I was killed by $sig");
 	logMsg("INFO daemon fpingd killed by $sig",
 				 do_not_lock => 1);
-	unlink $pidfile;
 }
 
 # this is a general-purpose reaper of zombies
