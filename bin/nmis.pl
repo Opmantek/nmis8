@@ -8454,8 +8454,10 @@ sub runDaemons
 	my $pt = new Proc::ProcessTable();
 	foreach my $pentry (@{$pt->table})
 	{
-		# fpingd is identifyable only by cmdline
-		$fpingd_found = 1 if ($pentry->cmndline =~ $C->{daemon_fping_filename});
+		# fpingd is identifyable only by cmdline,
+		# and only strict equality is ok or we might misinterpret wrappers like
+		# sudo ./bin/fpingd.pl, or ps ax|fgrep fpingd...
+		$fpingd_found = 1 if ($pentry->cmndline eq $C->{daemon_fping_filename});
 		$ipslad_found = 1 if ($pentry->fname eq $C->{daemon_ipsla_filename});
 		last if ($fpingd_found && $ipslad_found);
 	}
