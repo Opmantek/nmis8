@@ -738,7 +738,14 @@
         'PRINT:totalUtil:AVERAGE:totalUtil=%1.2lf',
         'PRINT:inputBits:AVERAGE:inputBits=%1.2lf',
         'PRINT:outputBits:AVERAGE:outputBits=%1.2lf'
-      ]  		
+      ],
+      'cempMemPool' => [
+        'DEF:MemUsed=$database:MemPoolUsed:AVERAGE',
+        'DEF:MemFree=$database:MemPoolFree:AVERAGE',
+        'CDEF:memTotal=MemUsed,MemFree,+',
+        'CDEF:memUtil=MemUsed,memTotal,/,100,*',
+        'PRINT:memUtil:AVERAGE:memUtil=%1.2lf'
+      ],
   	}
   },
   'summary' => {
