@@ -65,7 +65,7 @@
               'warning' => '30',
               'major' => '50'
             },
-            'control' => '$ifSpeed == 100000000'
+            'control' => '$ifSpeed >= 100000000 and $ifSpeed < 1000000000'
           },
           '40' => {
             'value' => {
@@ -75,7 +75,7 @@
               'warning' => '20',
               'major' => '40'
             },
-            'control' => '$ifSpeed == 1000000000'
+            'control' => '$ifSpeed >= 1000000000'
           },
           'default' => {
             'value' => {
@@ -534,7 +534,7 @@
               'warning' => '20',
               'major' => '40'
             },
-            'control' => '$ifSpeed == 1000000000'
+            'control' => '$ifSpeed >= 1000000000'
           },
           '10' => {
             'value' => {
@@ -554,7 +554,7 @@
               'warning' => '30',
               'major' => '50'
             },
-            'control' => '$ifSpeed == 100000000'
+            'control' => '$ifSpeed >= 100000000 and $ifSpeed < 1000000000'
           },
           'default' => {
             'value' => {
