@@ -39,11 +39,11 @@ use Data::Dumper;
 use CGI qw(:standard *table *Tr *td *form *Select *div);
 use Text::CSV;
 
+use func;
 use NMIS;
 use Auth;
 use Sys;
-use rrdfunc;
-use func;
+use rrdfunc;										# for getrrdashash 
 
 my $q = new CGI; # This processes all parameters passed via GET and POST
 my $Q = $q->Vars; # values in hash
@@ -584,18 +584,34 @@ sub typeGraph
 			push @output, end_Tr;
 		}
 
-		my $graphLink="$C->{'rrddraw'}?conf=$Q->{conf}&amp;act=draw_graph_view".
-				"&node=$urlsafenode&group=$urlsafegroup&graphtype=$graphtype&start=$start&end=$end&width=$width&height=$height&intf=$urlsafeindex&item=$urlsafeitem";
+		my $graphLink = htmlGraph(only_link => 1, # we need the unwrapped link!
+															node => $node,
+															group => $group,
+															graphtype => $graphtype,
+															intf => $index,
+															item => $item,
+															start => $start,
+															end => $end,
+															width => $width,
+															height => $height );
+		# logMsg("asked for $graphtype, start $start end $end, got $graphLink");
 
-		if ( $graphtype ne "service-cpumem" or $NI->{graphtype}{$index}{service} =~ /service-cpumem/ ) {
-			push @output, Tr(td({class=>'info Plain',align=>'center',colspan=>'4'},image_button(-name=>'graphimg',-src=>"$graphLink",-align=>'MIDDLE', -tabindex=>"-1")));
-			push @output, Tr(td({class=>'info Plain',align=>'center',colspan=>'4'},"Clickable graphs: Left -> Back; Right -> Forward; Top Middle -> Zoom In; Bottom Middle-> Zoom Out, in time"));
+		if ( $graphtype ne "service-cpumem" or $NI->{graphtype}{$index}{service} =~ /service-cpumem/ )
+		{
+			push @output, Tr(td({class=>'info Plain',align=>'center',colspan=>'4'},
+													image_button(-name=>'graphimg',-src => $graphLink,
+																			 -align=>'MIDDLE', -tabindex=>"-1")));
+			push @output, Tr(td({class=>'info Plain',align=>'center',colspan=>'4'},
+													"Clickable graphs: Left -> Back; Right -> Forward; Top Middle -> Zoom In; Bottom Middle-> Zoom Out, in time"));
 		}
-		else {
-			push @output, Tr(td({class=>'info Plain',align=>'center',colspan=>'4'},"Graph type not applicable for this data set."));
+		else
+		{
+			push @output, Tr(td({class=>'info Plain',align=>'center',colspan=>'4'},
+													"Graph type not applicable for this data set."));
 		}
 	} else {
-		push @output, Tr(td({colspan=>'4',align=>'center'},"waiting for selection or no data available"));
+		push @output, Tr(td({colspan=>'4',align=>'center'},
+												"waiting for selection or no data available"));
 		push @output, hidden(-name=>'item', -default=>"$item",-override=>'1');
 	}
 	# push on page
@@ -610,8 +626,6 @@ sub typeGraph
 	print hidden(-name=>'p_end', -default=>"$p_end",-override=>'1');
 	print hidden(-name=>'p_time', -default=>"$time",-override=>'1');
 	print hidden(-name=>'act', -default=>"network_graph_view", -override=>'1');
-	print hidden(-name=>'obj', -default=>"graph",-override=>'1'); # for rrddraw
-	print hidden(-name=>'func', -default=>"view",-override=>'1'); # fixme: looks unused
 
 	print "</form>", comment("typeGraph end");
 	print end_html;

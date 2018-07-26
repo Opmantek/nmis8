@@ -27,7 +27,7 @@
 #
 # *****************************************************************************
 package NMIS;
-our $VERSION = "8.6.6G";
+our $VERSION = "8.6.7a";
 
 use NMIS::uselib;
 use lib "$NMIS::uselib::rrdtool_lib";
@@ -52,6 +52,8 @@ use Clone;
 use List::Util 1.33;
 use CGI qw();												# very ugly but createhrbuttons needs it :(
 use NMIS::UUID;
+use Digest::MD5;								# for htmlGraph, nothing stronger is needed
+use NMIS::RRDdraw;							# for htmlGraph
 
 #! Imports the LOCK_ *constants (eg. LOCK_UN, LOCK_EX)
 use Fcntl qw(:DEFAULT :flock);
@@ -2705,40 +2707,109 @@ sub resolveDNStoAddr
 	return $v4[0];
 }
 
-# create http for a clickable graph
-sub htmlGraph {
+# produce clickable graph and return html that can be pasted onto a page
+# rrd graph is created by this function and cached on disk
+#
+# args: node/group, intf/item, server, graphtype, width, height (all required),
+#  start, end (optional),
+#  only_link (optional, default: 0, if set ONLY the href for the graph is returned)
+# returns: html or link/href value
+sub htmlGraph
+{
 	my %args = @_;
+
+	my $C = loadConfTable();
+
 	my $graphtype = $args{graphtype};
 	my $group = $args{group};
 	my $node = $args{node};
 	my $intf = $args{intf};
+	my $item  = $args{item};
 	my $server = $args{server};
-
-	my $target = $node;
-	if ($node eq "" and $group ne "") {
-		$target = $group;
-	}
-
-	my $id = uri_escape("$target-$intf-$graphtype"); # intf and node are unsafe
-	my $C = loadConfTable();
-
 	my $width = $args{width}; # graph size
 	my $height = $args{height};
-	my $win_width = $C->{win_width}; # window size
-	my $win_height = $C->{win_height};
+	my $omit_fluff = getbool($args{only_link}); # return wrapped <a> etc. or just the href?
 
 	my $urlsafenode = uri_escape($node);
 	my $urlsafegroup = uri_escape($group);
 	my $urlsafeintf = uri_escape($intf);
+	my $urlsafeitem = uri_escape($item);
+
+	my $target = $node || $group; # only used for js/widget linkage
+	my $clickurl = "$C->{'node'}?conf=$C->{conf}&act=network_graph_view&graphtype=$graphtype&group=$urlsafegroup&intf=$urlsafeintf&item=$urlsafeitem&server=$server&node=$urlsafenode";
 
 	my $time = time();
-	my $clickurl = "$C->{'node'}?conf=$C->{conf}&act=network_graph_view&graphtype=$graphtype&group=$urlsafegroup&intf=$urlsafeintf&server=$server&node=$urlsafenode";
+	my $graphlength = ( $C->{graph_unit} eq "days" )?
+			86400 * $C->{graph_amount} : 3600 * $C->{graph_amount};
+	my $start = $args{start} || time-$graphlength;
+	my $end = $args{end} || $time;
 
-	my $src = "$C->{'rrddraw'}?conf=$C->{conf}&act=draw_graph_view&group=$urlsafegroup&graphtype=$graphtype&node=$urlsafenode&intf=$urlsafeintf&server=$server".
-			"&start=&end=&width=$width&height=$height&time=$time";
-	### 2012-03-28 keiths, changed graphs to come up in their own Window with the target of node, handy for comparing graphs.
-	return 	qq|<a target="Graph-$target" onClick="viewwndw(\'$target\',\'$clickurl\',$win_width,$win_height)">
-<img alt='Network Info' src="$src"></img></a>|;
+	# where to put the graph file? let's use htdocs/cache, that's web-accessible
+	my $cachedir = $C->{'web_root'}."/cache";
+	createDir($cachedir) if (!-d $cachedir);
+
+	# we need a time-invariant but safe file name component
+	my $graphfile_prefix = Digest::MD5::md5_hex(
+		join("__",
+				 $C->{conf}, # fixme: needed? useful? relevant?
+				 $group, $node, $intf, $item,
+				 $graphtype,
+				 $server, # fixme: needed?
+				 $width, $height));
+
+	# do we want to reuse an existing, 'new enough' graph?
+	opendir(D, $cachedir);
+	my @recyclables = grep(/^$graphfile_prefix/, readdir(D));
+	closedir(D);
+
+	my $graphfilename;
+	my $cachefilemaxage = $C->{graph_cache_maxage} // 60;
+
+	for my $maybe (sort { $b cmp $a } @recyclables)
+	{
+		next if ($maybe !~ /^\S+_(\d+)_(\d+)\.png$/); # should be impossible
+		my ($otherstart, $otherend) = ($1,$2);
+
+		# let's accept anything newer than 60 seconds as good enough
+		my $deltastart = $start - $otherstart;
+		$deltastart *= -1 if ($deltastart < 0);
+		my $deltaend = $end - $otherend;
+		$deltaend *= -1 if ($deltaend < 0);
+
+		if ($deltastart <= $cachefilemaxage && $deltaend <= $cachefilemaxage)
+		{
+			$graphfilename = $maybe;
+			dbg("reusing cached graph $maybe for $graphtype, node $node: requested period off by ".($start-$otherstart)." seconds");
+
+			last;
+		}
+	}
+
+	# nothing useful in the cache? then generate a new graph
+	if (!$graphfilename)
+	{
+		$graphfilename = $graphfile_prefix."_${start}_${end}.png";
+		dbg("graphing args for new graph: node=$node, group=$group, graphtype=$graphtype, intf=$intf, item=$item, server=$server, start=$start, end=$end, width=$width, height=$height, filename=$cachedir/$graphfilename");
+
+		my $target = "$cachedir/$graphfilename";
+		my ($error, $graphret) = NMIS::RRDdraw::draw(node => $node,
+																								 group => $group,
+																								 graphtype => $graphtype,
+																								 intf => $intf,
+																								 item => $item,
+																								 server => $server,
+																								 start => $start,
+																								 end =>  $end,
+																								 width => $width,
+																								 height => $height,
+																								 filename => $target);
+		return qq|<p>Error: $error</p>| if ($error);
+		func::setFileProt($target);	# to make the selftest happy...
+	}
+
+	# return just the href? or html?
+	return $omit_fluff? "$C->{'<url_base>'}/cache/$graphfilename"
+			: qq|<a target="Graph-$target" onClick="viewwndw(\'$target\',\'$clickurl\',$C->{win_width},$C->{win_height})"><img alt='Network Info' src="$C->{'<url_base>'}/cache/$graphfilename"></img></a>|;
 }
 
 # args: user, node, system, refresh, widget, au (object),

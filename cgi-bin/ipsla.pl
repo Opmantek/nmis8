@@ -555,7 +555,7 @@ sub displayIPSLAmenu {
 					} elsif ( !getbool($C->{daemon_ipsla_active}) ) {
 						$class = "Error";
 						$message = "&nbsp; parameter daemon_ipsla_active in nmis.conf is not set on true to start the daemon ipslad.pl";
-					} 
+					}
 					elsif (not -r "/var/run/ipslad.pid")
 					{
 						$class = "Error";
@@ -925,17 +925,23 @@ sub displayRTTnode {
 		my $glunits = $C->{graph_unit};
 		my $win_width = $C->{graph_width} + 100;
 		my $win_height = $C->{graph_height} + 320;
-		my $nmiscgi_script = "$C->{rrddraw}";
+
 		my $tmpurl=url()."?conf=$Q->{conf}&type=graph&graphtype=$aref->[2]&glamount=&glunits=&node=$pnode";
 
 		return td({align=>"center", colspan=>"2", bgcolor=>"white"},
 			a({href=>$tmpurl, target=>"ViewWindow", onMouseOver=>"window.status='Drill into $aref->[1].';return true",
 					 onClick=>"viewdoc('$tmpurl',$win_width,$win_height)"},
 				img({border=>"0", alt=>"$aref->[1]",
-					src=>"$C->{rrddraw}?conf=$Q->{conf}&act=draw_graph_view&node=$pnode&graphtype=$aref->[2]&start=0&end=0&width=350&height=50&title=small"})));
+						 src=> htmlGraph(only_link => 1, # need the unwrapped link here
+														 node => $pnode,
+														 graphtype => $aref->[2],
+														 # fixme: why are no time arguments passed in?
+														 width => 350, # fixme: why are these not based on c->{graph_xyz}?
+														 height => 50, )
+						})));
+
 	}
 
-	#src="/cgi-nmis8/rrddraw.pl?conf=Config.xxxx&amp;act=draw_graph_view&node=wanedge1&group=&graphtype=cpu&start=1318428782&end=1318601582&width=700&height=250&intf=&item=" align="MIDDLE" /></td>
 }
 
 sub displayRTTdata {

@@ -8722,8 +8722,8 @@ PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 22 8 * * * $usercol $C->{'<nmis_base>'}/admin/config_backup.pl $C->{'<nmis_backups>'} 30
 
 ######################################################
-# purge old files every few days
-2 2 */3 * * $usercol $C->{'<nmis_base>'}/bin/nmis.pl type=purge
+# purge old files frequently
+27 * * * * $usercol $C->{'<nmis_base>'}/bin/nmis.pl type=purge
 
 ######################################################
 # Save the Reports, Daily Monthly Weekly
@@ -9782,6 +9782,13 @@ sub purge_files
 	info("Starting to look for purgable files");
 	# config option, extension, where to look...
 	my @purgatory = (
+		{ ext => qr/\.png$/,
+			minage => $C->{purge_graphcache_after} || 3600,
+			location => "$C->{web_root}/cache",
+			also_empties => 1,
+			description => "Old Graph Images",
+		},
+
 		{ ext => qr/\.rrd$/,
 			minage => $C->{purge_rrd_after} || 30*86400,
 			location => $C->{database_root},
