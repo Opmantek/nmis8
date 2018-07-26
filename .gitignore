@@ -12,6 +12,8 @@ logs
 var/*
 database/*
 models-hearst/*
+htdocs/cache
+htdocs/reports
 *.swp
 diff.txt
 test/*.rrd
