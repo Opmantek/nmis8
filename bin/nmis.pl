@@ -8750,14 +8750,14 @@ sub printApache24
 # NMIS Aliases for static files:
 Alias $C->{'<url_base>'} "$C->{web_root}"
 <Directory "$C->{web_root}">
-  Options Indexes FollowSymLinks MultiViews
+  Options FollowSymLinks MultiViews
 	AllowOverride None
   Require all granted
 </Directory>
 
 Alias $C->{'<menu_url_base>'}/ "$C->{'<nmis_menu>'}/"
 <Directory "$C->{'<nmis_menu>'}">
-  Options Indexes FollowSymLinks MultiViews
+  Options FollowSymLinks MultiViews
   AllowOverride None
   Require all granted
 </Directory>
@@ -8843,7 +8843,7 @@ sub printApache
 
 Alias $C->{'<url_base>'} "$C->{web_root}"
 <Directory "$C->{web_root}">
-		Options Indexes FollowSymLinks MultiViews
+		Options FollowSymLinks MultiViews
 		AllowOverride None
 		Order allow,deny
 		Allow from all
@@ -8851,7 +8851,7 @@ Alias $C->{'<url_base>'} "$C->{web_root}"
 
 Alias $C->{'<menu_url_base>'}/ "$C->{'<nmis_menu>'}/"
 <Directory "$C->{'<nmis_menu>'}">
-		Options Indexes FollowSymLinks MultiViews
+		Options FollowSymLinks MultiViews
 		AllowOverride None
 		Order allow,deny
 		Allow from all
