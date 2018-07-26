@@ -2748,9 +2748,12 @@ sub htmlGraph
 	my $cachedir = $C->{'web_root'}."/cache";
 	createDir($cachedir) if (!-d $cachedir);
 
-	# we need a time-invariant but safe file name component
+	# we need a time-invariant, short and safe file name component,
+	# which also must incorporate a server-specific bit of secret sauce
+	# that an external party does not have access to (to eliminate guessing)
 	my $graphfile_prefix = Digest::MD5::md5_hex(
 		join("__",
+				 $C->{auth_web_key},
 				 $C->{conf}, # fixme: needed? useful? relevant?
 				 $group, $node, $intf, $item,
 				 $graphtype,
