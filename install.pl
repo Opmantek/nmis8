@@ -1242,20 +1242,17 @@ if ( -x "$site/bin/opslad.pl" ) {
 printBanner("Checking configuration and fixing file permissions (takes a few minutes) ...");
 execPrint("$site/bin/nmis.pl type=config info=true");
 
-if ($isnewinstall)
+printBanner("Integration with Apache");
+# determine apache version
+my $prog = $osflavour eq "redhat"? "httpd" : "apache2";
+my $versioninfo = `$prog -v 2>/dev/null`;
+$versioninfo =~ s/^.*Apache\/(\d+\.\d+\.\d+).*$/$1/s;
+my $istwofour = ($versioninfo =~ /^2\.4\./);
+
+if (!$versioninfo)
 {
-	printBanner("Integration with Apache");
-
-	# determine apache version
-	my $prog = $osflavour eq "redhat"? "httpd" : "apache2";
-	my $versioninfo = `$prog -v 2>/dev/null`;
-	$versioninfo =~ s/^.*Apache\/(\d+\.\d+\.\d+).*$/$1/s;
-	my $istwofour = ($versioninfo =~ /^2\.4\./);
-
-	if (!$versioninfo)
-	{
-		echolog("No Apache found!");
-		print "
+	echolog("No Apache found!");
+	print "
 It seems that you don't have Apache 2.x installed, so the installer
 can't configure Apache for NMIS.
 
@@ -1267,55 +1264,68 @@ Please use the output of 'nmis.pl type=apache' and check the
 NMIS Installation guide at
 https://community.opmantek.com/x/Dgh4
 for further info.\n";
-		&input_ok;
-	}
-	else
+	&input_ok;
+}
+else
+{
+	echolog("Found Apache version $versioninfo");
+
+	my $apacheconf = "nmis.conf";
+	my $res = system("$site/bin/nmis.pl type="
+									 .($istwofour?"apache24":"apache")." > /tmp/$apacheconf");
+	my $finaltarget = $osflavour eq "redhat"?
+			"/etc/httpd/conf.d/$apacheconf" :
+			($osflavour eq "debian" or $osflavour eq "ubuntu")? "/etc/apache2/sites-available/$apacheconf" : undef;
+
+	my $copyneeded = (!-f $finaltarget);
+	my $copyok = ($copyneeded && input_yn("Ok to install Apache config file to $finaltarget?"));
+
+	if (-f $finaltarget)
 	{
-		echolog("Found Apache version $versioninfo");
-
-		my $apacheconf = "nmis.conf";
-		my $res = system("$site/bin/nmis.pl type="
-										 .($istwofour?"apache24":"apache")." > /tmp/$apacheconf");
-		my $finaltarget = $osflavour eq "redhat"?
-				"/etc/httpd/conf.d/$apacheconf" :
-				($osflavour eq "debian" or $osflavour eq "ubuntu")? "/etc/apache2/sites-available/$apacheconf" : undef;
-
-		if ($finaltarget
-				&& input_yn("Ok to install Apache config file to $finaltarget?"))
+		# diff exits 0 if no changes, 1 otherwise	if (-f $finaltarget)
+		my $isdifferent = system("diff", "-q", $finaltarget, "/tmp/$apacheconf") >> 8;
+		$copyneeded = $isdifferent;
+		if ($isdifferent)
 		{
-			execPrint("mv /tmp/$apacheconf $finaltarget");
-			execPrint("ln -s $finaltarget /etc/apache2/sites-enabled/")
-					if (-d "/etc/apache2/sites-enabled" && !-l "/etc/apache2/sites-enabled/$apacheconf");
-
-			# meh. rh/centos doesn't have a2enmod
-			if ($istwofour && $osflavour ne "redhat")
-			{
-				execPrint("a2enmod cgi");
-			}
-
-			if ($osflavour eq "redhat")
-			{
-				execPrint("usermod -G nmis apache");
-				execPrint("service httpd restart");
-			}
-			elsif ($osflavour eq "debian" or $osflavour eq "ubuntu")
-			{
-				execPrint("adduser www-data nmis");
-				execPrint("service apache2 restart");
-			}
+			echolog("Existinng Apache config is different from shipped config.");
+			$copyok = input_yn("Ok to update Apache config file at $finaltarget?");
 		}
-		else
+	}
+
+	if ($copyneeded && $copyok)
+	{
+		execPrint("mv /tmp/$apacheconf $finaltarget");
+		execPrint("ln -s $finaltarget /etc/apache2/sites-enabled/")
+				if (-d "/etc/apache2/sites-enabled" && !-l "/etc/apache2/sites-enabled/$apacheconf");
+
+		# meh. rh/centos doesn't have a2enmod
+		if ($istwofour && $osflavour ne "redhat")
 		{
-			echolog("Continuing without Apache configuration.");
-			print "You will need to integrate NMIS with your
+			execPrint("a2enmod cgi");
+		}
+
+		if ($osflavour eq "redhat")
+		{
+			execPrint("usermod -G nmis apache");
+			execPrint("service httpd restart");
+		}
+		elsif ($osflavour eq "debian" or $osflavour eq "ubuntu")
+		{
+			execPrint("adduser www-data nmis");
+			execPrint("service apache2 restart");
+		}
+	}
+	elsif ($copyneeded)						# ie rejected
+	{
+		echolog("Continuing without Apache configuration update.");
+		print "You will need to integrate NMIS with your
 web server manually.
 
 Please use the output of 'nmis.pl type=apache' (or type=apache24) and
 check the NMIS Installation guide at
 https://community.opmantek.com/x/Dgh4
 for further info.\n";
-			&input_ok;
-		}
+		&input_ok;
 	}
 }
 
