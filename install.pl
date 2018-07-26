@@ -1287,8 +1287,12 @@ else
 		$copyneeded = $isdifferent;
 		if ($isdifferent)
 		{
-			echolog("Existinng Apache config is different from shipped config.");
+			echolog("Existing Apache config is different from shipped config.");
 			$copyok = input_yn("Ok to update Apache config file at $finaltarget?");
+		}
+		else
+		{
+			echolog("Existing Apache config is uptodate.");
 		}
 	}
 
