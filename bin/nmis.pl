@@ -522,8 +522,10 @@ sub	runThreads
 				# try once every 5 minutes if demote_faulty_nodes is set to false,
 				# otherwise: was polling attempted at all and in the last 30 days? then once daily from
 				# that last try - otherwise try one now
+				my $fudgefactor = $C->{polling_interval_factor} || 0.9;
 				my $nexttry = !getbool($C->{demote_faulty_nodes},"invert")? # === ne false
-						($lasttry && ($now - $lasttry) <= 30*86400)? ($lasttry + 86400 * 0.95) : $now : $lasttry + 300 ;
+						($lasttry && ($now - $lasttry) <= 30*86400)? ($lasttry + 86400 * $fudgefactor)
+						: $now : $lasttry + 300 ;
 
 				if ($nexttry <= $now)
 				{
@@ -569,10 +571,11 @@ sub	runThreads
 					dbg("Node $maybe is non-collecting, applying snmp policy to last check at $lastsnmp");
 				}
 
-				# accept delta-previous-now interval if it's at least 95% of the configured interval
+				# accept delta-previous-now interval if it's at least 90% of the configured interval
 				# strict 100% would mean that we might skip a full interval when polling takes longer
-				my $nextsnmp = ($lastsnmp // 0) + $intervals{$polname}->{snmp} * 0.95;
-				my $nextwmi = ($lastwmi // 0) + $intervals{$polname}->{wmi} * 0.95;
+				my $fudgefactor = $C->{polling_interval_factor} || 0.9;
+				my $nextsnmp = ($lastsnmp // 0) + $intervals{$polname}->{snmp} * $fudgefactor;
+				my $nextwmi = ($lastwmi // 0) + $intervals{$polname}->{wmi} * $fudgefactor;
 
 				# only flavours which worked in the past contribute to the now-or-later logic
 				if ((defined($lastsnmp) && $nextsnmp <= $now )

@@ -93,6 +93,8 @@ my %hash = (
 		# to have additional fields in the node summary data.
     'node_summary_field_list' => 'host,uuid,location,customer,businessService,serviceStatus,snmpdown,wmidown',
 
+		'polling_interval_factor' => 0.9, # fraction of the polling interval after which node is considered for next poll
+
 		'nmis_mthread' => 'false',
 		'nmis_maxthreads' => '10',
 
