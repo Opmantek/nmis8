@@ -513,39 +513,60 @@ sub	runThreads
 				push @todo_nodes, $maybe;
 				$whichflavours{$maybe}->{wmi} = $whichflavours{$maybe}->{snmp} = 1; # and ignore the last-xyz markers
 			}
-			# nodes that have not been pollable since forever: run at most once daily
-			# ...except if the demote_faulty_nodes config option is set to false
-			elsif (!$ninfo->{system}->{nodeModel} or $ninfo->{system}->{nodeModel} eq "Model")
+
+			# logic for dead node demotion/rate-limiting
+			# if demote_faulty_nodes config option is true, demote nodes that have
+			# not been pollable (or updatable) ever:
+			# after 14 days of normal attempts change to try at most once daily
+			elsif (
+				!getbool($C->{demote_faulty_nodes}, "invert")    # === ne false
+				&& (!$ninfo->{system}->{nodeModel} or $ninfo->{system}->{nodeModel} eq "Model" ) )
 			{
-				my $lasttry = $ninfo->{system}->{last_poll} // 0;
+				# this property gets updated on every attempt
+				my $lasttry = $ninfo->{system}->{ $type eq "collect" ?
+																							"last_poll_attempt" : "last_update_attempt" };
 
-				# try once every 5 minutes if demote_faulty_nodes is set to false,
-				# otherwise: was polling attempted at all and in the last 30 days? then once daily from
-				# that last try - otherwise try one now
-				my $fudgefactor = $C->{polling_interval_factor} || 0.9;
-				my $nexttry = !getbool($C->{demote_faulty_nodes},"invert")? # === ne false
-						($lasttry && ($now - $lasttry) <= 30*86400)? ($lasttry + 86400 * $fudgefactor)
-						: $now : $lasttry + 300 ;
-
-				if ($nexttry <= $now)
+				my $graceperiod_start = $ninfo->{system}->{demote_grace};
+				# none set? then set one
+				if (!defined($graceperiod_start))
 				{
-					push @todo_nodes, $maybe;
-					$whichflavours{$maybe}->{wmi} = $whichflavours{$maybe}->{snmp} = 1;
+					$ninfo->{system}->{demote_grace} = $graceperiod_start = $now;
+					# and make sure the changed data is written out
+					writeTable(dir => 'var', name => lc("$maybe-node"), data => $ninfo);
 				}
-				# if demotion is enabled, log this pretty dire situation
-				# but not too noisily - with a default poll every minute this
-				# will log the issue once an hour.
-				elsif (!getbool($C->{demote_faulty_nodes},"invert")) # === ne false
+
+				# try only once a day if beyond the grace time, min of snmp/wmi/update policy otherwise;
+				my $normalperiod
+						= $type eq "collect"
+						? Statistics::Lite::min( $intervals{$polname}->{snmp}, $intervals{$polname}->{wmi} )
+						: $intervals{$polname}->{update};
+
+				# but do make sure to try a newly added node NOW!
+				my $fudgefactor = ($C->{polling_interval_factor} || 0.9);
+				my $nexttry = defined $lasttry? $lasttry
+						+ $fudgefactor * $normalperiod : $now;
+
+				if ($now - $graceperiod_start > 14 * 86400)
 				{
-					my $goodtimes = int((($now - $lasttry) % 3600) / 60);
-					my $msg = "Node $maybe has no valid nodeModel, never polled successfully, "
-							 . "demoted to frequency once daily, last attempt $lasttry, next $nexttry";
-					logMsg($msg) if ($goodtimes == 0);
-					dbg($msg);
+					$nexttry = ( $lasttry // $now) + 86400 * $fudgefactor;
+
+					# log the demotion situation but not more than once an hour
+					logMsg( "Node $maybe has no valid nodeModel, never polled successfully, "
+									. "past demotion grace window (started at $graceperiod_start) so demoted to frequency once daily, last $type attempt $lasttry, next $nexttry"
+							) if ( $debug or 0 == int( ( ( $now - $lasttry ) % 3600 ) / 60 ) );
 				}
 				else
 				{
-					dbg("Node $maybe has no valid nodeModel, never polled successfully. demote_faulty_nodes is disabled, last attempt $lasttry, next $nexttry.");
+					logMsg("Node $maybe has no valid nodeModel, never polled successfully, demote_faulty_nodes is on, grace window started at $graceperiod_start, last $type attempt "
+								 .($lasttry // "never").", next $nexttry." )
+							if ($debug or 0 == int((($now - $lasttry) % 3600 ) / 60));
+				}
+
+				if ( $nexttry <= $now )
+				{
+					push @todo_nodes, $maybe;
+					$whichflavours{$maybe}->{wmi} = $whichflavours{$maybe}->{snmp} = 1
+							if ( $type eq "collect" );
 				}
 			}
 			# logic for collect now or later: candidate if no past successful collect whatsoever,
@@ -977,6 +998,9 @@ sub doUpdate
 	my $NI = $S->ndinfo;
 	my $NC = $S->ndcfg;
 
+	# record that we are trying an update; last_update records only successfully completed updates...
+	$NI->{system}->{last_update_attempt} = Time::HiRes::time;
+
 	# look for any current outages with options.nostats set,
 	# and set a marker in nodeinfo so that updaterrd writes nothing but 'U'
 	my $outageres = NMIS::check_outages(sys => $S, time => time);
@@ -1076,6 +1100,9 @@ sub doUpdate
 		}
 		$S->close; # close snmp session if one is open
 		$NI->{system}{last_update} = time();
+
+		# we updated something, so certainly outside of dead node demotion grace period
+		delete $NI->{system}->{demote_grace};
 	}
 
 	my $reachdata = runReach(sys=>$S, delayupdate => 1); # don't let it make the rrd update, we want to add updatetime!
@@ -1306,6 +1333,10 @@ sub doCollect
 	my $NI = $S->ndinfo;
 	my $NC = $S->ndcfg;
 	$S->readNodeView;  # s->init does NOT load that, but we need it as we're overwriting some view info
+
+	# record that we are trying a collect/poll;
+	# last_poll (and last_poll_wmi/snmp) only record successfully completed operations
+	$NI->{system}->{last_poll_attempt} = $starttime;
 
 	# look for any current outages with options.nostats set,
 	# and set a marker in nodeinfo so that updaterrd writes nothing but 'U'
@@ -2440,7 +2471,14 @@ sub getIntfInfo
 			info("Getting Device IP Address Table");
 			if ( $ifAdEntTable = $SNMP->getindex('ipAdEntIfIndex')) {
 				if ( $ifMaskTable = $SNMP->getindex('ipAdEntNetMask')) {
-					foreach my $addr (keys %{$ifAdEntTable}) {
+					foreach my $addr (keys %{$ifAdEntTable})
+					{
+						if ($ifMaskTable->{$addr} eq "255.255.255.255"
+								&& $IF->{$ifAdEntTable->{$addr}}->{ifDescr} !~ /loopback/i)
+						{
+							info("SKIPPING HSRP Addr on $IF->{$ifAdEntTable->{$addr}}{ifDescr} :: ifIndex=$ifAdEntTable->{$addr}, addr=$addr  mask=$ifMaskTable->{$addr}");
+							next;
+						}
 						my $index = $ifAdEntTable->{$addr};
 						next if ($singleInterface and $intf_one ne $index);
 						$ifCnt{$index} += 1;
@@ -3611,6 +3649,9 @@ sub updateNodeInfo
 		$V->{system}{lastUpdate_title} = 'Last Update';
 		$NI->{system}{last_poll} = $time_marker;
 
+		# we polled something, so outside of dead node demotion grace period
+		delete $NI->{system}->{demote_grace};
+
 		# get and apply any nodeconf override if such exists for this node
 		my $node = $NI->{system}{name};
 		my ($errmsg, $override) = get_nodeconf(node => $node)
@@ -4438,8 +4479,12 @@ sub getCBQoSwalk
 									next BLOCK2; # skip this class-map, is part of a match statement
 								}
 								# concatenate names
-								if ($answer->{'cbQosParentObjectsIndex2'} ne 0) {
-									$answer->{'cbQosCMName'} = "$answer->{'cbQosName'}--$answer->{'cbQosCMName'}";
+								if ($answer->{'cbQosParentObjectsIndex2'} ne 0)
+								{
+									# OMK-5182, customer wants / as delimiter, not our default --
+									$answer->{'cbQosCMName'} = join( ($C->{cbqos_classmap_name_delimiter} // "--"),
+																									 $answer->{'cbQosName'},
+																									 $answer->{'cbQosCMName'});
 								}
 							}
 
@@ -9097,10 +9142,13 @@ sub doSummaryBuild
 					next unless getbool($IF->{$index}{collect});
 					my $sts = getSummaryStats(sys=>$S, type=>$tp,
 																		start=>$threshold_period, end=>time(), index=>$index);
-					foreach (keys %{$sts->{$index}}) { $stats{$nd}{interface}{$index}{$_} = $sts->{$index}{$_}; } # save for threshold
-
-					# copy all stats into the stsintf info.
-					foreach (keys %{$sts->{$index}}) { $stsintf{"${index}.$S->{name}"}{$_} = $sts->{$index}{$_}; }
+					foreach (keys %{$sts->{$index}})
+					{
+						# save for threshold
+						$stats{$nd}{interface}{$index}{$_} = $sts->{$index}{$_};
+						# get all the stats fields into the stts info.
+						$stsintf{"${index}.$S->{name}"}{$_} = $sts->{$index}{$_};
+					}
 				}
 			}
 		}

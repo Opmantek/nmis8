@@ -27,7 +27,7 @@
 #
 # *****************************************************************************
 package Sys;
-our $VERSION = "2.1.0";
+our $VERSION = "2.1.1";
 
 use strict;
 use lib "../../lib";
@@ -1559,6 +1559,7 @@ sub parseString
 			@args{"string","index","item","sect","type","extras"};
 
 	dbg("parseString:: string to parse '$str'",3);
+	my $C = loadConfTable();
 
 	{
 		no strict;									# *shudder*
@@ -1629,8 +1630,8 @@ sub parseString
 				$hrDiskFree = $hrDiskSize - $hrDiskUsed;
 			}
 
-			# fixing auto-vivification bug!
-			if ($indx ne '' and exists $self->{info}{interface}{$indx}) {
+			if ($indx ne '' and ref($self->{info}{interface}{$indx}) eq "HASH")
+			{
 				### 2013-06-11 keiths, submission by Mateusz Kwiatkowski for thresholding
 				$ifAlias = $self->{info}{interface}{$indx}{Description};
 				$Description = $self->{info}{interface}{$indx}{Description};
@@ -1641,17 +1642,42 @@ sub parseString
 				$ifMaxOctets = ($ifSpeed ne 'U') ? int($ifSpeed / 8) : 'U';
 				$maxBytes = ($ifSpeed ne 'U') ? int($ifSpeed / 4) : 'U';
 				$maxPackets = ($ifSpeed ne 'U') ? int($ifSpeed / 50) : 'U';
-				if ( defined $self->{info}{entPhysicalDescr} and $self->{info}{entPhysicalDescr}{$indx}{entPhysicalDescr} ne "" ) {
+
+				if ( ref($self->{info}{entPhysicalDescr}) eq "HASH"
+						 and ref($self->{info}->{entPhysicalDescr}->{$indx}) eq "HASH"
+						 and $self->{info}{entPhysicalDescr}->{$indx}->{entPhysicalDescr} ne "" )
+				{
 					$entPhysicalDescr = $self->{info}{entPhysicalDescr}{$indx}{entPhysicalDescr};
 				}
-			} else {
+
+				if ($str =~ /\$cdp/ && ref($self->{info}->{cdp}) eq "HASH")
+				{
+					($cdpDevice,$cdpPlatform,$cdpCapabilities) = ('','','');
+					foreach my $cdpIndx (keys %{$self->{info}{cdp}})
+					{
+						next unless ($indx == $self->{info}{cdp}{$cdpIndx}{cdpCacheIfIndex});
+
+						$cdpDevice .= '|'.$self->{info}{cdp}{$cdpIndx}{cdpCacheDeviceId}
+						if (defined($self->{info}{cdp}{$cdpIndx}{cdpCacheDeviceId}));
+						$cdpPlatform .= '|'.$self->{info}{cdp}{$cdpIndx}{cdpCachePlatform}
+						if (defined($self->{info}{cdp}{$cdpIndx}{cdpCachePlatform}));
+						$cdpCapabilities .= '|'.$self->{info}{cdp}{$cdpIndx}{cdpCacheCapabilities}
+						if (defined($self->{info}{cdp}{$cdpIndx}{cdpCacheCapabilities}));
+					}
+				}
+			}
+			else
+			{
 				$ifDescr = $ifType = '';
 				$ifSpeed = $ifMaxOctets = 'U';
 			}
-			$InstalledModems = $self->{info}{system}{InstalledModems} || 0;
-			$item = '';
-			$item = $itm;
+
 			$index = $indx;
+			$InstalledModems = $self->{info}{system}{InstalledModems} || 0;
+			# OMK-5182, customer wants all non-word chars removed
+			# (which is most of what convertIfName does)
+			$item = !getbool($C->{preserve_item_string},"invert")? # === ne false
+					$itm : convertIfName($itm);
 		}
 
 		dbg("node=$node, nodeModel=$nodeModel, nodeType=$nodeType, nodeVendor=$nodeVendor, sysObjectName=$sysObjectName\n".
