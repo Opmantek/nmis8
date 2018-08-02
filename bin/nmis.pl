@@ -4268,10 +4268,14 @@ sub getCBQoSdata
 						logMsg("ERROR mismatch of indexes in getCBQoSdata, run walk");
 						return undef;
 					}
+					
+					# fix the debug for Cisco Nexus which only has post policy.
+					my $byte = defined $D->{'PrePolicyByte'}{value} ? $D->{'PrePolicyByte'}{value} : $D->{'PostPolicyByte'}{value};
+					my $pkts = defined $D->{'PrePolicyPkt'}{value} ? $D->{'PrePolicyPkt'}{value} : $D->{'PostPolicyPkt'}{value};
 
 					# oke, store the data
-					dbg("bytes transfered $D->{'PrePolicyByte'}{value}, bytes dropped $D->{'DropByte'}{value}");
-					dbg("packets transfered $D->{'PrePolicyPkt'}{value}, packets dropped $D->{'DropPkt'}{value}");
+					dbg("bytes transfered $byte, bytes dropped $D->{'DropByte'}{value}");
+					dbg("packets transfered $pkts, packets dropped $D->{'DropPkt'}{value}");
 					dbg("packets dropped no buffer $D->{'NoBufDropPkt'}{value}");
 					#
 					# update RRD
@@ -4305,6 +4309,7 @@ sub getCBQoSwalk
 	my %args = @_;
 	my $S = $args{sys};
 	my $NI = $S->ndinfo;
+	my $M = $S->mdl;
 
 	if (!$S->status->{snmp_enabled})
 	{
@@ -4368,7 +4373,7 @@ sub getCBQoSwalk
 
 					# the OID will be 1.3.6.1.4.1.9.9.166.1.5.1.1.2.$PIndex.$OIndex = Gauge
 				BLOCK2:
-					foreach my $OIndex (keys %{$qosIndexTable}) {
+					foreach my $OIndex (sort keys %{$qosIndexTable}) {
 						# look for the Object type for each
 						($answer->{'cbQosObjectsType'}) = $SNMP->getarray("cbQosObjectsType.$PIndex.$OIndex");
 						dbg("look for object at $PIndex.$OIndex, type $answer->{'cbQosObjectsType'}");
@@ -4465,9 +4470,32 @@ sub getCBQoSwalk
 								$CMRate = $answer->{'cbQosQueueingCfgBandwidth'} * $inoutIfSpeed/100;
 							}
 							if ($CMRate eq 0) { $CMRate = "undef"; }
+
+							# if this is Nexus we want to use one of the queuing classes for getting the data.
+							# how do we select the right class?
+							#$CMValues{"H".$OIndex}{'CMIndex'} = $OIndex ;
+							my $thing = "cbqos-$direction";
+							if ( defined $M->{$thing}->{rrd}->{$thing}{nexus} and getbool($M->{$thing}->{rrd}->{$thing}{nexus}) ) {
+								$answer->{'cbQosQueueingCurrentQDepth'} = undef;
+								$answer->{'cbQosQueueingCurrentQDepthPkt'} = undef;
+								($answer->{'cbQosQueueingCurrentQDepth'},$answer->{'cbQosQueueingCurrentQDepthPkt'}) = $SNMP->getarray("1.3.6.1.4.1.9.9.166.1.18.1.1.1.$PIndex.$OIndex","1.3.6.1.4.1.9.9.166.1.18.1.1.9.$PIndex.$OIndex");
+								
+								# lets just get the first one we find.
+								if ( defined $answer->{'cbQosQueueingCurrentQDepth'} 
+									and $answer->{'cbQosQueueingCurrentQDepth'} ne "" 
+									and not defined $CMValues{"H".$answer->{'cbQosParentObjectsIndex'}}{'QIndex'}
+								) {
+									dbg("nexus queuing class found $OIndex using this class for data collection not the class map");
+									$CMValues{"H".$answer->{'cbQosParentObjectsIndex'}}{'CMIndex'} = $OIndex ;
+									$CMValues{"H".$answer->{'cbQosParentObjectsIndex'}}{'QIndex'} = $OIndex ;
+								}
+								dbg("nexus debug $OIndex cbQosQueueingCurrentQDepth=$answer->{'cbQosQueueingCurrentQDepth'}");
+							}
+
+							$CMValues{"H".$answer->{'cbQosParentObjectsIndex'}}{'CMCfgRate'} = $CMRate;
 							dbg("queueing - bandwidth $answer->{'cbQosQueueingCfgBandwidth'}, units $answer->{'cbQosQueueingCfgBandwidthUnits'},".
 									"rate $CMRate, parent ID $answer->{'cbQosParentObjectsIndex'}");
-							$CMValues{"H".$answer->{'cbQosParentObjectsIndex'}}{'CMCfgRate'} = $CMRate ;
+							
 						} elsif ($answer->{'cbQosObjectsType'} eq 6) {
 							# traffic shaping
 							($answer->{'cbQosTSCfgRate'},$answer->{'cbQosParentObjectsIndex'})
@@ -4505,6 +4533,7 @@ sub getCBQoSwalk
 
 							$cbQosTable{$intf}{$direction}{'ClassMap'}{$index}{'Name'} = $CMValues{$index}{'CMName'};
 							$cbQosTable{$intf}{$direction}{'ClassMap'}{$index}{'Index'} = $CMValues{$index}{'CMIndex'};
+							$cbQosTable{$intf}{$direction}{'ClassMap'}{$index}{'QIndex'} = $CMValues{$index}{'QIndex'} if defined $CMValues{$index}{'QIndex'};
 
 							# lets print the just type
 							if (exists $CMValues{$index}{'CMCfgRate'}) {

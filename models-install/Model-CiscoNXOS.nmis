@@ -37,17 +37,17 @@
   		'threshold' => {
   			'common-model' => 'threshold'
   		},
-  		'cbqos-in' => {
-  			'common-model' => 'cbqos-in'
-  		},
   		'heading' => {
   			'common-model' => 'heading'
   		},
-  		'cbqos-out' => {
-  			'common-model' => 'cbqos-out'
-  		},
   		'event' => {
   			'common-model' => 'event'
+  		},
+  		'cbqos-in' => {
+  			'common-model' => 'cbqos-in-nexus'
+  		},
+  		'cbqos-out' => {
+  			'common-model' => 'cbqos-out-nexus'
   		},
       'asset' => {
         'common-model' => 'Cisco-asset'
@@ -58,21 +58,12 @@
       'vlan' => {
         'common-model' => 'Cisco-vlan'
       },
+      'cbqos' => {
+        'common-model' => 'Cisco-cbqos'
+      }      
   	}
   },
   'alerts' => {
-    'bgpPeer' => {
-      'bgpPeerStateDown' => {
-        'element' => 'index',
-        'event' => 'BGP Peer Down',
-        'level' => 'Warning',
-        'test' => 'CVAR1=bgpPeerState;$CVAR1 ne 100',
-        'type' => 'test',
-				'title' => "BGP Peer Status",
-        'unit' => '',
-        'value' => 'CVAR1=bgpPeerState;int($CVAR1)'
-      }
-    },
     'env-temp' => {
       'tempStatus' => {
         'type' => 'threshold-rising',
@@ -280,7 +271,7 @@
   	'nodegraph' => 'health,response,cpu,ip,mem-proc,routenumber,topo'
   },
   'systemHealth' => {
-    'sections' => 'cdp,entityMib,env-temp,vtpVlan',
+    'sections' => 'Cisco_CBQoS,cdp,entityMib,env-temp,vtpVlan',
     'sys' => {
       'env-temp' => {
         'indexed' => 'entSensorStatus',
@@ -317,7 +308,7 @@
   						'14' => 'dBm',
   					},
             'oid' => 'entSensorType',
-            'title' => 'Status'
+            'title' => 'Type'
           },
           'currentTemp' => {
             'oid' => 'entSensorValue',
