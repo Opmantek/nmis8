@@ -315,9 +315,12 @@ while (!$mustexit)
 			host => $noderec->{host},	# this is either the  primary or the secondary host/ip
 			policy => $noderec->{polling_policy} || 'default',
 		};
-		$thisstate->{has_sibling} = $thisstate->{uuid}
-		if (exists($multihomed{$thisstate->{uuid}})); # temporary property is present for both
 
+		if (exists($multihomed{$thisstate->{uuid}})) # temporary property is present for both
+		{
+			$thisstate->{has_sibling} = $thisstate->{uuid};
+			$thisstate->{is_primary} = $statekey =~ /:0$/?1:0;
+		}
 		# dynamically managed: ip, lastping,nextping, policy , nextdns, avg min max loss
 
 		# honor fixed ip address given
@@ -480,7 +483,6 @@ while (!$mustexit)
 
 		# now raise/close nmis events according to the node status
 		# note that multi-homed nodes are down IFF all ips are unreachable
-
 		# no answers whatsoever? then complain, we don't know if up or down so can't really raise any events
 		if ($thisstate->{pending})
 		{
@@ -490,39 +492,47 @@ while (!$mustexit)
 		}
 		elsif ($thisstate->{loss} == 100)
 		{
-			my $raisenodedown;
+			my ($whatevent, $details);
 
-			# not multihomed? normal down handling
+			# not multihomed? normal 'node down' event
 			if (!$thisstate->{has_sibling})
 			{
 				debug("Node $thisstate->{name} ($thisstate->{ip}) is NOT REACHABLE, fping reported loss=$thisstate->{loss}%");
-				$raisenodedown = 1;
+				$whatevent = "Node Down";
+				$details = "Ping failed: fping reported 100% ping loss";
 			}
-			# multihomed and all dead
+			# multihomed and all dead, 'node down'
 			elsif (List::Util::none { $_->{has_sibling} eq $thisstate->{has_sibling}
 																&& $_->{loss} != 100 } (values %state))
 			{
-				debug("Node $thisstate->{name} ($thisstate->{ip} and all siblings) is NOT REACHABLE, fping reported loss=$thisstate->{loss}%");
-				$raisenodedown = 1;
+				debug("Node $thisstate->{name} ($thisstate->{ip} and its sibling) is NOT REACHABLE, fping reported loss=$thisstate->{loss}%");
+				$whatevent = "Node Down";
+				$details = "Ping failed: both primary and backup address are unreachable";
 			}
-			# multihomed but somebody else is up
+			# multihomed but not all dead? different events for primary and backup address
 			else
 			{
-				debug("Node $thisstate->{name} ($thisstate->{ip}) is NOT REACHABLE, fping reported loss=$thisstate->{loss}%, but other siblings are up.");
+				debug("Node $thisstate->{name} ($thisstate->{ip}) is NOT REACHABLE, fping reported loss=$thisstate->{loss}%, but other sibling is up.");
+				# node polling failover events are also raised by the snmp/wmi collect code, so clearing is race-y.
+				$whatevent = ($thisstate->{is_primary}? "Node Polling Failover" : "Backup Host Down");
+				$details = ($thisstate->{is_primary}?"Primary address":"Backup address"). " $thisstate->{ip} is unreachable (but the other one is up).";
 			}
 
-			if ($raisenodedown)
+			if ($whatevent)
 			{
 				# for unreachable nodes where we're caching the dns-ip assocition, we mark it as 'recheck dns'
 				# for fixed-ip nodes this is not relevant
 				undef $thisstate->{nextdns};
 
-
-				if (!eventExist($thisstate->{name}, "Node Down", undef))
+				if (!eventExist($thisstate->{name}, $whatevent, undef))
 				{
-					# Device is DOWN, was up, as no entry in event database
-					debug("$thisstate->{name} is now DOWN, was UP, updating event database");
-					fpingNotify($thisstate->{name});
+					debug("$thisstate->{name} is DOWN, raising event $whatevent");
+					my $sys = Sys->new;
+					$sys->init(name => $thisstate->{name}, snmp => 'false');
+					notify(sys => $sys,
+								 event => $whatevent,
+								 details => $details,
+								 context => { type => "node" } );
 					++$escalatables;
 				}
 			}
@@ -530,18 +540,38 @@ while (!$mustexit)
 		else # node somewhat pingable, not 100% loss
 		{
 			debug("$thisstate->{name} ($thisstate->{ip}) is pingable: returned min/avg/max = $thisstate->{min}/$thisstate->{avg}/$thisstate->{max}ms loss=$thisstate->{loss}%");
+			my $details = "Ping ok: fping reported $thisstate->{loss}% loss";
 
-			# check the event existence AND its currency!
-			my $event_exists = eventExist($thisstate->{name}, "Node Down", undef);
-			my $erec = eventLoad(filename => $event_exists) if ($event_exists);
+			# what kind of event(s) do we have to cancel/close?
+			# if not multihomed, or multihomed (and at least one of primary/backup is up,
+			#  which is already certain when in this logic branch): node down
+			# plus, if multihomed: 'backup host down' for the backup, or 'node polling failover' for the primary
+			my @toclear = ("Node Down");
+			push @toclear, ($thisstate->{is_primary}? "Node Polling Failover" : "Backup Host Down") if ($thisstate->{has_sibling});
+			my $sys;
 
-			if ($event_exists and $erec and getbool($erec->{current}))
+			for my $clearme (@toclear)
 			{
-				# Device was down is now UP!
-				# Only post the status if the event database records as currently down
-				debug("$thisstate->{name} ($thisstate->{ip}) is now UP, was DOWN, updating event database");
-				fpingCheckEvent($thisstate->{name});
-				++$escalatables;
+				# check the event existence AND its currency!
+				my $event_exists = eventExist($thisstate->{name}, $clearme, undef);
+				my $erec = eventLoad(filename => $event_exists) if ($event_exists);
+
+				if ($event_exists and $erec and getbool($erec->{current}))
+				{
+					debug("$thisstate->{name} ($thisstate->{ip}) is now UP, clearing event $clearme");
+					if (!ref($sys))
+					{
+						$sys = Sys->new;
+						$sys->init(name => $thisstate->{name}, snmp => 'false');
+					}
+					checkEvent( sys	=> $sys,
+											event => $clearme,
+											# the failover event should be logged with this name
+											upevent => ($clearme eq "Node Polling Failover"? "Node Polling Failover Closed" : undef),
+											level => "Normal",
+											details => $details);
+					++$escalatables;
+				}
 			}
 		}
 	}
@@ -577,44 +607,6 @@ while (!$mustexit)
 }
 exit 0;
 
-
-# check-and-remove existing node down event
-# args: node name
-# returns: nothing
-sub fpingCheckEvent
-{
-	my $node = shift;
-	debug("\tUpdating event database via sub checkEvent() host: $node event: Node Up");
-
-	my $S = Sys::->new;
-	$S->init(name => $node, snmp => 'false');
-	my $NI = $S->ndinfo; # pointer to node info table
-
-	checkEvent( sys		=> $S,
-							event   => "Node Down",
-							element => "",
-							level   => "Normal",
-							details => "Ping failed" );
-}
-
-# create a new node down event
-# args: node name
-# returns: nothing
-sub fpingNotify
-{
-	my $node = shift;
-
-	debug("\tUpdating event database via sub notify() host: $node event: Node Down");
-
-	my $S = Sys::->new;
-	$S->init(name=>$node, snmp=>'false');
-
-	notify(	sys		=> $S,
-					event   => "Node Down",
-					element => "",
-					details => "Ping failed",
-					context => { type => "node" });
-}
 
 sub debug
 {
