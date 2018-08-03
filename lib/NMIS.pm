@@ -716,15 +716,19 @@ sub PreciseNodeStatus
 									primary_ping_status => undef,
 			);
 
-	$precise{ping_status} = (eventExist($nodename, "Node Down")?0:1) if ($precise{ping_enabled}); # otherwise we don't care
+	my $downexists = eventExist($nodename, "Node Down");
+	my $failoverexists = eventExist($nodename, "Node Polling Failover");
+	my $backupexists = eventExist($nodename, "Backup Host Down");
+
+	$precise{ping_status} = ($downexists? 0:1) if ($precise{ping_enabled}); # otherwise we don't care
 	$precise{wmi_status} = (eventExist($nodename, "WMI Down")?0:1) if ($precise{wmi_enabled});
 	$precise{snmp_status} = (eventExist($nodename, "SNMP Down")?0:1) if ($precise{snmp_enabled});
 
 	if ($nisys->{host_backup})		# s->ndcfg is not populated if sys::init was called with snmp/wmi false :-(
 	{
-		$precise{failover_status} = $precise{primary_ping_status}
-		= eventExist($nodename, "Node Polling Failover")? 0:1;
-		$precise{failover_ping_status} = eventExist($nodename, "Backup Host Down")? 0:1;
+		$precise{failover_status} = $failoverexists? 0:1;
+			$precise{primary_ping_status} = ($downexists || $failoverexists)? 0:1; # the primary is dead if all are dead or if we failed-over
+		$precise{failover_ping_status} = ($backupexists || $downexists)? 0:1; # the secondary is dead if known to be dead or if all are dead
 	}
 
 	# overall status: ping disabled -> the WORSE one of snmp and wmi states is authoritative
