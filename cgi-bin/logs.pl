@@ -834,7 +834,10 @@ sub outputLine {
 
 	### 2012-08-29 keiths, enabling Authentication if group not blank
 	# Rule 3: if Authentication enabled, only print if user enabled for select Group
-	if ( $NT->{$logNode}{group} ne "" and $AU->Require and not $AU->InGroup($NT->{$logNode}{group}) ) { return 0 }
+	# same for recognised node whose group is not a configured one
+	return 0 
+			if ( $NT->{$logNode}{group} ne "" and (($AU->Require and not $AU->InGroup($NT->{$logNode}{group}) )
+																						 or !$GT->{$NT->{$logNode}->{group}}));
 
 	if ( getbool($C->{syslogDNSptr}) and (lc $logName eq "cisco_syslog")) {
 		# have a go at finding out the hostname for any ip address that may have been referenced in the log.
