@@ -327,9 +327,15 @@ sub loadNodeTable {
 	return $NT_cache;
 }
 
-sub loadGroupTable {
-
-	if( not defined $GT_cache or not defined $NT_cache or ( mtimeFile(dir=>'conf',name=>'Nodes') ne $NT_modtime) ) {
+# returns a hash of groupname => groupname,
+# with all groups that were observed configured for active nodes
+# note: does NOT filter by group_list from the configuration!
+sub loadGroupTable
+{
+	if (not defined $GT_cache
+			or not defined $NT_cache
+			or ( mtimeFile(dir=>'conf',name=>'Nodes') ne $NT_modtime) )
+	{
 		loadNodeTable();
 	}
 
