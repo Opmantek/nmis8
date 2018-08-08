@@ -3542,8 +3542,8 @@ sub updateNodeInfo
 	# save what we need now for check of this node
 	my $sysObjectID = $NI->{system}{sysObjectID};
 	my $ifNumber = $NI->{system}{ifNumber};
-	my $sysUpTimeSec = $NI->{system}{sysUpTimeSec};
-	my $sysUpTime = $NI->{system}{sysUpTime};
+	my $sysUpTimeSec = $NI->{system}{sysUpTimeSec}; # seconds
+	my $sysUpTime = $NI->{system}{sysUpTime};				# text like "8 days, 22:01:51"
 
 	# this returns 0 iff none of the possible/configured sources worked, sets details
 	my $loadsuccess = $S->loadInfo(class=>'system', model=>$model);
@@ -3627,19 +3627,29 @@ sub updateNodeInfo
 			$V->{system}{snmpUpTime_value} = $NI->{system}{snmpUpTime};
 			$V->{system}{snmpUpTime_title} = 'SNMP Uptime';
 		}
-
 		info("sysUpTime: Old=$sysUpTime New=$NI->{system}{sysUpTime}");
-		if ($NI->{system}->{sysUpTimeSec} && $sysUpTimeSec > $NI->{system}{sysUpTimeSec})
-		{
-			info("NODE RESET: Old sysUpTime=$sysUpTimeSec New sysUpTime=$NI->{system}{sysUpTimeSec}");
-			notify(sys=>$S, event=>"Node Reset",
-						 element=>"",
-						 details => "Old_sysUpTime=$sysUpTime New_sysUpTime=$NI->{system}{sysUpTime}",
-						 context => { type => "node" } );
 
-			# now stash this info in the node info object, to ensure we insert ONE set of U's into the rrds
-			# so that no spikes appear in the graphs
-			$NI->{admin}->{node_was_reset}=1;
+		# has that node really been reset or has the uptime counter wrapped at 497 days and change?
+		# sysUpTime is in 0.01s timeticks and 32 bit wide, so 497.1 days is all it can hold
+		my $newuptime = $NI->{system}->{sysUpTimeSec};
+		if ($newuptime && $sysUpTimeSec > $newuptime)
+		{
+			if ($sysUpTimeSec >= 496*86400) # ie. old uptime value within one day of the rollover
+			{
+				logMsg("INFO ($NI->{system}{name}) sysUpTime has wrapped after 497 days");
+			}
+			else
+			{
+				info("NODE RESET: Old sysUpTime=$sysUpTimeSec New sysUpTime=$newuptime");
+				notify(sys=>$S, event=>"Node Reset",
+							 element=>"",
+							 details => "Old_sysUpTime=$sysUpTime New_sysUpTime=$newuptime",
+							 context => { type => "node" } );
+
+				# now stash this info in the node info object, to ensure we insert ONE set of U's into the rrds
+				# so that no spikes appear in the graphs
+				$NI->{admin}->{node_was_reset}=1;
+			}
 		}
 
 		$V->{system}{sysUpTime_value} = $NI->{system}{sysUpTime};
@@ -4309,7 +4319,7 @@ sub getCBQoSdata
 						logMsg("ERROR mismatch of indexes in getCBQoSdata, run walk");
 						return undef;
 					}
-					
+
 					# fix the debug for Cisco Nexus which only has post policy.
 					my $byte = defined $D->{'PrePolicyByte'}{value} ? $D->{'PrePolicyByte'}{value} : $D->{'PostPolicyByte'}{value};
 					my $pkts = defined $D->{'PrePolicyPkt'}{value} ? $D->{'PrePolicyPkt'}{value} : $D->{'PostPolicyPkt'}{value};
@@ -4524,10 +4534,10 @@ sub getCBQoSwalk
 								$answer->{'cbQosQueueingCurrentQDepth'} = undef;
 								$answer->{'cbQosQueueingCurrentQDepthPkt'} = undef;
 								($answer->{'cbQosQueueingCurrentQDepth'},$answer->{'cbQosQueueingCurrentQDepthPkt'}) = $SNMP->getarray("1.3.6.1.4.1.9.9.166.1.18.1.1.1.$PIndex.$OIndex","1.3.6.1.4.1.9.9.166.1.18.1.1.9.$PIndex.$OIndex");
-								
+
 								# lets just get the first one we find.
-								if ( defined $answer->{'cbQosQueueingCurrentQDepth'} 
-									and $answer->{'cbQosQueueingCurrentQDepth'} ne "" 
+								if ( defined $answer->{'cbQosQueueingCurrentQDepth'}
+									and $answer->{'cbQosQueueingCurrentQDepth'} ne ""
 									and not defined $CMValues{"H".$answer->{'cbQosParentObjectsIndex'}}{'QIndex'}
 								) {
 									dbg("nexus queuing class found $OIndex using this class for data collection not the class map");
@@ -4540,7 +4550,7 @@ sub getCBQoSwalk
 							$CMValues{"H".$answer->{'cbQosParentObjectsIndex'}}{'CMCfgRate'} = $CMRate;
 							dbg("queueing - bandwidth $answer->{'cbQosQueueingCfgBandwidth'}, units $answer->{'cbQosQueueingCfgBandwidthUnits'},".
 									"rate $CMRate, parent ID $answer->{'cbQosParentObjectsIndex'}");
-							
+
 						} elsif ($answer->{'cbQosObjectsType'} eq 6) {
 							# traffic shaping
 							($answer->{'cbQosTSCfgRate'},$answer->{'cbQosParentObjectsIndex'})
