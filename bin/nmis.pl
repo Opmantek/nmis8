@@ -550,16 +550,13 @@ sub	runThreads
 				{
 					$nexttry = ( $lasttry // $now) + 86400 * $fudgefactor;
 
-					# log the demotion situation but not more than once an hour
 					logMsg( "Node $maybe has no valid nodeModel, never polled successfully, "
-									. "past demotion grace window (started at $graceperiod_start) so demoted to frequency once daily, last $type attempt $lasttry, next $nexttry"
-							) if ( $debug or 0 == int( ( ( $now - $lasttry ) % 3600 ) / 60 ) );
+									. "past demotion grace window (started at $graceperiod_start) so demoted to frequency once daily, last $type attempt $lasttry, next $nexttry" ) if ($debug);
 				}
 				else
 				{
 					logMsg("Node $maybe has no valid nodeModel, never polled successfully, demote_faulty_nodes is on, grace window started at $graceperiod_start, last $type attempt "
-								 .($lasttry // "never").", next $nexttry." )
-							if ($debug or 0 == int((($now - $lasttry) % 3600 ) / 60));
+								 .($lasttry // "never").", next $nexttry." ) if ($debug);
 				}
 
 				if ( $nexttry <= $now )
