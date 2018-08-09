@@ -212,6 +212,9 @@ sub loadLocalNodeTable
 	my $badones;
 	# deemed critical: name, uuid, host, group properties
 	my @musthave = qw(name uuid host group);
+	# also deemed critical: node name must match the rules
+	my $nodenamerule = $C->{node_name_rule} || qr/^[a-zA-Z0-9_. -]+$/;
+
 	for my $maybebad (keys %$lotsanodes)
 	{
 		my $noderec = $lotsanodes->{$maybebad};
@@ -229,6 +232,11 @@ sub loadLocalNodeTable
 		{
 			$because = "invalid structure, name and key don't match";
 		}
+		elsif ($noderec->{name} !~ $nodenamerule)
+		{
+			$because = "node name is invalid, does not match 'node_name_rule' regexp";
+		}
+
 		if ($because)
 		{
 			++$badones;
@@ -413,6 +421,7 @@ sub loadWindowStateTable
 	return loadTable(dir=>'var',name=>'nmis-windowstate');
 }
 
+# az [2018-08-09 Thu 11:47] deprecated DO NOT USE!
 # check node name case insentive, return good one
 sub checkNodeName {
 	my $name = shift;
@@ -4664,8 +4673,8 @@ sub rename_node
 	my $oldnoderec = $nodeinfo->{$old};
 	return (1, "Old node $old does not exist!") if (!$oldnoderec);
 
-	# fixme: less picky? spaces required?
-	return(1, "Invalid node name \"$new\"")	if ($new =~ /[^a-zA-Z0-9_-]/);
+	my $nodenamerule = $C->{node_name_rule} || qr/^[a-zA-Z0-9_. -]+$/;
+	return(1, "Invalid node name \"$new\"")	if ($new !~ $nodenamerule);
 
 	my $newnoderec = $nodeinfo->{$new};
 	return(1, "New node $new already exists, NOT overwriting!")

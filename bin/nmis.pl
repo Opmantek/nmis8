@@ -9080,13 +9080,7 @@ sub runThreshold
 	# check global_threshold not explicitely set to false
 	if (!getbool($C->{global_threshold},"invert"))
 	{
-		my $node_select;
-		if ($node)
-		{
-			die "Invalid node=$node: No node of that name\n"
-					if (!($node_select = checkNodeName($node)));
-		}
-		doThreshold(name=>$node_select, table => doSummaryBuild(name => $node_select));
+		doThreshold(name=>$node, table => doSummaryBuild(name => $node));
 	}
 	else
 	{
