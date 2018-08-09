@@ -3338,6 +3338,22 @@ sub getSystemHealthInfo
 			{
 				dbg("section=$section index=$index_var, found value=$indexvalue");
 
+				# allow disabling of collection for this instance,
+				# based on regex match against the index value
+				if (ref($thissection->{nocollect}) eq "HASH"
+						&& defined($thissection->{nocollect}->{$index_var}))
+				{
+					# this supports both 'nocollect' => { 'first' => qr/somere/i, 'second' => 'plaintext' }
+					my $rex = ref($thissection->{nocollect}->{$index_var}) eq "Regexp"?
+							$thissection->{nocollect}->{$index_var} : qr/$thissection->{nocollect}->{$index_var}/;
+
+					if ($indexvalue =~ $rex)
+					{
+						dbg("nocollect match for systemHealth section=$section key=$index_var value=$indexvalue - skipping");
+						next;
+					}
+				}
+
 				# save the seen index value
 				$NI->{$section}->{$indexvalue}->{$index_var} = $indexvalue;
 
@@ -3370,10 +3386,27 @@ sub getSystemHealthInfo
 					if ( $oid =~ /$index_regex/ ) {
 						$index = $1;
 					}
-					$healthIndexNum{$index}=$index;
-					dbg("section=$section index=$index is found, value=$healthIndexTable->{$oid}");
 
-					$NI->{$section}->{$index}->{$index_var} = $healthIndexTable->{$oid};
+					my $indexvalue = $healthIndexNum{$index} = $index;
+					dbg("section=$section index=$index is found, value=$indexvalue");
+
+					# allow disabling of collection for this instance,
+					# based on regex match against the index value
+					if (ref($thissection->{nocollect}) eq "HASH"
+							&& defined($thissection->{nocollect}->{$index_var}))
+					{
+						# this supports both 'nocollect' => { 'first' => qr/somere/i, 'second' => 'plaintext' }
+						my $rex = ref($thissection->{nocollect}->{$index_var}) eq "Regexp"?
+								$thissection->{nocollect}->{$index_var} : qr/$thissection->{nocollect}->{$index_var}/;
+
+						if ($indexvalue =~ $rex)
+						{
+							dbg("nocollect match for systemHealth section=$section key=$index_var value=$indexvalue - skipping");
+							next;
+						}
+					}
+
+					$NI->{$section}->{$index}->{$index_var} = $indexvalue;
 				}
 			}
 			else
