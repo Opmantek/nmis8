@@ -48,6 +48,7 @@ use POSIX qw(:sys_wait_h);
 # this imports the LOCK_ *constants (eg. LOCK_UN, LOCK_EX), also the stat modes
 use Fcntl qw(:DEFAULT :flock :mode);
 use Errno qw(EAGAIN ESRCH EPERM);
+use Sys::Syslog qw(:standard :macros);
 
 use NMIS;
 use NMIS::Connect;
@@ -78,6 +79,7 @@ my $cmdargs = func::get_args_multi(@ARGV);
 my $starttime = Time::HiRes::time;
 my $C = loadConfTable(conf => $cmdargs->{conf}, debug=>$cmdargs->{debug}, info=>$cmdargs->{info});
 die "nmis cannot operate without config!\n" if (ref($C) ne "HASH");
+diag_log(LOG_INFO, "NMIS process started.");
 
 # and the status of the database dir, as reported by the selftest - 0 bad, 1 ok, undef unknown
 # this is used by rrdfunc::createRRD(), so needs to be scoped suitably.
@@ -99,11 +101,13 @@ if (-f $lockoutfile or getbool($C->{global_collect},"invert"))
 	}
 	my $selftest_cache = "$varsysdir/selftest";
 
+	diag_log(LOG_DEBUG, "Performing Selftest.");
 	my ($allok, $tests) = func::selftest(config => $C, delay_is_ok => 'false',
 																			 report_database_status => \$selftest_dbdir_status,
 																			 perms => 'false');
 	writeHashtoFile(file => $selftest_cache, json => 1,
 									data => { status => $allok, lastupdate => time, tests => $tests });
+	diag_log($allok? LOG_DEBUG: LOG_INFO, "Selftest completed ".($allok?"ok":"FAILED!"));
 	info("Selftest completed (status ".($allok?"ok":"FAILED!")."), cache file written");
 	if (-f $lockoutfile)
 	{
@@ -111,17 +115,22 @@ if (-f $lockoutfile or getbool($C->{global_collect},"invert"))
 		# installer should not need to lock this box for more than a few minutes
 		if (-f $installerpresence && (stat($installerpresence))[9] > time - 3600)
 		{
+			diag_log(LOG_INFO, "NMIS is currently disabled, installer is performing upgrade, exiting.");
 			logMsg("INFO NMIS is currently disabled, installer is performing upgrade, exiting.");
+
 			exit(0);
 		}
 		else
 		{
+			diag_log(LOG_WARNING, "NMIS is currently disabled! Remove the file $lockoutfile to re-enable.");
 			logMsg("WARNING NMIS is currently disabled! Remove the file $lockoutfile to re-enable.");
 			die "Attention: NMIS is currently disabled!\nRemove the file $lockoutfile to re-enable.\n\n";
 		}
 	}
 	else
 	{
+		diag_log(LOG_WARNING, "NMIS is currently disabled! Set the configuration variable \"global_collect\" to \"true\" to re-enable");
+
 		die "Attention: NMIS is currently disabled!\nSet the configuration variable \"global_collect\" to \"true\" to re-enable.\n\n";
 	}
 }
@@ -180,6 +189,7 @@ NMIS version $NMIS::VERSION
 / if $C->{debug} or $C->{info};
 
 
+diag_log(LOG_DEBUG, "Performing preliminary operations.");
 # the first thing we do is to upgrade up the event
 # data structure - it's a nop if it was already done.
 NMIS::upgrade_events_structure();
@@ -210,6 +220,8 @@ elsif ( $type eq "summary" )  {
 elsif ( $type eq "rme" ) { loadRMENodes($rmefile); }
 elsif ( $type eq "threshold" )
 {
+	diag_log(LOG_INFO, "Starting (independent) threshold operation");
+			
 	my @cand = expand_candidate_list($nodeselect, $groupselect);
 	if (@cand)
 	{
@@ -219,6 +231,7 @@ elsif ( $type eq "threshold" )
 	{
 		runThreshold();
 	}
+	diag_log(LOG_INFO, "(independent) threshold operation finished");
 	printRunTime();
 }
 elsif ( $type eq "master" ) { nmisMaster(); printRunTime(); } # MIGHT be included in type=collect
@@ -229,7 +242,7 @@ elsif ( $type eq "purge" ) {
 }
 else { checkArgs(); }
 
-exit;
+exit 1;
 
 #=========================================================================================
 
@@ -274,7 +287,7 @@ sub	runThreads
 	my $mthread = getbool($args{mthread});
 	my $mthreadDebug = getbool($args{mthreadDebug});
 
-	dbg("Starting, operation is $type");
+	diag_log(LOG_INFO, "Starting $type operation");
 
 	# returns empty list if unfiltered
 	my @candnodes = expand_candidate_list($args{nodeselect}, $args{groupselect});
@@ -407,6 +420,7 @@ sub	runThreads
 	{
 		die "Unknown operation type=$type, terminating!\n";
 	}
+	
 	logMsg("INFO start of $type process");
 
 	# update the operation start/stop timestamp
@@ -808,8 +822,9 @@ sub	runThreads
 			# not false
 			if (!getbool($C->{threshold_poll_cycle},"invert") )
 			{
-				dbg("Starting runThreshold (for all selected nodes)");
+				diag_log(LOG_INFO, "Starting post-collect threshold operation");
 				map { runThreshold($_) } (@candnodes);
+				diag_log(LOG_INFO, "post-collect threshold operation finished");
 			}
 			else
 			{
@@ -902,7 +917,7 @@ sub	runThreads
 
 	func::update_operations_stamp(type => $type, start => $starttime, stop => Time::HiRes::time());
 
-	dbg("Finished");
+	diag_log(LOG_INFO, "$type operation finished");
 	return;
 }
 
@@ -7156,11 +7171,15 @@ sub nmisSummary
 {
 	my %args = @_;
 
+	diag_log(LOG_INFO, "starting summary operation");
+
 	# check that there are no other running/stuck/delayed summary processes
 	my $others = func::find_nmis_processes(config => $C,
 																				 type => 'summary');
 	if (keys %$others)
 	{
+		diag_log(LOG_ERR, "other type=summary processes running ("
+						 .join(", ", keys %$others)."), aborting operation.");
 		logMsg("ERROR other type=summary processes running (".join(", ", keys %$others)."), aborting operation.");
 		info("ERROR other type=summary processes running (".join(", ", keys %$others)."), aborting operation.");
 		return;
@@ -7169,7 +7188,7 @@ sub nmisSummary
 
 	my $pollTimer = NMIS::Timing->new;
 
-	dbg("Calculating NMIS network stats for cgi cache");
+
 	func::update_operations_stamp(type => "summary", start => $starttime, stop => undef)
 			if ($type eq "summary");	# not if part of collect
 
@@ -7188,7 +7207,6 @@ sub nmisSummary
 	my $NS = getNodeSummary(C => $C);
 	my $file = "nmis-nodesum";
 	writeTable(dir=>'var',name=>$file,data=>$NS);
-	dbg("Finished calculating NMIS network stats for cgi cache - wrote $k nodes");
 	func::update_operations_stamp(type => "summary", start => $starttime, stop => Time::HiRes::time())
 			if ($type eq "summary");	# not if part of collect
 
@@ -7196,6 +7214,8 @@ sub nmisSummary
 		my $polltime = $pollTimer->elapTime();
 		logMsg("Poll Time: $polltime");
 	}
+
+	diag_log(LOG_INFO, "sumamry operation finished");
 }
 
 sub summaryCache
@@ -7256,6 +7276,8 @@ sub runEscalate
 	my %args = @_;
 	my $C = loadConfTable();
 
+	diag_log(LOG_INFO, "Starting escalate operation");
+
 	if (getbool($args{independent}))
 	{
 		# check that there are no other running/stuck/delayed escalate processes
@@ -7263,6 +7285,8 @@ sub runEscalate
 																					 type => 'escalate');
 		if (keys %$others)
 		{
+			diag_log(LOG_ERR, "other type=escalate processes running (".join(", ", keys %$others)."), aborting operation.");
+			
 			logMsg("ERROR other type=escalate processes running (".join(", ", keys %$others)."), aborting operation.");
 			info("ERROR other type=escalate processes running (".join(", ", keys %$others)."), aborting operation.");
 			return;
@@ -7301,7 +7325,6 @@ sub runEscalate
 	my $serial_ns = 0;
 	my %seen;
 
-	dbg("Starting");
 	func::update_operations_stamp(type => "escalate", start => $starttime, stop => undef)
 			if ($type eq "escalate");	# not if part of collect
 	# load Contacts table
@@ -8098,9 +8121,7 @@ LABEL_ESC:
 		}
 	}
 
-	# Cologne, send the messages now
 	sendMSG(data=>\%msgTable);
-	dbg("Finished");
 	if ( defined $C->{log_polling_time} and getbool($C->{log_polling_time})) {
 		my $polltime = $pollTimer->elapTime();
 		logMsg("Poll Time: $polltime");
@@ -8109,6 +8130,8 @@ LABEL_ESC:
 																start => $starttime,
 																stop => Time::HiRes::time())
 			if ($type eq "escalate");	# not if part of collect
+
+	diag_log(LOG_INFO, "escalate operation finished");
 } # end runEscalate
 
 #=========================================================================================
@@ -8302,11 +8325,15 @@ sub runMetrics
 	my %args = @_;
 	my $S = $args{sys};
 
+	diag_log(LOG_INFO, "Starting metrics operation");
+
 	# check that there are no other running/stuck/delayed summary processes
 	my $others = func::find_nmis_processes(config => $C,
 																				 type => 'metrics');
 	if (keys %$others)
 	{
+		diag_log(LOG_ERR, "other type=metrics processes running ("
+						 .join(", ", keys %$others)."), aborting operation.");
 		logMsg("ERROR other type=metrics processes running (".join(", ", keys %$others)."), aborting operation.");
 		info("ERROR other type=metrics processes running (".join(", ", keys %$others)."), aborting operation.");
 		return;
@@ -8331,7 +8358,7 @@ sub runMetrics
 
 	my $pollTimer = NMIS::Timing->new;
 
-	dbg("Starting");
+
 
 	# Doing the whole network - this defaults to -8 hours span
 	my $groupSummary = getGroupSummary();
@@ -8386,10 +8413,11 @@ sub runMetrics
 			logMsg("ERROR updateRRD failed: ".getRRDerror());
 		}
 	}
-	dbg("Finished");
+
 
 	logMsg("Poll Time: ". $pollTimer->elapTime()) if ( defined $C->{log_polling_time} and getbool($C->{log_polling_time}));
 
+	diag_log(LOG_INFO, "metrics operation finished");
 } # end runMetrics
 
 
@@ -8411,7 +8439,7 @@ sub runLinks
 		return;
 	}
 
-	dbg("Start");
+	diag_log(LOG_INFO, "Starting links operation");
 
 	if (!($II = loadInterfaceInfo())) {
 		logMsg("ERROR reading all interface info");
@@ -8546,7 +8574,7 @@ sub runLinks
 	}
 	logMsg("Check table Links and update link names and other entries");
 
-	dbg("Finished");
+	diag_log(LOG_INFO,"links operation finished");
 }
 
 
@@ -8629,6 +8657,8 @@ sub checkConfig
 	my %args = @_;
 	my $change = $args{change};
 	my $audit = $args{audit};
+
+	diag_log(LOG_INFO, "Starting ".($audit?"audit":"config")." operation");
 
 	my $ext = getExtension(dir=>'conf');
 
@@ -8795,6 +8825,7 @@ sub checkConfig
 	convertConfFiles();
 
 	info(" Continue with bin/nmis.pl type=apache for configuration rules of the Apache web server\n");
+	diag_log(LOG_INFO, ($audit?"audit":"config")." operation finished")
 }
 
 
@@ -9243,7 +9274,6 @@ sub doThreshold
 	my $sts = $args{table}; # pointer to data built up by doSummaryBuild
 	my $S = $args{sys};
 
-	dbg("Starting");
 	func::update_operations_stamp(type => "threshold", start => $starttime, stop => undef)
 			if ($type eq "threshold");	# not if part of collect
 	my $pollTimer = NMIS::Timing->new;
@@ -9454,7 +9484,6 @@ sub doThreshold
 		$S->writeNodeInfo() if ($type eq "threshold");
 	}
 
-	dbg("Finished");
 	if ( defined $C->{log_polling_time} and getbool($C->{log_polling_time}))
 	{
 		my $polltime = $pollTimer->elapTime();
@@ -10067,6 +10096,20 @@ sub makesysuptime
 	return;
 }
 
+# log diagnostic message to local syslog, if syslog_diag_facility is configured
+# args: priority (text or constant, ie. 'info' or LOG_DEBUG),
+#  message; both required.
+# returns: nothing
+sub diag_log
+{
+	my ($priority, $message) = @_;
+
+	if (my $facility = $C->{syslog_diag_facility})
+	{
+		openlog("nmis", "ndelay,pid,nofatal", $facility);
+		syslog($priority, $message);
+	}
+}
 
 # *****************************************************************************
 # Copyright (C) Opmantek Limited (www.opmantek.com)
