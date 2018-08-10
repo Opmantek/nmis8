@@ -71,7 +71,7 @@
     'sys' => {
       'env-temp' => {
         'indexed' => 'entSensorStatus',
-        'headers' => 'tempDescr,currentTemp',
+        'headers' => 'tempDescr,tempPhysicalName,currentTemp',
         'snmp' => {
           'tempDescr' => {
             'oid' => 'entPhysicalDescr',
@@ -85,6 +85,10 @@
   					},
             'oid' => 'entSensorStatus',
             'title' => 'Status'
+          },
+          'tempPhysicalName' => {
+            'oid' => 'entPhysicalName',
+            'title' => 'Physical Name',
           },
           'tempType' => {
   					'replace' => {
