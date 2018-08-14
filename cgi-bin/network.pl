@@ -107,9 +107,17 @@ $smallGraphWidth = $C->{'small_graph_width'} if $C->{'small_graph_width'} ne "";
 
 logMsg("TIMING: ".$t->elapTime()." Begin act=$Q->{act}") if $timing;
 
-# select function
-my $select;
+# these need loading before the yucky if selection below, which is terminal for some acts
+my $NT = loadNodeTable();
+# this is just a hash of groupname=>groupname as observed from nodes' configurations - NOT filtered!
+my $raw = loadGroupTable();
+my $GT = {};
+for my $configuredgroup (split(/\s*,\s*/, $C->{group_list}))
+{
+	$GT->{$configuredgroup} = $configuredgroup if (defined $raw->{$configuredgroup});
+}
 
+my $select;
 if ($Q->{act} eq 'network_summary_health') {	$select = 'health';
 } elsif ($Q->{act} eq 'network_summary_view') {	$select = 'view';
 } elsif ($Q->{act} eq 'network_summary_small') {	$select = 'small';
@@ -174,8 +182,6 @@ pageStartJscript(title => "NMIS Network Status - $C->{server_name}", refresh => 
 
 logMsg("TIMING: ".$t->elapTime()." Load Nodes and Groups") if $timing;
 
-my $NT = loadNodeTable();
-my $GT = loadGroupTable();
 
 # graph request
 my $ntwrk = ($select eq 'large') ? 'network' : ($Q->{group} eq '') ? 'network' : $Q->{group} ;
@@ -282,7 +288,6 @@ sub getSummaryStatsbyGroup {
 	} elsif ($metric >=  1) { $metric_color = colorPercentHi($metric); $icon{metric_icon} = 'arrow_up_big'; }
 
 
-	## ehg 17 sep 02 add node down counter with colour
 	my $percentDown = 0;
 	if ( $groupSummary->{average}{countdown} > 0 and $groupSummary->{average}{counttotal} > 0 ) {
 		$percentDown = sprintf("%2.0u",$groupSummary->{average}{countdown}/$groupSummary->{average}{counttotal}) * 100;
@@ -1388,10 +1393,6 @@ sub viewMetrics {
 		print 'You are not authorized for this request';
 		return;
 	}
-
-	#prepend the network group!
-	#my @grouplist = split(",","network,$C->{group_list}");
-	my $GT = loadGroupTable;
 	my @grouplist = values %{$GT};
 	my @groups = grep { $AU->InGroup($_) } sort (@grouplist);
 
@@ -1660,10 +1661,18 @@ EO_HTML
 						$color = "#0F0";
 					}
 				}
-				# skip if not present
+				# skip if not present, color up if state is known
 				elsif ($k eq "host_addr_backup")
 				{
 					next if (!defined $value or $value eq "");
+					$color = ($status{failover_ping_status}? "#00ff00" : "#ff0000") if (defined $status{failover_ping_status});
+				}
+				# color up if state is known - but select primary state tag if multihomed
+				elsif ($k eq "host_addr")
+				{
+					my $source = defined($status{failover_status})? 'primary_ping_status' : 'ping_status';
+
+					$color = ($status{$source}? "#00ff00" : "#ff0000") if (defined $status{$source});
 				}
 				# from outageCheck, neither nodeinfo nor view
 				elsif ($k eq 'outage')
@@ -1691,7 +1700,7 @@ EO_HTML
 					my $time = $NI->{system}{last_poll};
 					if ( $time ne "" ) {
 						if ($time < (time - 60*15)) {
-							$color = "#ffcc00"; # to late
+							$color = "#ffcc00"; # too long ago
 						}
 					}
 				}
@@ -2018,6 +2027,8 @@ sub viewInterface
 		push @causes, "WMI ".($status{wmi_status}? "Up":"Down") if ($status{wmi_enabled});
 		push @causes, "Node Polling Failover"
 				if (defined($status{failover_status}) && !$status{failover_status});
+		push @causes, "Backup Host Down"
+				if (defined($status{failover_ping_status}) && !$status{failover_ping_status});
 
 		print Tr(td({class=>'Warning', colspan=>'2'},"Node degraded, "
 								. join(", ",@causes)
@@ -2181,6 +2192,8 @@ sub viewAllIntf {
 		push @causes, "WMI ".($status{wmi_status}? "Up":"Down") if ($status{wmi_enabled});
 		push @causes, "Node Polling Failover"
 				if (defined($status{failover_status}) && !$status{failover_status});
+		push @causes, "Backup Host Down"
+				if (defined($status{failover_ping_status}) && !$status{failover_ping_status});
 
 		print Tr(td({class=>'Warning'},"Node degraded, "
 								. join(", ", @causes)
@@ -2341,6 +2354,8 @@ sub viewActivePort {
 		push @causes, "WMI ".($status{wmi_status}? "Up":"Down") if ($status{wmi_enabled});
 		push @causes, "Node Polling Failover"
 				if (defined($status{failover_status}) && !$status{failover_status});
+		push @causes, "Backup Host Down"
+				if (defined($status{failover_ping_status}) && !$status{failover_ping_status});
 
 		print Tr(td({class=>'Warning'},"Node degraded, "
 								. join(", ", @causes)
@@ -2463,6 +2478,8 @@ sub viewStorage {
 		push @causes, "WMI ".($status{wmi_status}? "Up":"Down") if ($status{wmi_enabled});
 		push @causes, "Node Polling Failover"
 				if (defined($status{failover_status}) && !$status{failover_status});
+		push @causes, "Backup Host Down"
+				if (defined($status{failover_ping_status}) && !$status{failover_ping_status});
 
 		print Tr(td({class=>'Warning',colspan=>'3'},"Node degraded, "
 								. join(", ",@causes)
@@ -2541,6 +2558,8 @@ sub viewService
 		push @causes, "WMI ".($status{wmi_status}? "Up":"Down") if ($status{wmi_enabled});
 		push @causes, "Node Polling Failover"
 				if (defined($status{failover_status}) && !$status{failover_status});
+		push @causes, "Backup Host Down"
+				if (defined($status{failover_ping_status}) && !$status{failover_ping_status});
 
 		print Tr(td({class=>'Warning',colspan=>'3'},"Node degraded, "
 								. join(", ", @causes)
@@ -2639,6 +2658,8 @@ sub viewServiceList {
 		push @causes, "WMI ".($status{wmi_status}? "Up":"Down") if ($status{wmi_enabled});
 		push @causes, "Node Polling Failover"
 				if (defined($status{failover_status}) && !$status{failover_status});
+		push @causes, "Backup Host Down"
+				if (defined($status{failover_ping_status}) && !$status{failover_ping_status});
 
 		print Tr(td({class=>'Warning',colspan=>'7'},"Node degraded, "
 								. join(", ", @causes)
@@ -2745,6 +2766,8 @@ sub viewCpuList {
 		push @causes, "WMI ".($status{wmi_status}? "Up":"Down") if ($status{wmi_enabled});
 		push @causes, "Node Polling Failover"
 				if (defined($status{failover_status}) && !$status{failover_status});
+		push @causes, "Backup Host Down"
+				if (defined($status{failover_ping_status}) && !$status{failover_ping_status});
 
 		print Tr(td({class=>'Warning',colspan=>'7'},"Node degraded, "
 								. join(", ", @causes)
@@ -2820,6 +2843,8 @@ sub viewStatus {
 		push @causes, "WMI ".($status{wmi_status}? "Up":"Down") if ($status{wmi_enabled});
 		push @causes, "Node Polling Failover"
 				if (defined($status{failover_status}) && !$status{failover_status});
+		push @causes, "Backup Host Down"
+				if (defined($status{failover_ping_status}) && !$status{failover_ping_status});
 
 		print Tr(td({class=>'Warning',colspan=>$colspan},"Node degraded, "
 								.join(", ", @causes)
@@ -2927,6 +2952,8 @@ sub viewEnvironment {
 		push @causes, "WMI ".($status{wmi_status}? "Up":"Down") if ($status{wmi_enabled});
 		push @causes, "Node Polling Failover"
 				if (defined($status{failover_status}) && !$status{failover_status});
+		push @causes, "Backup Host Down"
+				if (defined($status{failover_ping_status}) && !$status{failover_ping_status});
 
 		print Tr(td({class=>'Warning',colspan=>'3'},"Node degraded, "
 								. join(", ", @causes)
@@ -3048,6 +3075,8 @@ sub viewSystemHealth
 				push @causes, "WMI ".($status{wmi_status}? "Up":"Down") if ($status{wmi_enabled});
 				push @causes, "Node Polling Failover"
 						if (defined($status{failover_status}) && !$status{failover_status});
+				push @causes, "Backup Host Down"
+						if (defined($status{failover_ping_status}) && !$status{failover_ping_status});
 
 				print Tr(td({class=>'Warning',colspan=>$colspan},"Node degraded, "
 										. join(", ",@causes)
@@ -3155,6 +3184,8 @@ sub viewCSSGroup
 		push @causes, "WMI ".($status{wmi_status}? "Up":"Down") if ($status{wmi_enabled});
 		push @causes, "Node Polling Failover"
 				if (defined($status{failover_status}) && !$status{failover_status});
+		push @causes, "Backup Host Down"
+				if (defined($status{failover_ping_status}) && !$status{failover_ping_status});
 
 		print Tr(td({class=>'Warning',colspan=>'3'},"Node degraded, "
 								. join(", ", @causes)
@@ -3208,6 +3239,8 @@ sub viewCSSContent
 		push @causes, "WMI ".($status{wmi_status}? "Up":"Down") if ($status{wmi_enabled});
 		push @causes, "Node Polling Failover"
 				if (defined($status{failover_status}) && !$status{failover_status});
+		push @causes, "Backup Host Down"
+				if (defined($status{failover_ping_status}) && !$status{failover_ping_status});
 
 		print Tr(td({class=>'Warning',colspan=>'3'},"Node degraded, "
 								.join(", ", @causes)
@@ -3242,7 +3275,6 @@ sub viewOverviewIntf {
 
 	my $NT = loadNodeTable();
 	my $II = loadInterfaceInfo();
-	my $GT = loadGroupTable();
 	my $ii_cnt = keys %{$II};
 
 	my $gr_menu = "";
@@ -3251,7 +3283,6 @@ sub viewOverviewIntf {
 	print start_form(-id=>"ntw_int_overview",-href=>url(-absolute=>1)."?conf=$C->{conf}&act=network_interface_overview");
 
 	if ($ii_cnt > 1000) {
-		my $GT = loadGroupTable();
 		my @groups = ('',sort keys %{$GT});
 		$gr_menu =  td({class=>'header', colspan=>'1'},
 		"Select group ".
@@ -3330,7 +3361,6 @@ sub viewTop10 {
 	print '<!-- Top10 report start -->';
 
 	my $NT = loadNodeTable();
-	my $GT = loadGroupTable();
 	my $S = Sys::->new;
 
 	my $start = time()-(15*60);

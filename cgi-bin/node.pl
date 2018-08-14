@@ -43,7 +43,7 @@ use func;
 use NMIS;
 use Auth;
 use Sys;
-use rrdfunc;										# for getrrdashash 
+use rrdfunc;										# for getrrdashash
 
 my $q = new CGI; # This processes all parameters passed via GET and POST
 my $Q = $q->Vars; # values in hash
@@ -72,7 +72,14 @@ if ($AU->Require) {
 # check for remote request
 if ($Q->{server} ne "") { exit if requestServer(headeropts=>$headeropts); }
 
-#======================================================================
+my $NT = loadLocalNodeTable();
+# this is just a hash of groupname=>groupname as observed from nodes' configurations - NOT filtered!
+my $raw = loadGroupTable();
+my $GT = {};
+for my $configuredgroup (split(/\s*,\s*/, $C->{group_list}))
+{
+	$GT->{$configuredgroup} = $configuredgroup if (defined $raw->{$configuredgroup});
+}
 
 # cancel? go to graph view
 if ($Q->{cancel} || $Q->{act} eq 'network_graph_view')
@@ -135,9 +142,6 @@ sub typeGraph
 
 	my $length;
 
-	my $NT = loadLocalNodeTable();
-	my $GT = loadGroupTable();
-
 	my $S = Sys::->new; # get system object
 	$S->init(name=>$node); # load node info and Model if name exists
 	my $NI = $S->ndinfo;
@@ -188,12 +192,14 @@ sub typeGraph
 
 	# verify that user is authorized to view the node within the user's group list
 	if ( $node ) {
-		if ( ! $AU->InGroup($NT->{$node}{group}) ) {
+		if ( !$AU->InGroup($NT->{$node}{group}) or !exists $GT->{$NT->{$node}{group}} )
+		{
 			print "Not Authorized to view graphs on node '$node' in group $NT->{$node}{group}";
 			return 0;
 		}
 	} elsif ( $group ) {
-		if ( ! $AU->InGroup($group) ) {
+		if ( ! $AU->InGroup($group) or !exists $GT->{$group} )
+		{
 			print "Not Authorized to view graphs on nodes in group $group";
 			return 0;
 		}
@@ -294,11 +300,13 @@ sub typeGraph
 		$item = '';
 	}
 
-	### 2012-04-12 keiths, fix for node list with unauthorised nodes.
 	my @nodelist;
-	for my $node ( sort keys %{$NT}) {
+	for my $node ( sort keys %{$NT})
+	{
 		my $auth = 1;
-		if ($AU->Require) {
+
+		if ($AU->Require)
+		{
 			my $lnode = lc($NT->{$node}{name});
 			if ( $NT->{$node}{group} ne "" ) {
 				if ( not $AU->InGroup($NT->{$node}{group}) ) {
@@ -309,11 +317,11 @@ sub typeGraph
 				logMsg("WARNING ($node) not able to find correct group. Name=$NT->{$node}{name}.")
 			}
 		}
-		if ($auth) {
-			if ( getbool($NT->{$node}{active}) ) {
-				push(@nodelist, $NT->{$node}{name});
-			}
-		}
+
+		# to be included node must be ok to see, active and belonging to a configured group
+		push @nodelist, $NT->{$node}{name} if ($auth
+																					 && getbool($NT->{$node}->{active})
+																					 && $GT->{$NT->{$node}->{group}});
 	}
 
 	my %sshealth = get_graphtype_systemhealth(sys => $S, graphtype => $graphtype);
@@ -645,12 +653,12 @@ sub show_export_options
 
 	# verify that user is authorized to view the node within the user's group list
 	my $nodegroup = $S->ndinfo->{system}->{group};
-	if ($node && !$AU->InGroup($nodegroup))
+	if ($node && (!$AU->InGroup($nodegroup || !exists $GT->{$nodegroup})))
 	{
 		bailout(code => 403,
 						message => escapeHTML("Not Authorized to export rrd data for node '$node' in group '$nodegroup'."));
 	}
-	elsif ($group && !$AU->InGroup($group))
+	elsif ($group && (!$AU->InGroup($group) || !exists $GT->{$group}))
 	{
 		bailout(code => 403,
 						message => escapeHTML("Not Authorized to export rrd data for nodes in group '$group'."));

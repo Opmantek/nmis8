@@ -35,7 +35,7 @@
 #
 # this helper guides you through the process of creating custom graphs
 # for such services.
-our $VERSION = "1.1.0";
+our $VERSION = "1.2.0";
 
 if (@ARGV == 1 && $ARGV[0] eq "--version")
 {
@@ -50,7 +50,7 @@ use lib "$FindBin::RealBin/../lib";
 use File::Basename;
 use JSON::XS;
 use Data::Dumper;
-use UI::Dialog;
+use UI::Dialog 1.13;
 use version 0.77;
 
 use func;
@@ -78,7 +78,7 @@ die "could not load configuration $confname!\n"
 my $dia = UI::Dialog->new('title' => "Service Graph Helper",
 													height => 20,
 													width =>  70,
-													listheight => 15, order => [ 'cdialog', 'ascii']); # whiptail/newt doesn't behave well
+													listheight => 15, order => [ 'cdialog', 'whiptail', 'ascii']); 
 
 $dia->msgbox("text" => "This helper will guide you through the creation
 of a simple custom graph for an custom NMIS service.
@@ -178,14 +178,14 @@ my %graph = ( title => { standard => '$node - $length from $datestamp_start to $
 # ask for: titles (with default)
 my $newtitle = $dia->inputbox( text => "Please set the new graph title below. This is full-sized graphs.
 NMIS-variables written as \"\$varname\" will be substituted.",
-															 entry => escape($graph{title}->{standard}) );
+															 entry => $graph{title}->{standard} );
 die "User cancelled operation.\n" if ($dia->state ne "OK");
 $graph{title}->{standard} = $newtitle if ($newtitle and $newtitle !~ /^\s*$/
 																					and $newtitle ne $graph{title}->{standard});
 
 $newtitle = $dia->inputbox( text => "Please set the new graph title below. This is for small graphs.
 NMIS-variables written as \"\$varname\" will be substituted.",
-															 entry => escape($graph{title}->{short}) );
+															 entry => $graph{title}->{short} );
 die "User cancelled operation.\n" if ($dia->state ne "OK");
 $graph{title}->{short} = $newtitle if ($newtitle and $newtitle !~ /^\s*$/
 																			 and $newtitle ne $graph{title}->{short});
@@ -354,17 +354,3 @@ For further graphing and modelling info, please check out https://community.opma
 }
 
 exit 0;
-
-
-# versions of ui::dialog before 1.13 don't escape their inputs properly
-# https://rt.cpan.org/Public/Bug/Display.html?id=107364
-sub escape
-{
-	my ($input) = @_;
-
-	if (version->parse($UI::Dialog::VERSION) < version->parse("1.13"))
-	{
-		$input =~ s/\$/\\\$/g;
-	}
-	return $input;
-}

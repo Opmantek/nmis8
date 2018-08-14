@@ -256,12 +256,12 @@ sub convertIfName {
 		$ifName =~ s/[^A-Za-z0-9_.]+/-/g;
 	}
 	else {
-		$ifName =~ s/\W+/-/g;
+		$ifName =~ s/\W+/-/g;				# anything outside [a-zA-Z0-9_]
 	}
 
 	$ifName =~ s/\-$//g;
 	$ifName = lc($ifName);
-	return $ifName
+	return $ifName;
 }
 
 sub rmBadChars {
@@ -1461,7 +1461,7 @@ sub logMsg
 		}
 	}
 
-	$string .= "<br>$msg";
+	$string .= "[$$]<br>$msg";
 	$string =~ s/\n/ /g;      #remove all embedded newlines
 
 	# we MUST NOT use setfileprot because it may call logmsg...

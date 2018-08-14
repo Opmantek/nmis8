@@ -27,7 +27,7 @@
 #
 # *****************************************************************************
 package rrdfunc;
-our $VERSION = "2.5.0";
+our $VERSION = "3.0.0";
 
 use NMIS::uselib;
 use lib "$NMIS::uselib::rrdtool_lib";
@@ -703,11 +703,26 @@ sub updateRRD
 		}
 	}
 
-	my (@options, @ds);
+	my (@updateargs, @ds, %blankme);
 	my @values = ("N");							# that's 'reading is for Now'
 
-	# if the node has gone through a reset, then insert a U to avoid spikes - but log once only
-	dbg("node was reset, inserting U values") if ($NI->{admin}->{node_was_reset});
+	# if the node has gone through a reset, then insert a U to avoid spikes for all COUNTER-ish DS
+	if ($NI->{admin}->{node_was_reset})
+	{
+		dbg("node was reset, inserting U values");
+
+		# get the DS definitions, extract the DS types and mark the counter-ish ones as blankable
+		for (grep(/^DS:/, optionsRRD(data=>$data, sys=>$S, type=>$type, index=>$index)))
+		{
+			my (undef, $dsid, $dstype) = split(/:/, $_);
+			if ($dstype ne "GAUGE")		# basically anything non-gauge is counter-ish
+			{
+				dbg("marking DS $dsid in $type as blankable, DS type $dstype");
+				$blankme{$dsid} = 1;
+			}
+		}
+	}
+	# similar to the node reset case, but this also blanks GAUGE DS
 	dbg("node has current outage with nostats option, inserting U values") if ($NI->{admin}->{outage_nostats});
 	foreach my $var (keys %{$data})
 	{
@@ -722,9 +737,9 @@ sub updateRRD
 
 		# in outage with nostats option active?
 		# then all rrds INCL health but EXCEPT health's outage/polltime/updatetime DS are overwritten
-		# or was the node reset? then all rrds EXCEPT health are overwritten
+		# or was the node reset? then all known-blankable DS are overwritten
 		# (as health holds only gauges and no counters the U isn't needed to avoid spikes)
-		if (($NI->{admin}->{node_was_reset} and $type ne "health")
+		if (($NI->{admin}->{node_was_reset} and $blankme{$var})
 				or ($NI->{admin}->{outage_nostats}
 						and ($type ne "health" or $var !~ /^(outage|polltime|updatetime)$/)))
 		{
@@ -752,7 +767,7 @@ sub updateRRD
 	}
 	my $thevalue =  join(":",@values);
 	my $theds = join(":",@ds);
-	push @options,("-t", $theds, $thevalue);
+	push @updateargs,("-t", $theds, $thevalue);
 
 	my $points = scalar @ds;
 	# for bytes consider a 64 bit word, 8 bytes for each thing.
@@ -767,17 +782,17 @@ sub updateRRD
 
 	logPolling("$type,$NI->{system}{name},$index,$item,$theds,$thevalue");
 
-	if ( @options)
+	if (@updateargs)
 	{
 		# update RRD
-		RRDs::update($database,@options);
+		RRDs::update($database,@updateargs);
 		++$stats{rrdcount};
 
 		if (my $ERROR = RRDs::error())
 		{
 			if ($ERROR !~ /contains more DS|unknown DS name/)
 			{
-				$stats{error} = "($S->{name}) database=$database: $ERROR: options = @options";
+				$stats{error} = "($S->{name}) database=$database: $ERROR: arguments = @updateargs";
 				logMsg("ERROR $stats{error}");
 			}
 			else

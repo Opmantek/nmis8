@@ -1,7 +1,5 @@
 #!/usr/bin/perl
 #
-## $Id: import_nodes.pl,v 1.1 2012/08/13 05:09:17 keiths Exp $
-#
 #  Copyright (C) Opmantek Limited (www.opmantek.com)
 #
 #  ALL CODE MODIFICATIONS MUST BE SENT TO CODE@OPMANTEK.COM
@@ -88,24 +86,29 @@ exit 1;
 sub loadNodes {
 	my $csvfile = shift;
 	my $nmisnodes = shift;
-	
+
 	print $t->markTime(). " Loading the Local Node List\n";
 	my $LNT = loadLocalNodeTable();
 	print "  done in ".$t->deltaTime() ."\n";
-	
+
 	print $t->markTime(). " Loading the Import Nodes from $csvfile\n";
 	my %newNodes = &myLoadCSV($csvfile,"name",",");
 	print "  done in ".$t->deltaTime() ."\n";
-	
+
+	my $nodenamerule = $C->{node_name_rule} || qr/^[a-zA-Z0-9_. -]+$/;
+
 	print "\n";
 	my $sum = initSummary();
-	foreach my $node (keys %newNodes) {
+	foreach my $node (keys %newNodes)
+	{
+	die "Invalid node name \"$node\"\n"
+			if ($node !~ $nodenamerule);
 
-		if ( $newNodes{$node}{name} ne "" 
-			and $newNodes{$node}{host} ne "" 
-			and $newNodes{$node}{role} ne "" 
-			and $newNodes{$node}{community} ne "" 
-		) {
+	if ( $newNodes{$node}{name} ne ""
+			 and $newNodes{$node}{host} ne ""
+			 and $newNodes{$node}{role} ne ""
+			 and $newNodes{$node}{community} ne ""
+			) {
 
 			my $nodekey = $newNodes{$node}{name};
 			++$sum->{total};
@@ -118,7 +121,7 @@ sub loadNodes {
 				print "ADDING: node=$newNodes{$node}{name} host=$newNodes{$node}{host} group=$newNodes{$node}{group}\n";
 				++$sum->{add};
 			}
-			
+
 			my $roleType = $newNodes{$node}{role} || "access";
 			$roleType = $newNodes{$node}{roleType} if $newNodes{$node}{roleType};
 
@@ -130,7 +133,7 @@ sub loadNodes {
 			$LNT->{$nodekey}{group} = $newNodes{$node}{group} || "NMIS8";
 			$LNT->{$nodekey}{roleType} = $newNodes{$node}{role} || "access";
 			$LNT->{$nodekey}{community} = $newNodes{$node}{community} || "public";
-	
+
 			$LNT->{$nodekey}{businessService} = $newNodes{$node}{businessService} || "";
 			$LNT->{$nodekey}{serviceStatus} = $newNodes{$node}{serviceStatus} || "Production";
 			$LNT->{$nodekey}{location} = $newNodes{$node}{location} || "default";
@@ -181,7 +184,7 @@ $sum->{update} nodes updated
 	else {
 		print "ERROR: no file to save to provided\n";
 	}
-	
+
 }
 
 sub initSummary {
@@ -197,7 +200,7 @@ sub initSummary {
 sub backupFile {
 	my %arg = @_;
 	my $buff;
-	if ( not -f $arg{backup} ) {			
+	if ( not -f $arg{backup} ) {
 		if ( -r $arg{file} ) {
 			open(IN,$arg{file}) or warn ("ERROR: problem with file $arg{file}; $!");
 			open(OUT,">$arg{backup}") or warn ("ERROR: problem with file $arg{backup}; $!");
@@ -226,7 +229,7 @@ sub myLoadCSV {
 	my $seperator = shift;
 	my $reckey;
 	my $line = 1;
-	
+
 	if ( $seperator eq "" ) { $seperator = "\t"; }
 
 	my $passCounter = 0;
@@ -238,13 +241,13 @@ sub myLoadCSV {
 	my @keylist;
 	my $row;
 	my $head;
-	
+
 	my %data;
-	
+
 	#open (DATAFILE, "$file")
 	if (sysopen(DATAFILE, "$file", O_RDONLY)) {
 		flock(DATAFILE, LOCK_SH) or warn "can't lock filename: $!";
-	
+
 		while (<DATAFILE>) {
 			s/[\r\n]*$//g;
 			#$_ =~ s/\n$//g;
@@ -280,7 +283,7 @@ sub myLoadCSV {
 				if ( $reckey eq "" or $key eq "" ) {
 					$reckey = join("-", @rowElements);
 				}
-				
+
 				for ($i = 0; $i <= $#rowElements; ++$i) {
 					if ( $rowElements[$i] eq "null" ) { $rowElements[$i] = ""; }
 					$data{$reckey}{$headers[$i]} = $rowElements[$i];
@@ -292,6 +295,6 @@ sub myLoadCSV {
 	} else {
 		logMsg("cannot open file $file, $!");
 	}
-	
+
 	return (%data);
 }
