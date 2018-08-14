@@ -6111,7 +6111,7 @@ sub runAlerts
 					if ( defined($CA->{$sect}{$alrt}{control}) and $CA->{$sect}{$alrt}{control} ne '' ) {
 						my $control_result = $S->parseString(string=>"($CA->{$sect}{$alrt}{control}) ? 1:0",
 																								 index=>$index, type=>$sect, sect=>$sect);
-						dbg("control_result sect=$sect index=$index control_result=$control_result");
+						dbg("control_result event=$CA->{$sect}{$alrt}{event} sect=$sect index=$index control_result=$control_result");
 						next if not $control_result;
 					}
 
