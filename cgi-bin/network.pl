@@ -107,9 +107,17 @@ $smallGraphWidth = $C->{'small_graph_width'} if $C->{'small_graph_width'} ne "";
 
 logMsg("TIMING: ".$t->elapTime()." Begin act=$Q->{act}") if $timing;
 
-# select function
-my $select;
+# these need loading before the yucky if selection below, which is terminal for some acts
+my $NT = loadNodeTable();
+# this is just a hash of groupname=>groupname as observed from nodes' configurations - NOT filtered!
+my $raw = loadGroupTable();
+my $GT = {};
+for my $configuredgroup (split(/\s*,\s*/, $C->{group_list}))
+{
+	$GT->{$configuredgroup} = $configuredgroup if (defined $raw->{$configuredgroup});
+}
 
+my $select;
 if ($Q->{act} eq 'network_summary_health') {	$select = 'health';
 } elsif ($Q->{act} eq 'network_summary_view') {	$select = 'view';
 } elsif ($Q->{act} eq 'network_summary_small') {	$select = 'small';
@@ -174,8 +182,6 @@ pageStartJscript(title => "NMIS Network Status - $C->{server_name}", refresh => 
 
 logMsg("TIMING: ".$t->elapTime()." Load Nodes and Groups") if $timing;
 
-my $NT = loadNodeTable();
-my $GT = loadGroupTable();
 
 # graph request
 my $ntwrk = ($select eq 'large') ? 'network' : ($Q->{group} eq '') ? 'network' : $Q->{group} ;
@@ -282,7 +288,6 @@ sub getSummaryStatsbyGroup {
 	} elsif ($metric >=  1) { $metric_color = colorPercentHi($metric); $icon{metric_icon} = 'arrow_up_big'; }
 
 
-	## ehg 17 sep 02 add node down counter with colour
 	my $percentDown = 0;
 	if ( $groupSummary->{average}{countdown} > 0 and $groupSummary->{average}{counttotal} > 0 ) {
 		$percentDown = sprintf("%2.0u",$groupSummary->{average}{countdown}/$groupSummary->{average}{counttotal}) * 100;
@@ -1388,10 +1393,6 @@ sub viewMetrics {
 		print 'You are not authorized for this request';
 		return;
 	}
-
-	#prepend the network group!
-	#my @grouplist = split(",","network,$C->{group_list}");
-	my $GT = loadGroupTable;
 	my @grouplist = values %{$GT};
 	my @groups = grep { $AU->InGroup($_) } sort (@grouplist);
 
@@ -3274,7 +3275,6 @@ sub viewOverviewIntf {
 
 	my $NT = loadNodeTable();
 	my $II = loadInterfaceInfo();
-	my $GT = loadGroupTable();
 	my $ii_cnt = keys %{$II};
 
 	my $gr_menu = "";
@@ -3283,7 +3283,6 @@ sub viewOverviewIntf {
 	print start_form(-id=>"ntw_int_overview",-href=>url(-absolute=>1)."?conf=$C->{conf}&act=network_interface_overview");
 
 	if ($ii_cnt > 1000) {
-		my $GT = loadGroupTable();
 		my @groups = ('',sort keys %{$GT});
 		$gr_menu =  td({class=>'header', colspan=>'1'},
 		"Select group ".
@@ -3362,7 +3361,6 @@ sub viewTop10 {
 	print '<!-- Top10 report start -->';
 
 	my $NT = loadNodeTable();
-	my $GT = loadGroupTable();
 	my $S = Sys::->new;
 
 	my $start = time()-(15*60);

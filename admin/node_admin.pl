@@ -1,6 +1,6 @@
 #!/usr/bin/perl
 #
-#  Copyright 1999-2014 Opmantek Limited (www.opmantek.com)
+#  Copyright 1999-2018 Opmantek Limited (www.opmantek.com)
 #
 #  ALL CODE MODIFICATIONS MUST BE SENT TO CODE@OPMANTEK.COM
 #
@@ -29,7 +29,7 @@
 # *****************************************************************************
 #
 # a command-line node administration tool for NMIS
-our $VERSION = "1.3.0";
+our $VERSION = "1.4.0";
 
 if (@ARGV == 1 && $ARGV[0] eq "--version")
 {
@@ -382,8 +382,9 @@ elsif ($args{act} =~ /^(create|update)$/)
 	die "Cannot create or update node without node argument!\n\n$usage\n" if (!$node);
 	die "File \"$file\" does not exist!\n" if (defined $file && $file ne "-" && ! -f $file);
 
+	my $nodenamerule = $config->{node_name_rule} || qr/^[a-zA-Z0-9_. -]+$/;
 	die "Invalid node name \"$node\"\n"
-			if ($node =~ /[^a-zA-Z0-9_-]/);
+			if ($node !~ $nodenamerule);
 
 	my $noderec = $nodeinfo->{$node};
 	die "Node $node does not exist.\n" if (!$noderec && $args{act} eq "update");
@@ -423,6 +424,9 @@ Use act=rename for renaming nodes.\n"
 	die "Invalid node data, not a hash!\n" if (ref($mayberec) ne 'HASH');
 	die "Invalid node data, does not have required attributes name, host and group\n"
 			if (!$mayberec->{name} or !$mayberec->{host} or !$mayberec->{group});
+
+	die "Invalid node data, name doesn't match command line argument!\n"
+			if ($node ne $mayberec->{name});
 
 	die "Invalid node data, netType \"$mayberec->{netType}\" is not known!\n"
 			if (!grep($mayberec->{netType} eq $_, split(/\s*,\s*/, $config->{nettype_list})));

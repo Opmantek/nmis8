@@ -29,13 +29,14 @@
 #
 # this module queries WMI services via the standalone wmic executable
 package WMI;
-our $VERSION = "2.0.0";
+our $VERSION = "2.1.0";
 
 use strict;
 use File::Temp;
 use Encode 2.23;								# core module, version is what came with 5.10.0 which we can make do with
 
-# the constructor is not doing much at this time, merely checks that the arguments are sufficient
+# the constructor is not doing much at this time, merely checks
+# that the arguments are sufficient
 #
 # args: host, username, (required), password, timeout, program (optional),
 # program: full path to wmic, if not given wmic is expected to be in the PATH
@@ -215,7 +216,19 @@ sub _run_query
 
 		# -A format is badly documented. smbclient manpage has a little bit of info
 		# however, unclear if that password can be quoted or contain spaces or the like...
-		print $authfh "username = $self->{username}\n";
+
+		# let's accept usernames with domains, as user@domain or domain/user
+		if ($self->{username} =~ m!^([^/@]+)([/@])(.+)$!)
+		{
+			my ($user,$delim,$domain) = ($1,$2,$3);
+			($user,$domain) = ($domain,$user) if ($delim eq "/");
+
+			print $authfh "username = $user\ndomain = $domain\n";
+		}
+		else
+		{
+			print $authfh "username = $self->{username}\n";
+		}
 		print $authfh "password = $self->{password}\n" if ($self->{password});
 		close $authfh;
 
