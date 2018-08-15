@@ -275,7 +275,7 @@
     'nodeModel' => 'AristaSwitch',
     'nodeType' => 'switch',
     'nodeVendor' => 'Arista Networks',
-    'nodegraph' => 'health,response,ip',
+    'nodegraph' => 'health,response,ip,hrmem',
     'rrd' => {
       'mib2ip' => {
         'graphtype' => 'ip,frag',
@@ -632,5 +632,32 @@
         }
       }
     }
-  }
+  },
+  'storage' => {
+    'sys' => {
+      'storage' => {
+        'snmp' => {
+          'hrStorageUnits' => {
+            'oid' => 'hrStorageAllocationUnits'
+          },
+          'hrStorageSize' => {
+            'oid' => 'hrStorageSize'
+          },
+          'hrStorageUsed' => {
+            'oid' => 'hrStorageUsed'
+          },
+          'hrStorageDescr' => {
+            'oid' => 'hrStorageDescr'
+          },
+          'hrStorageType' => {
+            'oid' => 'hrStorageType'
+          }
+        },
+        'indexed' => 'true'
+      }
+    },
+    'nocollect' => {
+      'Description' => '/mnt/cdrom|boot'
+    }
+  }  
 );

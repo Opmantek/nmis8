@@ -605,6 +605,20 @@
         },
       }
     },
+    'Neoteris, Inc.' => {
+      'order' => {
+        '10' => {
+          'PulseSecure' => 'Pulse Secure'
+        }
+      }
+    },
+    'Adtran' => {
+      'order' => {
+        '10' => {
+          'NetVanta' => 'NetVanta'
+        }
+      }
+    },
   },
   'system' => {
     'nodeModel' => 'Default',

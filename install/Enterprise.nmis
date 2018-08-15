@@ -73724,4 +73724,8 @@
     'Enterprise' => 'Oplink Communications, Inc.',
     'OID' => '19547'
   },
+  '664' => {
+    'Enterprise' => 'Adtran',
+    'OID' => '664'
+  },
 );

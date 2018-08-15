@@ -157,6 +157,7 @@
       'Chain' => '/nodes/$node/health/Chain-$index.rrd',
       'Stream' => '/nodes/$node/health/Stream-$index.rrd',
       'mikrotikCpu' => '/nodes/$node/health/mikrotikCpu.rrd',
+      'systemStatsMulti' => '/nodes/$node/health/systemStatsMulti-$index.rrd',
     }
   }
 );
