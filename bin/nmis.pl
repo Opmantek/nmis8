@@ -7215,7 +7215,7 @@ sub nmisSummary
 		logMsg("Poll Time: $polltime");
 	}
 
-	diag_log(LOG_INFO, "sumamry operation finished");
+	diag_log(LOG_INFO, "summary operation finished");
 }
 
 sub summaryCache
