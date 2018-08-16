@@ -29,7 +29,7 @@
 #  http://support.opmantek.com/users/
 #
 # *****************************************************************************
-our $VERSION = "8.6.6G";
+our $VERSION = "8.6.7G";
 use strict;
 
 use List::Util 1.33;

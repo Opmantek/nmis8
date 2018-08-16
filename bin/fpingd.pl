@@ -27,7 +27,7 @@
 #  http://support.opmantek.com/users/
 #
 # *****************************************************************************
-our $VERSION = "8.6.6G-1";
+our $VERSION = "8.6.7G";
 
 use FindBin qw($Bin);
 use lib "$FindBin::Bin/../lib";
