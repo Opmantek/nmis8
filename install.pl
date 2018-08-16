@@ -1270,6 +1270,10 @@ else
 {
 	echolog("Found Apache version $versioninfo");
 
+	# older vms ship 00nmis.conf, which definitely needs to be replaced
+	my $oldvmconfig = "/etc/httpd/conf.d/00nmis.conf";
+	unlink($oldvmconfig) if (-e $oldvmconfig);
+
 	my $apacheconf = "nmis.conf";
 	my $res = system("$site/bin/nmis.pl type="
 									 .($istwofour?"apache24":"apache")." > /tmp/$apacheconf");
