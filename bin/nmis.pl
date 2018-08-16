@@ -221,7 +221,7 @@ elsif ( $type eq "rme" ) { loadRMENodes($rmefile); }
 elsif ( $type eq "threshold" )
 {
 	diag_log(LOG_INFO, "Starting (independent) threshold operation");
-			
+
 	my @cand = expand_candidate_list($nodeselect, $groupselect);
 	if (@cand)
 	{
@@ -240,9 +240,9 @@ elsif ( $type eq "purge" ) {
 	my $error = purge_files(); die "$error\n" if $error;
 	my $res = NMIS::purge_outages(); die "$res->error\n" if !$res->{success};
 }
-else { checkArgs(); }
+else { checkArgs(); exit 1; }
 
-exit 1;
+exit 0;
 
 #=========================================================================================
 
@@ -420,7 +420,7 @@ sub	runThreads
 	{
 		die "Unknown operation type=$type, terminating!\n";
 	}
-	
+
 	logMsg("INFO start of $type process");
 
 	# update the operation start/stop timestamp
@@ -7286,7 +7286,7 @@ sub runEscalate
 		if (keys %$others)
 		{
 			diag_log(LOG_ERR, "other type=escalate processes running (".join(", ", keys %$others)."), aborting operation.");
-			
+
 			logMsg("ERROR other type=escalate processes running (".join(", ", keys %$others)."), aborting operation.");
 			info("ERROR other type=escalate processes running (".join(", ", keys %$others)."), aborting operation.");
 			return;
