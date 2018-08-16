@@ -30,7 +30,7 @@
 # a small update plugin for handling various Cisco features like CBQoS and Netflow
 
 package Cisco_Features;
-our $VERSION = "1.1.0";
+our $VERSION = "1.2.0";
 
 use strict;
 
@@ -147,7 +147,7 @@ sub loadVendorOids {
 	my $oids = "$C->{mib_root}/CISCO-ENTITY-VENDORTYPE-OID-MIB.oid";
 	my $vendorOids;
 	
-	print "Loading Vendor OIDs from $oids\n";
+	info("Loading Vendor OIDs from $oids");
 	
 	open(OIDS,$oids) or warn "ERROR could not load $oids: $!\n";
 	
@@ -161,7 +161,7 @@ sub loadVendorOids {
 			#all good comment
 		}
 		else {
-			print "ERROR: no match $_\n";
+			info("ERROR: no match $_");
 		}
 	}
 	close(OIDS);
