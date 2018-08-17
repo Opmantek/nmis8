@@ -332,7 +332,7 @@ sub selectMetrics
 		if (-f $cachefile)
 		{
 			my $selfteststatus = readFiletoHash(file => $cachefile, json => 'true');
-			if (!$selfteststatus->{status})
+			if ($selfteststatus && !$selfteststatus->{status})
 			{
 				$showmetrics=0;
 
