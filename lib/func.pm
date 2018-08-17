@@ -2423,7 +2423,11 @@ sub selftest
 											$config->{'<menu_base>'},
 											$config->{'report_root'},
 											$config->{'script_root'}, # commonly under nmis_conf
-											$config->{'plugin_root'}, ) # ditto
+											$config->{'plugin_root'}, # ditto
+											$config->{'<nmis_var>'},  # don't recurse - events!
+											$config->{'<nmis_var>'}."/nmis_system", # but do check these dirs and their contents
+											$config->{'<nmis_var>'}."/service_status",
+				)
 		{
 			my $where = Cwd::abs_path($location);
 			next if ($done{$where});
@@ -2443,11 +2447,10 @@ sub selftest
 		%done = ();
 		for my $location ($config->{'<nmis_base>'}."/lib",
 											$config->{'<nmis_conf>'},
-											$config->{'<nmis_var>'},
 											$config->{'<nmis_menu>'},
 											$config->{'mib_root'},
 											$config->{'database_root'},
-											$config->{'web_root'}, )
+				)
 		{
 			my $where = Cwd::abs_path($location);
 			next if ($done{$where});
