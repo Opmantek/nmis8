@@ -1350,10 +1350,10 @@ sub viewSelfTest
 	{
 		my $cachefile = func::getFileName(file => $C->{'<nmis_var>'}."/nmis_system/selftest",
 																			json => 'true');
-		if (-f $cachefile)
-		{
-			my $selfteststatus = readFiletoHash(file => $cachefile, json => 'true');
 
+		my $selfteststatus = readFiletoHash(file => $cachefile, json => 'true') 		if (-f $cachefile);
+		if ($selfteststatus)
+		{
 			print header($headeropts);
 			pageStartJscript(title => "NMIS Selftest - $C->{server_name}") if (!$wantwidget);
 			print start_table({class=>'dash'}),
