@@ -1352,10 +1352,13 @@ sub viewSelfTest
 																			json => 'true');
 
 		my $selfteststatus = readFiletoHash(file => $cachefile, json => 'true') 		if (-f $cachefile);
+		
+		print header($headeropts);
+
 		if ($selfteststatus)
 		{
-			print header($headeropts);
 			pageStartJscript(title => "NMIS Selftest - $C->{server_name}") if (!$wantwidget);
+			
 			print start_table({class=>'dash'}),
 			Tr(th({class=>'title',colspan=>'2'},"NMIS Selftest")),
 			Tr(td({class=>"heading3"}, "Last Selftest"), td({class=>"rht Plain"},
