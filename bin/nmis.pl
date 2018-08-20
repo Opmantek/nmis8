@@ -81,11 +81,6 @@ my $C = loadConfTable(conf => $cmdargs->{conf}, debug=>$cmdargs->{debug}, info=>
 die "nmis cannot operate without config!\n" if (ref($C) ne "HASH");
 diag_log(LOG_INFO, "NMIS process started.");
 
-# and the status of the database dir, as reported by the selftest - 0 bad, 1 ok, undef unknown
-# this is used by rrdfunc::createRRD(), so needs to be scoped suitably.
-our $selftest_dbdir_status;
-$selftest_dbdir_status = undef;
-
 # check for global collection off or on
 # useful for disabling nmis poll for server maintenance, nmis upgrades etc.
 my $lockoutfile = $C->{'<nmis_conf>'}."/NMIS_IS_LOCKED";
@@ -94,19 +89,10 @@ if (-f $lockoutfile or getbool($C->{global_collect},"invert"))
 {
 	# if nmis is locked, run a quick nondelay selftest so that we have something for the GUI
 	my $varsysdir = $C->{'<nmis_var>'}."/nmis_system";
-	if (!-d $varsysdir)
-	{
-		createDir($varsysdir);
-		setFileProt($varsysdir);
-	}
 	my $selftest_cache = "$varsysdir/selftest";
 
-	diag_log(LOG_DEBUG, "Performing Selftest.");
-	my ($allok, $tests) = func::selftest(config => $C, delay_is_ok => 'false',
-																			 report_database_status => \$selftest_dbdir_status,
-																			 perms => 'false');
-	writeHashtoFile(file => $selftest_cache, json => 1,
-									data => { status => $allok, lastupdate => time, tests => $tests });
+	diag_log(LOG_DEBUG, "Performing Non-Delay Selftest.");
+	my ($allok, $tests) = func::selftest(config => $C, delay_is_ok => 'false', perms => 'false');
 	diag_log($allok? LOG_DEBUG: LOG_INFO, "Selftest completed ".($allok?"ok":"FAILED!"));
 	info("Selftest completed (status ".($allok?"ok":"FAILED!")."), cache file written");
 	if (-f $lockoutfile)
@@ -293,7 +279,6 @@ sub	runThreads
 	my @candnodes = expand_candidate_list($args{nodeselect}, $args{groupselect});
 
 	# do a selftest and cache the result, but not too often
-	# this takes about five seconds (for the process stats)
 	# however, DON'T do one if nmis is run in handle-just-this-node mode, which is usually a debugging exercise
 	# which shouldn't be delayed at all. ditto for (possibly VERY) frequent type=services
 	if (!@candnodes and $type ne "services")
@@ -303,14 +288,9 @@ sub	runThreads
 		setFileProtDirectory($C->{'<nmis_models>'}, 0); # no recursion required
 
 		my $varsysdir = $C->{'<nmis_var>'}."/nmis_system";
-		if (!-d $varsysdir)
-		{
-			createDir($varsysdir);
-			setFileProt($varsysdir);
-		}
+		my $selftest_cache = "$varsysdir/selftest.json";
+		my $laststate = readFiletoHash(file => $selftest_cache, json => 1) if ( -f $selftest_cache);
 
-		my $selftest_cache = "$varsysdir/selftest";
-		my $laststate = readFiletoHash(file => $selftest_cache, json => 1);
 		# check if a selftest is due? once every 15 minutes
 		my $wantselftestnow = 1 if (ref($laststate) ne "HASH"
 																|| !defined($laststate->{lastupdate})
@@ -321,40 +301,20 @@ sub	runThreads
 														 || $laststate->{lastupdate_perms} + 7200 < time);
 		if ($wantselftestnow)
 		{
-			info("Starting selftest (takes about 5 seconds)...");
-			my ($allok, $tests) = func::selftest(config => $C, delay_is_ok => 'true',
-																					 perms => $wantpermsnow,
-																					 report_database_status => \$selftest_dbdir_status);
-
-			# keep the old permissions state if this test did not run a permissions test
-			# hardcoded test name isn't great, though.
-			if (!$wantpermsnow)
+			my $pid = fork;
+			if ($pid)
 			{
-				$laststate ||= { tests => [] };
-
-				my ($oldstate) = grep($_->[0] eq "Permissions", @{$laststate->{tests}}); # there will at most one
-				if (defined $oldstate)
-				{
-					my ($targetidx) = grep($tests->[$_]->[0] eq "Permissions", (0..$#{$tests}));
-					if (defined $targetidx)
-					{
-						$tests->[$targetidx] = $oldstate;
-					}
-					else
-					{
-						push @$tests, $oldstate;
-					}
-					$allok = 0 if ($oldstate->[1]); # not ok until that's cleared
-				}
+				info("Started selftest in separate process $pid");
 			}
-
-			writeHashtoFile(file => $selftest_cache, json => 1,
-											data => { status => $allok,
-																lastupdate => time,
-																lastupdate_perms => ($wantpermsnow? time
-																										 : $laststate?  $laststate->{lastupdate_perms} : undef),
-																		tests => $tests });
-			info("Selftest completed (status ".($allok?"ok":"FAILED!")."), cache file written");
+			else
+			{
+				info("Starting selftest...");
+				$0 = "nmis selftest";
+				my ($allok, $tests) = func::selftest(config => $C, delay_is_ok => 'true',
+																						 perms => $wantpermsnow);
+				info("Selftest completed (status ".($allok?"ok":"FAILED!")."), cache file written");
+				exit(0);
+			}
 		}
 		else
 		{
@@ -9981,7 +9941,7 @@ sub purge_files
 			description => "Empty JSON state files",
 		},
 		{
-			minage => $C->{purge_event_after} || 30*86400,
+			minage => $C->{purge_event_after} || 7*86400,
 			path => qr!events/.+?/history/.+\.json$!,
 			also_empties => 1,
 			location => $C->{'<nmis_var>'}."/events",

@@ -27,7 +27,7 @@
 #
 # *****************************************************************************
 package rrdfunc;
-our $VERSION = "3.0.0";
+our $VERSION = "3.0.1";
 
 use NMIS::uselib;
 use lib "$NMIS::uselib::rrdtool_lib";
@@ -920,10 +920,10 @@ sub optionsRRD
 	return @options;
 }
 
-### createRRRDB now checks if RRD exists and only creates if doesn't exist.
-### also add node directory create for node directories, if rrd is not found
-### note that the function does NOT create an rrd file if
-### $main::selftest_dbdir_status is 0 (not undef)
+# createRRRDB now checks if RRD exists and only creates if doesn't exist.
+# also add node directory create for node directories, if rrd is not found
+# note: does NOT create anything if the file var/nmis_system/dbdir_full exists
+# (which is created by selftest)
 sub createRRD
 {
 	my %args = @_;
@@ -954,13 +954,14 @@ sub createRRD
 		$exit = 0;
 	}
 	# are we allowed to create new files, or is the filesystem with the database dir (almost) full already?
-	elsif (defined $main::selftest_dbdir_status && !$main::selftest_dbdir_status)
+	# marker file name also embedded in util.pm
+	elsif (-f "$C->{'<nmis_var>'}/nmis_system/dbdir_full")
 	{
 		$stats{error} = "Not creating $database, as database filesystem is (almost) full!";
 		logMsg("ERROR: Not creating $database, as database filesystem is (almost) full!");
 		return 0;
 	}
-	# It doesn't so create it
+	# doesn't exist yet, so create it
 	else
 	{
 		my @x = $database =~ /\//g; # until last slash

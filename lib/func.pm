@@ -27,7 +27,7 @@
 #
 # *****************************************************************************
 package func;
-our $VERSION = "2.0.0";
+our $VERSION = "2.0.1";
 
 use strict;
 use Fcntl qw(:DEFAULT :flock :mode);
@@ -2301,11 +2301,12 @@ sub checkPerlLib {
 
 
 # a quick selftest function to verify that the runtime environment is ok
-# function name not exported, on purpose
+# updates the selftest status cache file, also manages var/nmis_system/dbdir_full marker
+#
 # args: an nmis config structure (needed for the paths),
 # and delay_is_ok (= whether iostat and cpu computation are allowed to delay for a few seconds, default: no),
-# optional dbdir_status (=ref to scalar, set to 1 if db dir space tests are ok, 0 otherwise),
 # optional perms (default: 0, if 1 CRITICAL permissions are checked)
+#
 # returns: (all_ok, arrayref of array of test_name => error message or undef if ok)
 sub selftest
 {
@@ -2316,11 +2317,29 @@ sub selftest
 	return (0,{ "Config missing" =>  "cannot perform selftest without configuration!"})
 			if (ref($config) ne "HASH" or !keys %$config);
 	my $candelay = getbool($args{delay_is_ok});
+	my $wantpermsnow = getbool($args{perms});
 
-	my $dbdir_status = $args{report_database_status};
-	$$dbdir_status = 1 if (ref($dbdir_status) eq "SCALAR"); # assume the database dir passes the test
+	my $varsysdir = "$config->{'<nmis_var>'}/nmis_system";
+	if ( !-d $varsysdir )
+	{
+		createDir($varsysdir);
+		setFileProtDiag(file =>$varsysdir);
+	}
 
-	$allok=1;
+	my $statefile = "$varsysdir/selftest.json"; # name also embedded in nmisd and gui
+	my $laststate = ( -f $statefile)? readFiletoHash( file => $statefile, json => 1 ) : { tests => [] };
+
+	my $dbdir_full = "$varsysdir/dbdir_full"; # marker file name also embedded in rrdfunc.pm
+	unlink($dbdir_full);											# assume the database dir passes...until proven otherwise
+
+	# update the cache BEFORE the work starts, in case the selftest blocks for too long
+	$laststate //= {};
+	$laststate->{lastupdate} = time;
+	$laststate->{lastupdate_perms} = ($wantpermsnow? time
+																		: $laststate?  $laststate->{lastupdate_perms} : undef);
+	writeHashtoFile(file => $statefile, json => 1, data => $laststate);
+
+	$allok = 1;
 
 	# check that we have a new enough RRDs module
 	my $minversion=version->parse("1.4004");
@@ -2379,7 +2398,6 @@ sub selftest
 		{
 			push @details, [$testname, "Could not determine free space: $!"];
 			$allok=0;
-			$$dbdir_status = undef if (ref($dbdir_status) eq "SCALAR" and $dir eq $config->{"database_root"});
 			next;
 		}
 		# Filesystem       1048576-blocks  Used Available Capacity Mounted on
@@ -2388,13 +2406,16 @@ sub selftest
 		if (100-$usedpercent < $minfreepercent)
 		{
 			push @details, [$testname, "Only ".(100-$usedpercent)."% free in $dir!"];
-			$$dbdir_status = 0 if (ref($dbdir_status) eq "SCALAR" and $dir eq $config->{"database_root"});
+
+			if ($dir eq $config->{"database_root"})
+			{
+				open(F, ">$dbdir_full") && close(F);
+			}
 			$allok=0;
 		}
 		elsif ($remaining < $minfreemegs)
 		{
 			push @details, [$testname, "Only $remaining Megabytes free in $dir!"];
-			$$dbdir_status = 0 if (ref($dbdir_status) eq "SCALAR" and $dir eq $config->{"database_root"});
 			$allok=0;
 		}
 		else
@@ -2403,7 +2424,8 @@ sub selftest
 		}
 	}
 
-	if (getbool($args{perms}))
+	$testname = "Permissions";
+	if ($wantpermsnow)
 	{
 		# check the permissions, but only the most critical aspects: don't bother with precise permissions
 		# as long as the nmis user and group can work with the dirs and files
@@ -2466,7 +2488,6 @@ sub selftest
 			$done{$where} = 1;
 		}
 
-		$testname = "Permissions"; # note: this is hardcoded in nmis.pl, too!
 		if (@permproblems)
 		{
 			$allok=0;
@@ -2477,6 +2498,13 @@ sub selftest
 			push @details, [$testname, undef];
 		}
 	}
+	else
+	{
+		# keep the old permission test result as-is
+		my $prev = List::Util::first { $_->[0] eq $testname } (@{$laststate->{tests}});
+		push @details, $prev // [ $testname, undef ];
+	}
+
 
 	# check the number of nmis processes, complain if above limit
 	my $nr_procs = keys %{&find_nmis_processes(config => $config)}; # does not count this process
@@ -2652,6 +2680,14 @@ sub selftest
 		unshift @details, ["Last Update", $updatestatus], [ "Last Collect", $collectstatus];
 	}
 
+
+	writeHashtoFile(file => $statefile,
+									json => 1,
+									data => { status => $allok,
+														lastupdate => time,
+														lastupdate_perms => ($wantpermsnow? time
+																								 : $laststate?  $laststate->{lastupdate_perms} : undef),
+																tests => \@details });
 	return ($allok, \@details);
 }
 
