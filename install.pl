@@ -893,15 +893,36 @@ every 5 minutes.");
 			echolog("\n");
 		}
 
-		if (input_yn("OK to remove syslog and JSON logging from default event escalation?"))
+		# ask iff required
+		my %escrules = eval { do "$site/conf/Escalations.nmis" } if (-f "$site/conf/Escalations.nmis");
+		if (!keys %escrules
+				or (ref($escrules{"default_default_default_default__"}) eq "HASH"
+						&& $escrules{"default_default_default_default__"}->{Level0}))
 		{
-			execPrint("$site/admin/patch_config.pl -b $site/conf/Escalations.nmis /default_default_default_default__/Level0=''");
-			echolog("\n");
+			if (input_yn("OK to remove syslog and JSON logging from default event escalation?"))
+			{
+				execPrint("$site/admin/patch_config.pl -b $site/conf/Escalations.nmis /default_default_default_default__/Level0=''");
+				echolog("\n");
+			}
 		}
 
-		if (input_yn("OK to set the FastPing/Ping timeouts to the new default of 5000ms?"))
+		my %newconfig = eval { do "$site/conf/Config.nmis"; } if (-f "$site/conf/Config.nmis");
+		if (!keys %newconfig
+				or $newconfig{system}->{fastping_timeout} < 5000
+				or $newconfig{system}->{ping_timeout} < 5000)
 		{
-			execPrint("$site/admin/patch_config.pl -b -n $site/conf/Config.nmis /system/fastping_timeout=5000 /system/ping_timeout=5000");
+			if (input_yn("OK to set the FastPing/Ping timeouts to the new default of 5000ms?"))
+			{
+				execPrint("$site/admin/patch_config.pl -b -n $site/conf/Config.nmis /system/fastping_timeout=5000 /system/ping_timeout=5000");
+				echolog("\n");
+			}
+		}
+
+		if ($newconfig{system}->{keep_event_history}
+				&& $newconfig{system}->{keep_event_history} ne "false"
+				&& input_yn("OK to disable retaining of historic events?"))
+		{
+			execPrint("$site/admin/patch_config.pl -b $site/conf/Config.nmis /system/keep_event_history=false");
 			echolog("\n");
 		}
 

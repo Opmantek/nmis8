@@ -206,7 +206,7 @@ my %hash = (
 		'nmis4_compatibility' => 'false',
 		'plugins_enabled' => 'true',
 		# set to false to disable keeping of closed events in history section
-		'keep_event_history' => 'true',
+		'keep_event_history' => 'false',
 		'use_json' => 'true',
 		'use_json_pretty' => 'false',
   },
@@ -504,7 +504,7 @@ my %hash = (
 		'purge_rrd_after' => 30*86400,		# unused rrd files older than 30 days
 		'purge_backup_after' => 30*86400, # backup files
 		'purge_state_after' => 30*86400,	 # unused nmis state files
-		'purge_event_after' => 30*86400,	 # historic, closed events
+		'purge_event_after' => 7*86400,	 # historic, closed events
 		'purge_jsonlog_after' => 30*86400, # json log files
 		'purge_reports_after' => 365*86400,			 # html reports
 		'purge_outages_after' => 86400,					 # past non-recurring outages
