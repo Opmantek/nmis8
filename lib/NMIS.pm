@@ -4078,8 +4078,9 @@ sub eventAdd
 # if it exists it deletes it from the event state table/log
 #
 # and then calls notify with a new Up event including the time of the outage
-# args: a LIVE sys object for the node, event(name), upevent (name, optional)
-#  element, details and level are optional
+# args: a LIVE sys object for the node, event(name), upevent (name, optional),
+#  element, details (both optional)
+#  value, reset (optional, only referenced if event is /proactive/i),
 #
 # returns: nothing
 sub checkEvent
@@ -4092,9 +4093,6 @@ sub checkEvent
 	my $upevent = $args{upevent};	# that's the optional name of the up event to log
 	my $element = $args{element};
 	my $details = $args{details};
-	my $level = $args{level};
-	my $log;
-	my $syslog;
 
 	my $C = loadConfTable();
 
@@ -4182,7 +4180,7 @@ sub checkEvent
 
 		$details .= ($details? " " : "") . "Time=$outage";
 
-		($level,$log,$syslog) = getLevelLogEvent(sys=>$S, event=>$event, level=>'Normal');
+		my ($level,$log,$syslog) = getLevelLogEvent(sys=>$S, event=>$event, level=>'Normal');
 
 		# the REAL node name is required, not lowercased!
 		my ($otg,$outageinfo) = outageCheck(node => $S->{name}, time=>time());
