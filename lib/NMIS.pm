@@ -4118,8 +4118,11 @@ sub checkEvent
 		# cmpute the event period for logging
 		my $outage = convertSecsHours(time() - $erec->{startdate});
 
-		# Just log an up event now.
-		if ( $event eq "Node Down" )
+		if ($upevent)						# caller has told us a preferred up event name
+		{
+			$event = $upevent;
+		}
+		elsif ( $event eq "Node Down" )
 		{
 			$event = "Node Up";
 		}
@@ -4168,10 +4171,6 @@ sub checkEvent
 		elsif ($event =~ /\Wopen($|\W)/i)
 		{
 			$event =~ s/(\W)open($|\W)/$1Closed$2/i;
-		}
-		elsif ($upevent)						# caller has told us a preferred up event name
-		{
-			$event = $upevent;
 		}
 
 		# event was renamed/inverted/massaged, need to get the right control record
