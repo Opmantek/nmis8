@@ -90,6 +90,15 @@
         }
       }
     },
+    
+    'Dell Computer Corporation' => {
+         'order' => {
+        '10' => {
+          'DellSwitch' => 'Ethernet Switch',
+          },
+       }
+     },
+      
     'Sun Microsystems' => {
       'order' => {
         '10' => {
