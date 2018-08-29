@@ -145,9 +145,6 @@ my $mthread	= (exists $cmdargs->{mthread}? $cmdargs->{mthread} : $C->{nmis_mthre
 my $maxThreads = (exists $cmdargs->{maxthreads}? $cmdargs->{maxthreads} : $C->{nmis_maxthreads}) || 1;
 my $mthreadDebug=$cmdargs->{mthreaddebug}; # cmdline only for this debugging flag
 
-
-
-
 # park the list of collect/update plugins globally
 my @active_plugins;
 
@@ -394,8 +391,7 @@ sub	runThreads
 
 	# what to work on? one named node, or the nodes that are members of a given group or all nodes
 	# iff active and the polling policy agrees, that is...
-	@candnodes = sort keys %$NT if (!@candnodes);
-
+	@candnodes = keys %$NT if (!@candnodes);
 
 	# get the polling policies and translate into seconds (for rrd file options)
 	my $policies = loadTable(dir => 'conf', name => "Polling-Policy") || {};
@@ -601,6 +597,17 @@ sub	runThreads
 		info("Found no nodes due for $type.");
 		logMsg("Found no nodes due for $type.");
 		return;
+	}
+
+	# too much to do? then log the fact and ignore the overage for this run
+	my $maxpercycle = defined($C->{"nmis_max_nodes_per_${type}_cycle"})
+			&& $C->{"nmis_max_nodes_per_${type}_cycle"} > 0 ? $C->{"nmis_max_nodes_per_${type}_cycle"} : undef;
+	if ($maxpercycle && @todo_nodes > $maxpercycle)
+	{
+		logMsg("WARN Too many nodes selected for $type: configured to handle max $maxpercycle but "
+					 .scalar(@todo_nodes)." candidates!");
+		my @skipped = splice(@todo_nodes, $maxpercycle);
+		dbg("Skipping these extra nodes this time: ".join(", ", @skipped));
 	}
 
 	logMsg("INFO Selected nodes for $type: ".join(" ", sort @todo_nodes));
