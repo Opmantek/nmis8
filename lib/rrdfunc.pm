@@ -632,8 +632,10 @@ sub getFileName
 }
 
 # this function takes in a set of data items and updates the relevant rrd file
-# arsg: sys, data (absolutely required), type/index/item (more or less required), extras (optional),
-# database (optional, if set overrides the internal file naming logic)
+# arsg: sys, data (absolutely required), 
+# type/index/item (more or less required), extras (optional),
+# database (optional, if set overrides the internal file naming logic),
+# time (optional, unix seconds; if present then that that is given to RRDs as the reading's timestamp)
 #
 # if node has marker node_was_reset or outage_nostats, then inbound
 # data is IGNORED and 'U' is written instead
@@ -644,8 +646,8 @@ sub updateRRD
 {
 	my %args = @_;
 
-	my ($S,$data,$type,$index,$item,$database,$extras) =
-			@args{"sys","data","type","index","item","database","extras"};
+	my ($S,$data,$type,$index,$item,$database,$extras,$time) =
+			@args{"sys","data","type","index","item","database","extras","time"};
 
 	my $NI = $S->ndinfo;
 
@@ -704,8 +706,9 @@ sub updateRRD
 	}
 
 	my (@updateargs, @ds, %blankme);
-	my @values = ("N");							# that's 'reading is for Now'
-
+	# N means 'reading is for Now' - from RRDs' perspective, so maybe not ideal
+	my @values = defined($time) && $time > 0? int($time) : "N";
+	
 	# if the node has gone through a reset, then insert a U to avoid spikes for all COUNTER-ish DS
 	if ($NI->{admin}->{node_was_reset})
 	{

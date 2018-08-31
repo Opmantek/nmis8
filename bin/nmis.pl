@@ -39,7 +39,6 @@ use Time::HiRes;								# also needed by nmis::timing, but bsts
 use Socket;
 use Net::SNMP qw(oid_lex_sort);
 use Proc::ProcessTable 0.53;
-use Proc::Queue ':all';
 use Data::Dumper;
 use File::Find;
 use File::Spec;
@@ -145,16 +144,8 @@ my $mthread	= (exists $cmdargs->{mthread}? $cmdargs->{mthread} : $C->{nmis_mthre
 my $maxThreads = (exists $cmdargs->{maxthreads}? $cmdargs->{maxthreads} : $C->{nmis_maxthreads}) || 1;
 my $mthreadDebug=$cmdargs->{mthreaddebug}; # cmdline only for this debugging flag
 
-
-
-
 # park the list of collect/update plugins globally
 my @active_plugins;
-
-Proc::Queue::size($maxThreads); # changing limit of concurrent processes
-Proc::Queue::trace(0); # trace mode on
-Proc::Queue::debug(0); # debug is off
-Proc::Queue::delay(0);
 
 # if no type given, just run the command line options
 if ( $type eq "" ) {
@@ -188,7 +179,12 @@ NMIS::upgrade_outages();
 
 if ($type =~ /^(collect|update|services)$/)
 {
-	runThreads(type=>$type, nodeselect=>$nodeselect, groupselect=>$groupselect, mthread=>$mthread, mthreadDebug=>$mthreadDebug);
+	runThreads(type=>$type,
+						 nodeselect=>$nodeselect,
+						 groupselect=>$groupselect,
+						 mthread=>$mthread,
+						 mthreadDebug=>$mthreadDebug,
+						 abort_after => $cmdargs->{abort_after});
 }
 elsif ( $type eq "escalate") { runEscalate(independent => 1); printRunTime(); } # included in type=collect
 elsif ( $type eq "config" ) { checkConfig(change => "true"); }
@@ -266,12 +262,19 @@ sub expand_candidate_list
 }
 
 # run collection-type functions, possibly spread across multiple processes
+# args: type, nodeselect, groupselect, mthread, mthreaddebug,
+# abort_after (optional, default if not given: 60s.
+#  if nonzero N, stop handling new candidates after N seconds. only relevant for type collect and if mthread is on)
+# uses global $starttime, $C
+# returns: nothing
 sub	runThreads
 {
 	my %args = @_;
+
 	my $type = $args{type};
 	my $mthread = getbool($args{mthread});
 	my $mthreadDebug = getbool($args{mthreadDebug});
+	my $abort_after = $args{abort_after} // 60;
 
 	diag_log(LOG_INFO, "Starting $type operation");
 
@@ -294,11 +297,11 @@ sub	runThreads
 		# check if a selftest is due? once every 15 minutes
 		my $wantselftestnow = 1 if (ref($laststate) ne "HASH"
 																|| !defined($laststate->{lastupdate})
-																|| ($laststate->{lastupdate} + 900 < time));
+																|| ($laststate->{lastupdate} + 900 < $starttime));
 		# check the current state, to see if a perms check is due? once every 2 hours
 		my $wantpermsnow = 1 if (ref($laststate) ne "HASH"
 														 || !defined($laststate->{lastupdate_perms})
-														 || $laststate->{lastupdate_perms} + 7200 < time);
+														 || $laststate->{lastupdate_perms} + 7200 < $starttime);
 		if ($wantselftestnow)
 		{
 			my $pid = fork;
@@ -383,7 +386,7 @@ sub	runThreads
 
 	logMsg("INFO start of $type process");
 
-	# update the operation start/stop timestamp
+	# update the operation start/stop timestamp - with the overall start time!
 	func::update_operations_stamp(type => $type, start => $starttime, stop => undef);
 	my $maxruntime = defined($C->{max_child_runtime}) && $C->{max_child_runtime} > 0 ?
 			$C->{max_child_runtime} : 0;
@@ -394,8 +397,7 @@ sub	runThreads
 
 	# what to work on? one named node, or the nodes that are members of a given group or all nodes
 	# iff active and the polling policy agrees, that is...
-	@candnodes = sort keys %$NT if (!@candnodes);
-
+	@candnodes = keys %$NT if (!@candnodes);
 
 	# get the polling policies and translate into seconds (for rrd file options)
 	my $policies = loadTable(dir => 'conf', name => "Polling-Policy") || {};
@@ -429,7 +431,6 @@ sub	runThreads
 	{
 		# find out what nodes are due as per polling policy - also honor force,
 		# and any in-progress polling that hasn't finished yet...
-		my $now = time;
 		for my $maybe (@candnodes)
 		{
 			next if (ref($NT->{$maybe}) ne "HASH" or !getbool($NT->{$maybe}->{active}));
@@ -465,7 +466,7 @@ sub	runThreads
 			# note that this does NOT work with non-standard common-database structures
 			if (defined($lastpolicy) && $lastpolicy ne $polname)
 			{
-				logMsg("Node $maybe is changing polling policy, from \"$lastpolicy\" to \"$polname\", due for polling at $now");
+				logMsg("Node $maybe is changing polling policy, from \"$lastpolicy\" to \"$polname\", due for polling at $starttime");
 				my $lcnode = lc($maybe);
 				my $curdir = $C->{'database_root'}."/nodes/$lcnode";
 				my $backupdir = "$curdir.policy-$lastpolicy.".time();
@@ -483,7 +484,7 @@ sub	runThreads
 			}
 			elsif ($forceoverride)
 			{
-				dbg("force is enabled, Node $maybe will be polled at $now");
+				dbg("force is enabled, Node $maybe will be polled at $starttime");
 				push @todo_nodes, $maybe;
 				$whichflavours{$maybe}->{wmi} = $whichflavours{$maybe}->{snmp} = 1; # and ignore the last-xyz markers
 			}
@@ -504,7 +505,7 @@ sub	runThreads
 				# none set? then set one
 				if (!defined($graceperiod_start))
 				{
-					$ninfo->{system}->{demote_grace} = $graceperiod_start = $now;
+					$ninfo->{system}->{demote_grace} = $graceperiod_start = $starttime;
 					# and make sure the changed data is written out
 					writeTable(dir => 'var', name => lc("$maybe-node"), data => $ninfo);
 				}
@@ -518,11 +519,11 @@ sub	runThreads
 				# but do make sure to try a newly added node NOW!
 				my $fudgefactor = ($C->{polling_interval_factor} || 0.9);
 				my $nexttry = defined $lasttry? $lasttry
-						+ $fudgefactor * $normalperiod : $now;
+						+ $fudgefactor * $normalperiod : $starttime;
 
-				if ($now - $graceperiod_start > 14 * 86400)
+				if ($starttime - $graceperiod_start > 14 * 86400)
 				{
-					$nexttry = ( $lasttry // $now) + 86400 * $fudgefactor;
+					$nexttry = ( $lasttry // $starttime) + 86400 * $fudgefactor;
 
 					logMsg( "Node $maybe has no valid nodeModel, never polled successfully, "
 									. "past demotion grace window (started at $graceperiod_start) so demoted to frequency once daily, last $type attempt $lasttry, next $nexttry" ) if ($debug);
@@ -533,7 +534,7 @@ sub	runThreads
 								 .($lasttry // "never").", next $nexttry." ) if ($debug);
 				}
 
-				if ( $nexttry <= $now )
+				if ( $nexttry <= $starttime )
 				{
 					push @todo_nodes, $maybe;
 					$whichflavours{$maybe}->{wmi} = $whichflavours{$maybe}->{snmp} = 1
@@ -549,7 +550,7 @@ sub	runThreads
 			elsif (!defined($lastsnmp) && !defined($lastwmi)
 						 && getbool($NT->{$maybe}->{collect}))
 			{
-				dbg("Node $maybe has neither last_poll_snmp nor last_poll_wmi, due for poll at $now");
+				dbg("Node $maybe has neither last_poll_snmp nor last_poll_wmi, due for poll at $starttime");
 				push @todo_nodes, $maybe;
 				$whichflavours{$maybe}->{wmi} = $whichflavours{$maybe}->{snmp} = 1;
 			}
@@ -570,23 +571,23 @@ sub	runThreads
 				my $nextwmi = ($lastwmi // 0) + $intervals{$polname}->{wmi} * $fudgefactor;
 
 				# only flavours which worked in the past contribute to the now-or-later logic
-				if ((defined($lastsnmp) && $nextsnmp <= $now )
-						|| (defined($lastwmi) && $nextwmi <= $now))
+				if ((defined($lastsnmp) && $nextsnmp <= $starttime )
+						|| (defined($lastwmi) && $nextwmi <= $starttime))
 				{
-					dbg("Node $maybe is due for poll at $now, last snmp: ".($lastsnmp//"never")
+					dbg("Node $maybe is due for poll at $starttime, last snmp: ".($lastsnmp//"never")
 							.", last wmi: ".($lastwmi//"never")
-							. ", next snmp: ".($lastsnmp ? (($now - $nextsnmp)."s ago"):"n/a")
-							.", next wmi: ".($lastwmi? (($now - $nextwmi)."s ago"):"n/a"));
+							. ", next snmp: ".($lastsnmp ? (($starttime - $nextsnmp)."s ago"):"n/a")
+							.", next wmi: ".($lastwmi? (($starttime - $nextwmi)."s ago"):"n/a"));
 					push @todo_nodes, $maybe;
 
 					# but if we've decided on polling, then DO try flavours that have not worked in the past!
 					# nextwmi <= now also covers the case of undefined lastwmi...
-					$whichflavours{$maybe}->{wmi} = ($nextwmi <= $now);
-					$whichflavours{$maybe}->{snmp} = ($nextsnmp <= $now);
+					$whichflavours{$maybe}->{wmi} = ($nextwmi <= $starttime);
+					$whichflavours{$maybe}->{snmp} = ($nextsnmp <= $starttime);
 				}
 				else
 				{
-					dbg("Node $maybe is NOT due for poll at $now, last snmp: ".($lastsnmp//"never")
+					dbg("Node $maybe is NOT due for poll at $starttime, last snmp: ".($lastsnmp//"never")
 							.", last wmi: ".($lastwmi//"never")
 							. ", next snmp: ".($lastsnmp? $nextsnmp :"n/a")
 							.", next wmi: ".($lastwmi? $nextwmi :"n/a"));
@@ -601,6 +602,17 @@ sub	runThreads
 		info("Found no nodes due for $type.");
 		logMsg("Found no nodes due for $type.");
 		return;
+	}
+
+	# too much to do? then log the fact and ignore the overage for this run
+	my $maxpercycle = defined($C->{"nmis_max_nodes_per_${type}_cycle"})
+			&& $C->{"nmis_max_nodes_per_${type}_cycle"} > 0 ? $C->{"nmis_max_nodes_per_${type}_cycle"} : undef;
+	if ($maxpercycle && @todo_nodes > $maxpercycle)
+	{
+		logMsg("WARN Too many nodes selected for $type: configured to handle max $maxpercycle but "
+					 .scalar(@todo_nodes)." candidates!");
+		my @skipped = splice(@todo_nodes, $maxpercycle);
+		dbg("Skipping these extra nodes this time: ".join(", ", @skipped));
 	}
 
 	logMsg("INFO Selected nodes for $type: ".join(" ", sort @todo_nodes));
@@ -670,20 +682,63 @@ sub	runThreads
 		}
 	}
 
-	for my $onenode (@todo_nodes)
+	my %children;
+
+	while (my $onenode = pop @todo_nodes)
 	{
 		++$nodecount;
 		push @list_of_handled_nodes, $onenode;
 
-		# One process per node, until maxThreads is reached (then block and wait)
 		if ($mthread)
 		{
+			# one collect process per node, but not too many in parallel
+			while ((my $goner = waitpid(-1, POSIX::WNOHANG)) > 0)
+			{
+				my $status = $?;
+				dbg("child process $goner terminated with $status after "
+						.sprintf("%.2f", Time::HiRes::time - $children{$goner})."s", 2);
+				delete $children{$goner};
+			}
+
+			while (keys %children >= $maxThreads)
+			{
+				dbg("too many $type children active ("
+						.(scalar keys %children).", max $maxThreads), waiting for some to finish...", 2);
+				dbg("active children: ".join(" ", keys %children), 3);
+
+				# blocks until at least one is done
+				if ((my $goner = wait) > 0)
+				{
+					my $status = $?;
+
+					dbg("child process $goner terminated with status $status after "
+							.sprintf("%.2f", Time::HiRes::time - $children{$goner})."s", 2);
+					delete $children{$goner};
+        }
+			}
+
+			# once the next nmis collect has started up (normally after 60s)
+			# we have to stop considering further candidate nodes, because the other nmis will pick them
+			if ($type eq "collect"
+					&& $abort_after > 0
+					&& Time::HiRes::time - $starttime > $abort_after)
+			{
+				pop @list_of_handled_nodes; # we're aborting that one
+				push @todo_nodes, $onenode;
+
+				my $msg = "nmis instance out of time after ${abort_after}s, aborting $type for "
+						.(scalar @todo_nodes)." candidate nodes";
+				logMsg("INFO $msg");
+				dbg("$msg\nAborted nodes: ".join(" ", @todo_nodes), 2);
+				last;
+			}
+
+			# now we're ok to fork and get
 			my $pid=fork;
 			if ( defined ($pid) and $pid==0)
 			{
 				# this will be run only by the child
-				print "CHILD $$-> I am a CHILD with the PID $$ processing $onenode\n"
-						if ($mthreadDebug);
+				dbg("child process $$ starting $type for $onenode", 2);
 
 				# don't run longer than X seconds
 				alarm($maxruntime) if ($maxruntime);
@@ -697,13 +752,14 @@ sub	runThreads
 
 
 				# all the work in this thread is done now this child will die.
-				print "CHILD $$-> $onenode is done, exiting\n"
-						if ($mthreadDebug);
+				dbg("child process $$ done with $type for $onenode, exiting", 2);
 				exit 0;
-			} # end of child
+			}
 			else
 			{
-				# parent
+				# parent: keep track of who's around
+				$children{$pid} = time;
+
 				my $others = func::find_nmis_processes(config => $C);
 				my $procs_now = 1 + scalar keys %$others; # the current process isn't returned
 				$maxprocs = $procs_now if $procs_now > $maxprocs;
@@ -723,11 +779,11 @@ sub	runThreads
 			alarm(0) if ($maxruntime);
 		}
 	}
+
 	# outermost parent process: collects exit codes
 	if ($mthread)
 	{
-		print "PARENT $$-> waiting for child processes to complete...\n"
-						if ($mthreadDebug);
+		dbg("parent process $$ waiting for child processes to complete...", 2);
 		# wait blockingly until all worker children are done
 		1 while wait != -1;
 	}
