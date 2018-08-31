@@ -271,6 +271,28 @@
       }
     }
   },
+  'alerts' => {
+    'storage' => {
+      'HighMemoryUsage' => {
+        'type' => 'threshold-rising',
+        'threshold' => {
+          'Warning' => '95',
+          'Minor' => '96',
+          'Major' => '97',
+          'Critical' => '98',
+          'Fatal' => '99',
+        },
+        'test' => '',
+        'value' => 'CVAR1=hrStorageSize;CVAR2=hrStorageUsed;$CVAR2 / $CVAR1 * 100',
+        'element' => 'hrStorageDescr',
+        'unit' => '%',
+				'title' => "Memory Usage",
+        'event' => 'High Memory Usage',
+        'level' => '',
+        'control' => 'CVAR=hrStorageDescr;$CVAR =~ /^RAM$/',
+      },
+    },
+  },
   'system' => {
     'nodeModel' => 'AristaSwitch',
     'nodeType' => 'switch',
@@ -657,7 +679,7 @@
       }
     },
     'nocollect' => {
-      'Description' => '/mnt/cdrom|boot'
+      'Description' => 'RAM \(Cache\)|RAM \(Buffers\)'
     }
   }  
 );
