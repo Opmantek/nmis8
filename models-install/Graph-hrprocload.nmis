@@ -35,18 +35,27 @@
 		'short' => '$node - $length'
 	},
 	'vlabel' => {
-		'standard' => '% Proc. Load'
+		'standard' => '% Processor Load',
+		'short' => '% Proc. Load'
 	},
 	'option' => {
 		'standard' => [
+                        '--upper-limit','100',
+                        '--lower-limit','0',
+                        '--rigid',
 			'DEF:hrProcessorLoad=$database:hrProcessorLoad:MAX',
-			'LINE1:hrProcessorLoad#4169E1:Processor Load',                        
+			'AREA:hrProcessorLoad#4169E1:Processor Load',                        
+			'GPRINT:hrProcessorLoad:LAST:Current %1.2lf%%',
 			'GPRINT:hrProcessorLoad:AVERAGE:Avg %1.2lf%%',
 			'GPRINT:hrProcessorLoad:MAX:Max %1.2lf%%\\n'
 		],
 		'small' => [
+                        '--upper-limit','100',
+                        '--lower-limit','0',
+                        '--rigid',
 			'DEF:hrProcessorLoad=$database:hrProcessorLoad:MAX',
-			'LINE1:hrProcessorLoad#4169E1:Processor Load',                        
+			'AREA:hrProcessorLoad#4169E1:',                        
+			'GPRINT:hrProcessorLoad:LAST:Current %1.2lf%%',
 			'GPRINT:hrProcessorLoad:AVERAGE:Avg %1.2lf%%',
 			'GPRINT:hrProcessorLoad:MAX:Max %1.2lf%%\\n'
 		]

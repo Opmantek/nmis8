@@ -1,0 +1,233 @@
+#
+#  Copyright 1999-2011 Opmantek Limited (www.opmantek.com)
+#  
+#  ALL CODE MODIFICATIONS MUST BE SENT TO CODE@OPMANTEK.COM
+#  
+#  This file is part of Network Management Information System (“NMIS”).
+#  
+#  NMIS is free software: you can redistribute it and/or modify
+#  it under the terms of the GNU General Public License as published by
+#  the Free Software Foundation, either version 3 of the License, or
+#  (at your option) any later version.
+#  
+#  NMIS is distributed in the hope that it will be useful,
+#  but WITHOUT ANY WARRANTY; without even the implied warranty of
+#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+#  GNU General Public License for more details.
+#  
+#  You should have received a copy of the GNU General Public License
+#  along with NMIS (most likely in a file named LICENSE).  
+#  If not, see <http://www.gnu.org/licenses/>
+#  
+#  For further information on NMIS or for a license other than GPL please see
+#  www.opmantek.com or email contact@opmantek.com 
+#  
+#  User group details:
+#  http://support.opmantek.com/users/
+#  
+# *****************************************************************************
+
+%hash = (
+  'alerts' => {
+  },
+  'system' => {
+    'rrd' => {
+      'Host_Memory' => {
+        'graphtype' => 'Host_Memory',
+      },
+    },
+  },
+  'systemHealth' => {
+    'rrd' => {
+      'Host_Processor' => {
+        'graphtype' => 'hrprocload',
+        'indexed' => 'true',
+        #'control' => 'CVAR=hrDeviceDescr;$CVAR =~ /(CPU|cpu)/',        
+        'snmp' => {
+          'hrProcessorLoad' => {
+            'oid' => 'hrProcessorLoad',
+            'option' => 'gauge,0:U'
+          }
+        }
+      },
+      'Host_Storage' => {
+        'indexed' => 'true',
+        'graphtype' => 'Host_Storage',
+        'snmp' => {
+          'hrStorageUnits' => {
+            'oid' => 'hrStorageAllocationUnits'
+          },
+          'hrStorageSize' => {
+            'oid' => 'hrStorageSize'
+          },
+          'hrStorageUsed' => {
+            'oid' => 'hrStorageUsed'
+          }
+        }
+      },
+    },
+    
+    'sys' => {
+      'Host_Processor' => {
+        'indexed' => 'hrProcessorLoad',
+        'headers' => 'hrDeviceDescr',
+        #'index_regex' => '\\.(\\d+)$',
+        'snmp' => {
+          'hrDeviceDescr' => {
+            'oid' => 'hrDeviceDescr'
+          }
+        }
+      },
+      'Host_Device' => {
+        'indexed' => 'hrDeviceIndex',
+        'snmp' => {
+          'hrDeviceIndex' => {
+            'oid' => 'hrDeviceIndex'
+          },
+          'hrDeviceDescr' => {
+            'oid' => 'hrDeviceDescr'
+          }
+        }
+      },
+      'Host_Storage' => {
+        'indexed' => 'hrStorageIndex',
+        'headers' => 'hrStorageIndex,hrStorageType,hrStorageDescr,hrStorageAllocationUnits,hrStorageSize,hrStorageUsed',
+        'snmp' => {
+          'hrStorageIndex' => {
+            'oid' => 'hrStorageIndex'
+          },
+          'hrStorageType' => {
+            'oid' => 'hrStorageType'
+          },
+          'hrStorageDescr' => {
+            'oid' => 'hrStorageDescr'
+          },
+          'hrStorageAllocationUnits' => {
+            'oid' => 'hrStorageAllocationUnits'
+          },
+          'hrStorageSize' => {
+            'oid' => 'hrStorageSize'
+          },
+          'hrStorageUsed' => {
+            'oid' => 'hrStorageUsed'
+          }
+        }
+      },
+      'Host_Disk_Storage' => {
+        'indexed' => 'hrDiskStorageAccess',
+        'headers' => 'index,hrDiskStorageAccess,hrDiskStorageMedia,hrDiskStorageRemoveble,hrDiskStorageCapacity',
+        'snmp' => {
+          'hrDiskStorageAccess' => {
+            'oid' => 'hrDiskStorageAccess',
+            'replace' => {
+              '1' => 'readWrite',
+              '2' => 'readOnly',
+            },
+            'title' => 'Access',
+          },
+          'hrDiskStorageMedia' => {
+            'oid' => 'hrDiskStorageMedia',
+            'replace' => {
+              '1' => 'other',
+              '2' => 'unknown',
+              '3' => 'hardDisk',
+              '4' => 'floppyDisk',
+              '5' => 'opticalDiskROM',
+              '6' => 'opticalDiskWORM',
+              '7' => 'opticalDiskRW',
+              '8' => 'ramDisk',
+            },
+            'title' => 'Media',
+          },
+          'hrDiskStorageRemoveble' => {
+            'oid' => 'hrDiskStorageRemoveble',
+            'replace' => {
+              '1' => 'true',
+              '2' => 'false',
+            },
+            'title' => 'Removable',
+          },
+          'hrDiskStorageCapacity' => {
+            'oid' => 'hrDiskStorageCapacity',
+            'title' => 'Capacity (KBytes)',
+          },
+        }
+      },
+      'Host_Partition' => {
+        'indexed' => 'hrPartitionIndex',
+        'headers' => 'hrPartitionIndex,hrPartitionLabel,hrPartitionID,hrPartitionSize,hrPartitionFSIndex',
+        'index_regex' => '\\.(\\d+\\.\\d+)$',
+        'snmp' => {
+          'hrPartitionIndex' => {
+            'oid' => 'hrPartitionIndex'
+          },
+          'hrPartitionLabel' => {
+            'oid' => 'hrPartitionLabel'
+          },
+          'hrPartitionID' => {
+            'oid' => 'hrPartitionID'
+          },
+          'hrPartitionSize' => {
+            'oid' => 'hrPartitionSize'
+          },
+          'hrPartitionFSIndex' => {
+            'oid' => 'hrPartitionFSIndex'
+          },
+        }
+      },
+      'Host_File_System' => {
+        'indexed' => 'hrFSIndex',
+        'headers' => 'hrFSIndex,hrFSMountPoint,hrFSRemoteMountPoint,hrFSType,hrFSAccess,hrFSBootable,hrFSStorageIndex',
+        'snmp' => {
+          'hrFSIndex' => {
+            'oid' => 'hrFSIndex'
+          },
+          'hrFSMountPoint' => {
+            'oid' => 'hrFSMountPoint',
+            'title' => 'Mount Point',
+          },
+          'hrFSRemoteMountPoint' => {
+            'oid' => 'hrFSRemoteMountPoint',
+            'title' => 'Remote Mount Point',
+          },
+          'hrFSType' => {
+            'oid' => 'hrFSType',
+            'title' => 'Type',
+          },
+          'hrFSAccess' => {
+            'oid' => 'hrFSAccess',
+            'replace' => {
+              '1' => 'readWrite',
+              '2' => 'readOnly',
+            },
+            'title' => 'Access',
+          },
+          'hrFSBootable' => {
+            'oid' => 'hrFSBootable',
+            'replace' => {
+              '1' => 'true',
+              '2' => 'false',
+            },
+            'title' => 'Bootable',
+          },
+          'hrFSStorageIndex' => {
+            'oid' => 'hrFSStorageIndex',
+            'title' => 'Storage Index',
+          },
+        }
+      },
+      
+    }
+  }
+);
+
+
+
+
+
+
+
+
+
+
+

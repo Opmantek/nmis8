@@ -158,6 +158,10 @@
       'Stream' => '/nodes/$node/health/Stream-$index.rrd',
       'mikrotikCpu' => '/nodes/$node/health/mikrotikCpu.rrd',
       'systemStatsMulti' => '/nodes/$node/health/systemStatsMulti-$index.rrd',
+      'ADSL_Physical' => '/nodes/$node/interface/adsl-physical-$index.rrd',
+      'AccessPoint' => '/nodes/$node/health/access-point-$index.rrd',
+      'Host_Processor' => '/nodes/$node/health/hrProcessorLoad-$index.rrd',
+      'Host_Memory' => '/nodes/$node/health/hrMemory-$index.rrd',
     }
   }
 );
