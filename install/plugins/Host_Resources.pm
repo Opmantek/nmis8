@@ -45,141 +45,137 @@ sub collect_plugin
 	
 	my $NI = $S->ndinfo;
 	# $NI refers to *-node.json file. eg s2laba1mux1g1-node.json	
-
-	my $gotHostMemory = 1 if (ref($NI->{Host_Storage}) eq "HASH");	
-
-	return (0,undef) if ( not $gotHostMemory or !getbool($NI->{system}->{collect}));
-
-	# first get the netconf output from device
-	# when we use back-tiks perl will wait till this line finishes before proceeding to next line of code
-	# $node refers to hostname which is passed on to python script
 	
-	info("Working on $node Host Memory Calculations");
+	return (0,undef) if (!getbool($NI->{system}->{collect}));
+
+	if (ref($NI->{Host_Memory}) eq "HASH") {
+		
+		info("Working on $node Host Memory Calculations");
+		
+		my $changesweremade = 0;
 	
-	my $changesweremade = 0;
-
-	# for saving all the types of memory we want to use
-	my $Host_Memory;
-
-	# look through each of the different types of memory for cache and buffer
-	foreach my $index (sort keys %{$NI->{Host_Storage}}) {
-		$changesweremade = 1;
-		my $entry = $NI->{Host_Storage}{$index};
-
-		my $type = undef;
-		my $typeName = undef;
-		
-		# is this the physical memory?
-		if ( $entry->{hrStorageDescr} =~ /(Physical memory|RAM)/ ) {
-			$typeName = "Memory";
-			$type = "physical";
+		# for saving all the types of memory we want to use
+		my $Host_Memory;
+	
+		# look through each of the different types of memory for cache and buffer
+		foreach my $index (sort keys %{$NI->{Host_Storage}}) {
+			$changesweremade = 1;
+			my $entry = $NI->{Host_Storage}{$index};
+	
+			my $type = undef;
+			my $typeName = undef;
+			
+			# is this the physical memory?
+			if ( $entry->{hrStorageDescr} =~ /(Physical memory|RAM)/ ) {
+				$typeName = "Memory";
+				$type = "physical";
+			}
+			elsif ( $entry->{hrStorageDescr} =~ /(Cached memory|RAM \(Cache\))/ ) {
+				$typeName = "Memory";
+				$type = "cached";
+			}
+			elsif ( $entry->{hrStorageDescr} =~ /(Memory buffers|RAM \(Buffers\))/ ) {
+				$typeName = "Memory";
+				$type = "buffers";
+			}
+			elsif ( $entry->{hrStorageDescr} =~ /Virtual memory/ ) {
+				$typeName = "Memory";
+				$type = "virtual";
+			}
+			elsif ( $entry->{hrStorageDescr} =~ /Swap space/ ) {
+				$typeName = "Memory";
+				$type = "swap";
+			}
+			elsif ( $entry->{hrStorageType} =~ /FixedDisk/ ) {
+				$typeName = "Fixed Disk";
+				$type = "disk";
+			}
+			elsif ( $entry->{hrStorageType} =~ /NetworkDisk/ ) {
+				$typeName = "Network Disk";
+				$type = "disk";
+			}
+			elsif ( $entry->{hrStorageType} =~ /RemovableDisk/ ) {
+				$typeName = "Removable Disk";
+				$type = "disk";
+			}
+			elsif ( $entry->{hrStorageType} =~ /Disk/ ) {
+				$typeName = "Other Disk";
+				$type = "disk";
+			}
+			elsif ( $entry->{hrStorageType} =~ /FlashMemory/ ) {
+				$typeName = "Flash Memory";
+				$type = "disk";
+			}
+			else {
+				$typeName = $entry->{hrStorageType};
+				$type = "other";
+			}
+			
+			if ( $typeName eq "Memory" ) {
+				info("Host Memory Type = $entry->{hrStorageDescr} interesting as $type");
+			}
+			else {
+				info("Host Storage Type = $entry->{hrStorageDescr} less interesting");
+			}
+	
+			# do we have a type of memory to process?
+			if ( defined $type ) {
+				$Host_Memory->{$type ."_total"} = $entry->{hrStorageSize};
+				$Host_Memory->{$type ."_used"} = $entry->{hrStorageUsed};
+				$Host_Memory->{$type ."_units"} = $entry->{hrStorageAllocationUnits};
+			}
+			
+			$entry->{hrStorageUtil} = sprintf("%.1f", $entry->{hrStorageUsed} / $entry->{hrStorageSize} * 100) if ($entry->{hrStorageUsed} and $entry->{hrStorageSize});
+			$entry->{hrStorageTotal} = getDiskBytes($entry->{hrStorageUnits} * $entry->{hrStorageSize}) if $entry->{hrStorageSize};
+			$entry->{hrStorageUsage} = getDiskBytes($entry->{hrStorageUnits} * $entry->{hrStorageUsed}) if int($entry->{hrStorageUsed});
+	
+			$entry->{hrStorageTypeName} = $typeName;
+			
+			my @summary;
+			push(@summary,"Size: $entry->{hrStorageTotal}<br/>") if $entry->{hrStorageSize};
+			push(@summary,"Used: $entry->{hrStorageUsage} ($entry->{hrStorageUtil}%)<br/>") if int($entry->{hrStorageUsed});
+			push(@summary,"Partition: $entry->{hrPartitionLabel}<br/>") if defined $entry->{hrPartitionLabel};
+			
+			$entry->{hrStorageSummary} = join(" ",@summary);
 		}
-		elsif ( $entry->{hrStorageDescr} =~ /(Cached memory|RAM \(Cache\))/ ) {
-			$typeName = "Memory";
-			$type = "cached";
+	
+		if ( ref($Host_Memory) eq "HASH" ) {
+			# lets calculate the available memory
+			# https://access.redhat.com/documentation/en-us/red_hat_enterprise_linux/5/html/tuning_and_optimizing_red_hat_enterprise_linux_for_oracle_9i_and_10g_databases/chap-oracle_9i_and_10g_tuning_guide-memory_usage_and_page_cache
+			# So available total is the physical memory total
+			$Host_Memory->{available_total} = $Host_Memory->{physical_total};
+			$Host_Memory->{available_units} = $Host_Memory->{physical_units};
+	
+			# available used is the physical used but subtract the cached and buffer memory which is available for use.
+			$Host_Memory->{available_used} = $Host_Memory->{physical_used} - $Host_Memory->{cached_used} - $Host_Memory->{buffers_used};
+			# we don't need total for cache, buffers and available as it is really physical
+			# the units all appear to be the same so just keeping physical
+			my $rrddata = {
+				'physical_total' => { "option" => "GAUGE,0:U", "value" => $Host_Memory->{physical_total}},
+				'physical_used' => { "option" => "GAUGE,0:U", "value" => $Host_Memory->{physical_used}},
+				'physical_units' => { "option" => "GAUGE,0:U", "value" => $Host_Memory->{physical_units}},
+				'available_used' => { "option" => "GAUGE,0:U", "value" => $Host_Memory->{available_used}},
+				'cached_used' => { "option" => "GAUGE,0:U", "value" => $Host_Memory->{cached_used}},
+				'buffers_used' => { "option" => "GAUGE,0:U", "value" => $Host_Memory->{buffers_used}},
+				'virtual_total' => { "option" => "GAUGE,0:U", "value" => $Host_Memory->{virtual_total}},
+				'virtual_used' => { "option" => "GAUGE,0:U", "value" => $Host_Memory->{virtual_used}},
+				'swap_total' => { "option" => "GAUGE,0:U", "value" => $Host_Memory->{swap_total}},
+				'swap_used' => { "option" => "GAUGE,0:U", "value" => $Host_Memory->{swap_used}},
+	
+				#'buffers_total' => { "option" => "GAUGE,0:U", "value" => $Host_Memory->{buffers_total}},
+				#'cached_total' => { "option" => "GAUGE,0:U", "value" => $Host_Memory->{cached_total}},
+			};
+			
+			# updateRRD subrutine is called from rrdfunc.pm module
+			my $updatedrrdfileref = updateRRD(data=>$rrddata, sys=>$S, type=>"Host_Memory", index => undef);
+			
+			# check for RRD update errors
+			if (!$updatedrrdfileref) { info("Update RRD failed!") };
+	
+			info("Host_Memory total=$Host_Memory->{physical_total} physical=$Host_Memory->{physical_used} available=$Host_Memory->{available_used} cached=$Host_Memory->{cached_used} buffers=$Host_Memory->{buffers_used} to $updatedrrdfileref");	
+			dbg("Host_Memory Object: ". Dumper($Host_Memory),1); 
 		}
-		elsif ( $entry->{hrStorageDescr} =~ /(Memory buffers|RAM \(Buffers\))/ ) {
-			$typeName = "Memory";
-			$type = "buffers";
-		}
-		elsif ( $entry->{hrStorageDescr} =~ /Virtual memory/ ) {
-			$typeName = "Memory";
-			$type = "virtual";
-		}
-		elsif ( $entry->{hrStorageDescr} =~ /Swap space/ ) {
-			$typeName = "Memory";
-			$type = "swap";
-		}
-		elsif ( $entry->{hrStorageType} =~ /FixedDisk/ ) {
-			$typeName = "Fixed Disk";
-			$type = "disk";
-		}
-		elsif ( $entry->{hrStorageType} =~ /NetworkDisk/ ) {
-			$typeName = "Network Disk";
-			$type = "disk";
-		}
-		elsif ( $entry->{hrStorageType} =~ /RemovableDisk/ ) {
-			$typeName = "Removable Disk";
-			$type = "disk";
-		}
-		elsif ( $entry->{hrStorageType} =~ /Disk/ ) {
-			$typeName = "Other Disk";
-			$type = "disk";
-		}
-		elsif ( $entry->{hrStorageType} =~ /FlashMemory/ ) {
-			$typeName = "Flash Memory";
-			$type = "disk";
-		}
-		else {
-			$typeName = $entry->{hrStorageType};
-			$type = "other";
-		}
-		
-		if ( $typeName eq "Memory" ) {
-			info("Host Memory Type = $entry->{hrStorageDescr} interesting as $type");
-		}
-		else {
-			info("Host Storage Type = $entry->{hrStorageDescr} less interesting");
-		}
-
-		# do we have a type of memory to process?
-		if ( defined $type ) {
-			$Host_Memory->{$type ."_total"} = $entry->{hrStorageSize};
-			$Host_Memory->{$type ."_used"} = $entry->{hrStorageUsed};
-			$Host_Memory->{$type ."_units"} = $entry->{hrStorageAllocationUnits};
-		}
-		
-		$entry->{hrStorageUtil} = sprintf("%.1f%", $entry->{hrStorageUsed} / $entry->{hrStorageSize} * 100);
-		$entry->{hrStorageTotal} = getDiskBytes($entry->{hrStorageUnits} * $entry->{hrStorageSize});
-		$entry->{hrStorageUsage} = getDiskBytes($entry->{hrStorageUnits} * $entry->{hrStorageUsed});
-
-		$entry->{hrStorageTypeName} = $typeName;
-		
-		my @summary;
-		push(@summary,"Size: $entry->{hrStorageTotal}<br/>");
-		push(@summary,"Used: $entry->{hrStorageUsage} ($entry->{hrStorageUtil})<br/>");
-		push(@summary,"Partition: $entry->{hrPartitionLabel}<br/>") if defined $entry->{hrPartitionLabel};
-		
-		$entry->{hrStorageSummary} = join(" ",@summary);
 	}
-	
-	if ( ref($Host_Memory) eq "HASH" ) {
-		# lets calculate the available memory
-		# https://access.redhat.com/documentation/en-us/red_hat_enterprise_linux/5/html/tuning_and_optimizing_red_hat_enterprise_linux_for_oracle_9i_and_10g_databases/chap-oracle_9i_and_10g_tuning_guide-memory_usage_and_page_cache
-		# So available total is the physical memory total
-		$Host_Memory->{available_total} = $Host_Memory->{physical_total};
-		$Host_Memory->{available_units} = $Host_Memory->{physical_units};
-
-		# available used is the physical used but subtract the cached and buffer memory which is available for use.
-		$Host_Memory->{available_used} = $Host_Memory->{physical_used} - $Host_Memory->{cached_used} - $Host_Memory->{buffers_used};
-		# we don't need total for cache, buffers and available as it is really physical
-		# the units all appear to be the same so just keeping physical
-		my $rrddata = {
-			'physical_total' => { "option" => "GAUGE,0:U", "value" => $Host_Memory->{physical_total}},
-			'physical_used' => { "option" => "GAUGE,0:U", "value" => $Host_Memory->{physical_used}},
-			'physical_units' => { "option" => "GAUGE,0:U", "value" => $Host_Memory->{physical_units}},
-			'available_used' => { "option" => "GAUGE,0:U", "value" => $Host_Memory->{available_used}},
-			'cached_used' => { "option" => "GAUGE,0:U", "value" => $Host_Memory->{cached_used}},
-			'buffers_used' => { "option" => "GAUGE,0:U", "value" => $Host_Memory->{buffers_used}},
-			'virtual_total' => { "option" => "GAUGE,0:U", "value" => $Host_Memory->{virtual_total}},
-			'virtual_used' => { "option" => "GAUGE,0:U", "value" => $Host_Memory->{virtual_used}},
-			'swap_total' => { "option" => "GAUGE,0:U", "value" => $Host_Memory->{swap_total}},
-			'swap_used' => { "option" => "GAUGE,0:U", "value" => $Host_Memory->{swap_used}},
-
-			#'buffers_total' => { "option" => "GAUGE,0:U", "value" => $Host_Memory->{buffers_total}},
-			#'cached_total' => { "option" => "GAUGE,0:U", "value" => $Host_Memory->{cached_total}},
-		};
-		
-		# updateRRD subrutine is called from rrdfunc.pm module
-		my $updatedrrdfileref = updateRRD(data=>$rrddata, sys=>$S, type=>"Host_Memory", index => undef);
-		
-		# check for RRD update errors
-		if (!$updatedrrdfileref) { info("Update RRD failed!") };
-
-		info("Host_Memory total=$Host_Memory->{physical_total} physical=$Host_Memory->{physical_used} available=$Host_Memory->{available_used} cached=$Host_Memory->{cached_used} buffers=$Host_Memory->{buffers_used} to $updatedrrdfileref");	
-		dbg("Host_Memory Object: ". Dumper($Host_Memory),1); 
-	}
-
 
 	return ($changesweremade,undef); # report if we changed anything
 }
