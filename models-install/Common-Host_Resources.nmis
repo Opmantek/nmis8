@@ -52,7 +52,7 @@
       },
       'Host_Storage' => {
         'indexed' => 'true',
-        'graphtype' => 'Host_Storage',
+        'graphtype' => 'Host_Storage,Host_Storage_Util',
         'snmp' => {
           'hrStorageUnits' => {
             'oid' => 'hrStorageAllocationUnits'
@@ -71,46 +71,74 @@
       'Host_Processor' => {
         'indexed' => 'hrProcessorLoad',
         'headers' => 'hrDeviceDescr',
-        #'index_regex' => '\\.(\\d+)$',
         'snmp' => {
           'hrDeviceDescr' => {
-            'oid' => 'hrDeviceDescr'
+            'oid' => 'hrDeviceDescr',
+            'title' => 'CPU Description',
           }
         }
       },
       'Host_Device' => {
         'indexed' => 'hrDeviceIndex',
+        'headers' => 'hrDeviceIndex,hrDeviceDescr',
         'snmp' => {
           'hrDeviceIndex' => {
-            'oid' => 'hrDeviceIndex'
+            'oid' => 'hrDeviceIndex',
+            'title' => 'Device Index',
           },
           'hrDeviceDescr' => {
-            'oid' => 'hrDeviceDescr'
+            'oid' => 'hrDeviceDescr',
+            'title' => 'Device Description',
           }
         }
       },
       'Host_Storage' => {
         'indexed' => 'hrStorageIndex',
-        'headers' => 'hrStorageIndex,hrStorageType,hrStorageDescr,hrStorageAllocationUnits,hrStorageSize,hrStorageUsed',
+        'headers' => 'hrStorageDescr,hrStorageTypeName,hrStorageSummary',
+        #'headers' => 'hrStorageDescr,hrStorageSize,hrStorageUsage,hrStorageUtil,hrStorageSummary',
         'snmp' => {
           'hrStorageIndex' => {
-            'oid' => 'hrStorageIndex'
+            'oid' => 'hrStorageIndex',
+            'title' => 'Index',
           },
           'hrStorageType' => {
-            'oid' => 'hrStorageType'
+            'oid' => 'hrStorageType',
+            'title' => 'Type',
           },
           'hrStorageDescr' => {
-            'oid' => 'hrStorageDescr'
+            'oid' => 'hrStorageDescr',
+            'title' => 'Description',
           },
           'hrStorageAllocationUnits' => {
-            'oid' => 'hrStorageAllocationUnits'
+            'oid' => 'hrStorageAllocationUnits',
+            'title' => 'Units',
           },
           'hrStorageSize' => {
-            'oid' => 'hrStorageSize'
+            'oid' => 'hrStorageSize',
+            'title' => 'Size',
           },
           'hrStorageUsed' => {
-            'oid' => 'hrStorageUsed'
-          }
+            'oid' => 'hrStorageUsed',
+            'title' => 'Used',
+          },
+          'hrStorageTotal' => {
+            'title' => 'Total',
+          },
+          'hrStorageUsage' => {
+            'title' => 'Usage',
+          },
+          'hrStorageUtil' => {
+            'title' => 'Util',
+          },
+          'hrStorageTypeName' => {
+            'title' => 'Type',
+          },
+          'hrStorageSummary' => {
+            'title' => 'Summary',
+          },
+          'hrPartitionLabel' => {
+            'title' => 'Partition',
+          },
         }
       },
       'Host_Disk_Storage' => {
@@ -155,20 +183,26 @@
       },
       'Host_Partition' => {
         'indexed' => 'hrPartitionIndex',
-        'headers' => 'hrPartitionIndex,hrPartitionLabel,hrPartitionID,hrPartitionSize,hrPartitionFSIndex',
+        'headers' => 'hrStorageDescr,hrPartitionLabel,hrPartitionID,hrPartitionSize',
         'index_regex' => '\\.(\\d+\\.\\d+)$',
         'snmp' => {
+          'hrStorageDescr' => {
+            'title' => 'Host Storage',
+          },
           'hrPartitionIndex' => {
             'oid' => 'hrPartitionIndex'
           },
           'hrPartitionLabel' => {
-            'oid' => 'hrPartitionLabel'
+            'oid' => 'hrPartitionLabel',
+            'title' => 'Partition Label',
           },
           'hrPartitionID' => {
-            'oid' => 'hrPartitionID'
+            'oid' => 'hrPartitionID',
+            'title' => 'Partition ID',
           },
           'hrPartitionSize' => {
-            'oid' => 'hrPartitionSize'
+            'oid' => 'hrPartitionSize',
+            'title' => 'Partition Size',
           },
           'hrPartitionFSIndex' => {
             'oid' => 'hrPartitionFSIndex'
@@ -177,8 +211,11 @@
       },
       'Host_File_System' => {
         'indexed' => 'hrFSIndex',
-        'headers' => 'hrFSIndex,hrFSMountPoint,hrFSRemoteMountPoint,hrFSType,hrFSAccess,hrFSBootable,hrFSStorageIndex',
+        'headers' => 'hrStorageDescr,hrFSMountPoint,hrFSRemoteMountPoint,hrFSType,hrFSAccess,hrFSBootable',
         'snmp' => {
+          'hrStorageDescr' => {
+            'title' => 'Host Storage',
+          },
           'hrFSIndex' => {
             'oid' => 'hrFSIndex'
           },
@@ -189,6 +226,9 @@
           'hrFSRemoteMountPoint' => {
             'oid' => 'hrFSRemoteMountPoint',
             'title' => 'Remote Mount Point',
+          },
+          'hrFSTypeOid' => {
+            'title' => 'Type',
           },
           'hrFSType' => {
             'oid' => 'hrFSType',

@@ -218,6 +218,9 @@
       'signal' => "Signal Level",
       'mikrotikCpu' => 'CPU Usage',
 			'jnxCoS-oneway' => 'Juniper CoS',
+			'Host_Storage' => 'Storage Usage',
+			'Host_Storage_Util' => 'Storage Utilisation',
+			'Host_Memory' => 'Real Memory Usage',
     }
   }
 );
