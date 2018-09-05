@@ -46,14 +46,12 @@ sub collect_plugin
 	my $NI = $S->ndinfo;
 	# $NI refers to *-node.json file. eg s2laba1mux1g1-node.json	
 	
-	return (0,undef) if (!getbool($NI->{system}->{collect}));
-
-	if (ref($NI->{Host_Memory}) eq "HASH") {
+	my $changesweremade = 0;
+	
+	if (ref($NI->{Host_Storage}) eq "HASH") {
 		
 		info("Working on $node Host Memory Calculations");
-		
-		my $changesweremade = 0;
-	
+			
 		# for saving all the types of memory we want to use
 		my $Host_Memory;
 	
@@ -255,7 +253,7 @@ sub update_plugin
 			
 			# lets cross link the partition to the file system and to the storage.
 			
-			if ( defined $NI->{Host_File_System}{$entry->{hrPartitionFSIndex}}{hrFSIndex} ) {
+			if ( $entry->{hrPartitionFSIndex} >= 0 and defined $NI->{Host_File_System}{$entry->{hrPartitionFSIndex}}{hrFSIndex} ) {
 				
 				# this partition has the file system index of hrFSIndex
 				my $hrFSIndex = $NI->{Host_File_System}{$entry->{hrPartitionFSIndex}}{hrFSIndex};
