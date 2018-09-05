@@ -141,46 +141,46 @@
           },
         }
       },
-      'Host_Disk_Storage' => {
-        'indexed' => 'hrDiskStorageAccess',
-        'headers' => 'index,hrDiskStorageAccess,hrDiskStorageMedia,hrDiskStorageRemoveble,hrDiskStorageCapacity',
-        'snmp' => {
-          'hrDiskStorageAccess' => {
-            'oid' => 'hrDiskStorageAccess',
-            'replace' => {
-              '1' => 'readWrite',
-              '2' => 'readOnly',
-            },
-            'title' => 'Access',
-          },
-          'hrDiskStorageMedia' => {
-            'oid' => 'hrDiskStorageMedia',
-            'replace' => {
-              '1' => 'other',
-              '2' => 'unknown',
-              '3' => 'hardDisk',
-              '4' => 'floppyDisk',
-              '5' => 'opticalDiskROM',
-              '6' => 'opticalDiskWORM',
-              '7' => 'opticalDiskRW',
-              '8' => 'ramDisk',
-            },
-            'title' => 'Media',
-          },
-          'hrDiskStorageRemoveble' => {
-            'oid' => 'hrDiskStorageRemoveble',
-            'replace' => {
-              '1' => 'true',
-              '2' => 'false',
-            },
-            'title' => 'Removable',
-          },
-          'hrDiskStorageCapacity' => {
-            'oid' => 'hrDiskStorageCapacity',
-            'title' => 'Capacity (KBytes)',
-          },
-        }
-      },
+      #'Host_Disk_Storage' => {
+      #  'indexed' => 'hrDiskStorageAccess',
+      #  'headers' => 'index,hrDiskStorageAccess,hrDiskStorageMedia,hrDiskStorageRemoveble,hrDiskStorageCapacity',
+      #  'snmp' => {
+      #    'hrDiskStorageAccess' => {
+      #      'oid' => 'hrDiskStorageAccess',
+      #      'replace' => {
+      #        '1' => 'readWrite',
+      #        '2' => 'readOnly',
+      #      },
+      #      'title' => 'Access',
+      #    },
+      #    'hrDiskStorageMedia' => {
+      #      'oid' => 'hrDiskStorageMedia',
+      #      'replace' => {
+      #        '1' => 'other',
+      #        '2' => 'unknown',
+      #        '3' => 'hardDisk',
+      #        '4' => 'floppyDisk',
+      #        '5' => 'opticalDiskROM',
+      #        '6' => 'opticalDiskWORM',
+      #        '7' => 'opticalDiskRW',
+      #        '8' => 'ramDisk',
+      #      },
+      #      'title' => 'Media',
+      #    },
+      #    'hrDiskStorageRemoveble' => {
+      #      'oid' => 'hrDiskStorageRemoveble',
+      #      'replace' => {
+      #        '1' => 'true',
+      #        '2' => 'false',
+      #      },
+      #      'title' => 'Removable',
+      #    },
+      #    'hrDiskStorageCapacity' => {
+      #      'oid' => 'hrDiskStorageCapacity',
+      #      'title' => 'Capacity (KBytes)',
+      #    },
+      #  }
+      #},
       'Host_Partition' => {
         'indexed' => 'hrPartitionIndex',
         'headers' => 'hrStorageDescr,hrPartitionLabel,hrPartitionID,hrPartitionSize',
