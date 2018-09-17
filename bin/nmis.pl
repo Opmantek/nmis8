@@ -6022,7 +6022,6 @@ hrSWRunType hrSWRunPerfCPU hrSWRunPerfMem))
 						$programexit = WEXITSTATUS($programexit);
 						dbg("external program terminated with exit code $programexit");
 
-
 						# nagios knows four states: 0 ok, 1 warning, 2 critical, 3 unknown
 						# we'll map those to 100, 50 and 0 for everything else.
 						if ($flavour_nagios)
@@ -6031,7 +6030,13 @@ hrSWRunType hrSWRunPerfCPU hrSWRunPerfMem))
 						}
 						else
 						{
-							$ret = $programexit > 100? 100: $programexit;
+							# programs exiting with 255 (e.g. perl die) should be considered down, not up
+							if ($programexit < 0 || $programexit > 100)
+							{
+								logMsg("WARNING: service program $thisservice->{Program} terminated with unexpected exit code $programexit!");
+								$programexit = 0;
+							}
+							$ret = $programexit;
 						}
 					}
 					else
