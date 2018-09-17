@@ -1,0 +1,95 @@
+#
+## $Id: Graph-hrmem.nmis,v 8.2 2011/08/28 15:11:47 nmisdev Exp $
+#
+#  Copyright 1999-2011 Opmantek Limited (www.opmantek.com)
+#  
+#  ALL CODE MODIFICATIONS MUST BE SENT TO CODE@OPMANTEK.COM
+#  
+#  This file is part of Network Management Information System (“NMIS”).
+#  
+#  NMIS is free software: you can redistribute it and/or modify
+#  it under the terms of the GNU General Public License as published by
+#  the Free Software Foundation, either version 3 of the License, or
+#  (at your option) any later version.
+#  
+#  NMIS is distributed in the hope that it will be useful,
+#  but WITHOUT ANY WARRANTY; without even the implied warranty of
+#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+#  GNU General Public License for more details.
+#  
+#  You should have received a copy of the GNU General Public License
+#  along with NMIS (most likely in a file named LICENSE).  
+#  If not, see <http://www.gnu.org/licenses/>
+#  
+#  For further information on NMIS or for a license other than GPL please see
+#  www.opmantek.com or email contact@opmantek.com 
+#  
+#  User group details:
+#  http://support.opmantek.com/users/
+#  
+# *****************************************************************************
+
+%hash = (
+	'title' => {
+		'standard' => '$node - $length from $datestamp_start to $datestamp_end',
+		'short' => '$node - $length'
+	},
+	'vlabel' => {
+		'standard' => 'Memory Usage',
+		'small' => 'Mem Usage',
+				
+	},
+	'option' => {
+		'standard' => [
+			'DEF:physical_total=$database:physical_total:AVERAGE',
+			'DEF:available_used=$database:available_used:AVERAGE',
+
+			'DEF:physical_used=$database:physical_used:AVERAGE',
+			'DEF:cached_used=$database:cached_used:AVERAGE',
+			'DEF:buffers_used=$database:buffers_used:AVERAGE',
+
+			'CDEF:physical_free=physical_total,physical_used,-',
+
+
+			'LINE1:physical_total#FF0000:Total Memory',
+			'GPRINT:physical_total:AVERAGE:%1.3lf %sb\\n',
+
+			'AREA:available_used#00FFFF:Real Used',
+			'GPRINT:available_used:MIN:Min Used %1.3lf %sb',
+			'GPRINT:available_used:AVERAGE:Avg Used %1.3lf %Sb',
+			'GPRINT:available_used:MAX:Max Used %1.3lf %Sb\\n',
+
+			'STACK:cached_used#aaaaaa:Cached Memory',
+			'GPRINT:cached_used:MIN:Min Used %1.3lf %sb',
+			'GPRINT:cached_used:AVERAGE:Avg Used %1.3lf %Sb',
+			'GPRINT:cached_used:MAX:Max Used %1.3lf %Sb\\n',
+
+			'STACK:buffers_used#cccccc:Buffer Memory',
+			'GPRINT:buffers_used:MIN:Min Used %1.3lf %sb',
+			'GPRINT:buffers_used:AVERAGE:Avg Used %1.3lf %Sb',
+			'GPRINT:buffers_used:MAX:Max Used %1.3lf %Sb\\n',
+
+			'STACK:physical_free#eeeeee:Physical Free',
+			'GPRINT:physical_free:MIN:Min Used %1.3lf %sb',
+			'GPRINT:physical_free:AVERAGE:Avg Used %1.3lf %Sb',
+			'GPRINT:physical_free:MAX:Max Used %1.3lf %Sb\\n',
+
+			'LINE1:physical_used#000000:Physical Used',
+			'GPRINT:physical_used:MIN:Min Used %1.3lf %sb',
+			'GPRINT:physical_used:AVERAGE:Avg Used %1.3lf %Sb',
+			'GPRINT:physical_used:MAX:Max Used %1.3lf %Sb\\n',
+
+
+		],
+		'small' => [
+			'DEF:physical_total=$database:physical_total:AVERAGE',
+			'DEF:available_used=$database:available_used:AVERAGE',
+
+			'LINE1:physical_total#006400:Total Memory',
+			'GPRINT:physical_total:AVERAGE:%1.3lf %sb\\n',
+			'AREA:available_used#7FFF00:Memory Used',
+			'GPRINT:available_used:AVERAGE:Avg Used %1.3lf %Sb',
+			'GPRINT:available_used:MAX:Max Used %1.3lf %Sb\\n'
+		]
+	}
+);

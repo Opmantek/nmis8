@@ -1,5 +1,5 @@
 #
-## $Id: Graph-hrsmpcpu.nmis,v 8.2 2011/08/28 15:11:47 nmisdev Exp $
+## $Id: Graph-hrdisk.nmis,v 8.2 2011/08/28 15:11:47 nmisdev Exp $
 #
 #  Copyright 1999-2011 Opmantek Limited (www.opmantek.com)
 #  
@@ -35,29 +35,40 @@
 		'short' => '$node - $length'
 	},
 	'vlabel' => {
-		'standard' => '% Processor Load',
-		'short' => '% Proc. Load'
+		'standard' => 'Storage Usage'
 	},
 	'option' => {
 		'standard' => [
-			'--upper-limit','100',
-			'--lower-limit','0',
-			'--rigid',
-			'DEF:hrProcessorLoad=$database:hrProcessorLoad:MAX',
-			'AREA:hrProcessorLoad#4169E1:Processor Load',                        
-			'GPRINT:hrProcessorLoad:LAST:Current %1.2lf%%',
-			'GPRINT:hrProcessorLoad:AVERAGE:Avg %1.2lf%%',
-			'GPRINT:hrProcessorLoad:MAX:Max %1.2lf%%\\n'
+			'DEF:hrStorageSize=$database:hrStorageSize:MAX',
+			'DEF:hrStorageUsed=$database:hrStorageUsed:MAX',
+			'DEF:hrStorageUnits=$database:hrStorageUnits:MAX',
+			'CDEF:perUsedD=hrStorageUsed,hrStorageSize,/,100,*',
+
+			'CDEF:used=hrStorageUsed,hrStorageUnits,*',
+			'CDEF:size=hrStorageSize,hrStorageUnits,*',
+
+			'LINE1:size#000000:Total Storage',
+			'AREA:used#00FFFF:Storage Used',
+			'GPRINT:size:MAX:Storage Size %1.3lf %sbytes',
+			'GPRINT:used:AVERAGE:Average Storage Used %1.3lf %Sbytes',
+			'GPRINT:used:MAX:Maximum Storage Used %1.3lf %Sbytes\n', 
+			'GPRINT:perUsedD:LAST:Current %1.1lf%%',
+			'GPRINT:perUsedD:AVERAGE:Average %1.1lf%%',
+			'GPRINT:perUsedD:MAX:Maximum %1.1lf%%\\n',
 		],
 		'small' => [
-			'--upper-limit','100',
-			'--lower-limit','0',
-			'--rigid',
-			'DEF:hrProcessorLoad=$database:hrProcessorLoad:MAX',
-			'AREA:hrProcessorLoad#4169E1:',                        
-			'GPRINT:hrProcessorLoad:LAST:Current %1.2lf%%',
-			'GPRINT:hrProcessorLoad:AVERAGE:Avg %1.2lf%%',
-			'GPRINT:hrProcessorLoad:MAX:Max %1.2lf%%\\n'
+			'DEF:hrStorageSize=$database:hrStorageSize:MAX',
+			'DEF:hrStorageUsed=$database:hrStorageUsed:MAX',
+			'DEF:hrStorageUnits=$database:hrStorageUnits:MAX',
+
+			'CDEF:used=hrStorageUsed,hrStorageUnits,*',
+			'CDEF:size=hrStorageSize,hrStorageUnits,*',
+
+			'LINE1:size#000000:Total Storage',
+			'GPRINT:size:MAX:Storage Size %1.3lf %sbytes\\n',
+			'AREA:used#00FFFF:',
+			'GPRINT:used:AVERAGE:Avg. Usage %1.2lf %Sbytes',
+			'GPRINT:used:MAX:Max Usage %1.2lf %Sbytes\n', 
 		]
 	}
 );
