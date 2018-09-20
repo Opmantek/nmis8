@@ -27,7 +27,7 @@
 #  http://support.opmantek.com/users/
 #
 # *****************************************************************************
-our $VERSION = "1.9.1";
+our $VERSION = "1.9.2";
 use strict;
 use Data::Dumper;
 use File::Basename;
@@ -147,13 +147,13 @@ if ($args{action} eq "collect")
 
 	my $omkzfn;
 	# if omk and its support tool found, run that as well if allowed to!
-	if (-d "/usr/local/omk" && -f "/usr/local/omk/bin/support.pl" && !$args{no_other_tools})
+	if (-d "/usr/local/omk" && -x "/usr/local/omk/bin/support.pl" && !$args{no_other_tools})
 	{
 		open(LF, ">$targetdir/omk-support.log");
 
 		print "\nFound local OMK installation with OMK support tool.
 Please wait while we collect OMK information as well.\n";
-		open(F, "/usr/local/omk/bin/support.pl action=collect no_system_stats=1 no_other_tools=1 2>&1 |")
+		open(F, "/usr/local/omk/bin/support.pl action=collect maxzipsize=$maxzip no_system_stats=1 no_other_tools=1 2>&1 |")
 				or warn "cannot execute OMK support tool: $!\n";
 		while (my $line = <F>)
 		{
