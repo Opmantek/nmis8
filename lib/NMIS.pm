@@ -1357,6 +1357,12 @@ NODE:
 				$summaryHash{$node}{response_color} = "#aaaaaa";
 			}
 		}
+		# node not part of the selection (group/customer/businessservice), 
+		# don't include it in the response
+		else
+		{
+			delete $summaryHash{$node};
+		}
 	}
 
 	if ( $summaryHash{total}{reachable} > 0 ) {
