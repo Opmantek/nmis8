@@ -27,7 +27,7 @@
 #
 # *****************************************************************************
 package Sys;
-our $VERSION = "2.1.1";
+our $VERSION = "2.2.0";
 
 use strict;
 use lib "../../lib";
@@ -1549,8 +1549,8 @@ sub getTitle
 #
 # note: variables in BOTH rrd and sys sections should be found in this routine,
 # regardless of whether our caller is looking at rrd or sys.
-# returns: parsed string
-# fixme: does only log errors, not report them
+#returns: parsed string, or undef if the evaluation failed altogether
+# fixme: no mechanism to report to the caller *what* the problem was
 sub parseString
 {
 	my ($self, %args) = @_;
@@ -1584,6 +1584,8 @@ sub parseString
 
 					if (!defined($indx) or $indx eq '')
 					{
+						# CVAR declaration with nonexistent source is a bad sign,
+						# but not fatal for the whole op...just yet
 						logMsg("ERROR: $thing not a known property in section $sect!")
 								if (!exists $self->{info}->{$sect}->{$thing});
 						# let's set the global CVAR or CVARn to whatever value from the node info section
@@ -1712,15 +1714,15 @@ sub parseString
 
 		if ($str =~ /\?/)
 		{
-			# format of $str is ($scalar =~ /regex/) ? "1" : "0"
+			# format of $str is assumed to be ($scalar =~ /regex/) ? "1" : "0"
 			my $check = $str;
 			$check =~ s{\$(\w+)}{if(defined${$1}){${$1};}else{"ERROR, no variable \$$1 ";}}egx;
-			# $check =~ s{$\$(\w+|[\$\{\}\-\>\w]+)}{if(defined${$1}){${$1};}else{"ERROR, no variable \$$1 ";}}egx;
+
 			if ($check =~ /ERROR/)
 			{
 				dbg($check);
-				$str = "ERROR ($self->{info}{system}{name}) syntax error or undefined variable at $str, $check";
-				logMsg($str);
+				logMsg("ERROR ($self->{info}{system}{name}) syntax error or undefined variable at \"$str\", \"$check\"");
+				return undef;
 			}
 			else
 			{
@@ -1733,10 +1735,11 @@ sub parseString
 		{
 			my $s = $str; # copy
 			$str =~ s{\$(\w+)}{if(defined${$1}){${$1};}else{"ERROR, no variable \$$1 ";}}egx;
-			# $str =~ s{$\$(\w+|[\$\{\}\-\>\w]+)}{if(defined${$1}){${$1};}else{"ERROR, no variable \$$1 ";}}egx;
-			if ($str =~ /ERROR/) {
-				logMsg("ERROR ($self->{info}{system}{name}) ($s) in expanding variables, $str");
-				$str = undef;
+
+			if ($str =~ /ERROR/) 
+			{
+				logMsg("ERROR ($self->{info}{system}{name}) ($s) in expanding variables, \"$str\"");
+				return undef;
 			}
 		}
 		dbg("parseString:: result is str=$str",3);
