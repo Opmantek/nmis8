@@ -128,7 +128,6 @@
     },
     'sys' => {
       'fanStatus' => {
-        'control' => '$sysObjectName !~ /ciscoIGESM/',
         'headers' => 'FanStatusDescr',
         'indexed' => 'ciscoEnvMonFanStatusDescr',
         'snmp' => {
@@ -151,7 +150,6 @@
         }
       },
       'psuStatus' => {
-        'control' => '$sysObjectName !~ /ciscoIGESM/',
         'headers' => 'SupplyStatusDescr,SupplyStatusSource',
         'indexed' => 'ciscoEnvMonSupplyStatusDescr',
         'snmp' => {
@@ -185,7 +183,6 @@
         }
       },
       'tempStatus' => {
-        'control' => '$sysObjectName !~ /ciscoIGESM/',
         'headers' => 'TemperatureStatusDescr',
         'indexed' => 'ciscoEnvMonTemperatureStatusDescr',
         'snmp' => {
