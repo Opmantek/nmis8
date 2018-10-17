@@ -27,7 +27,7 @@
 #
 # *****************************************************************************
 package NMIS;
-our $VERSION = "8.6.7G";
+our $VERSION = "8.6.8a";
 
 use NMIS::uselib;
 use lib "$NMIS::uselib::rrdtool_lib";
@@ -1356,6 +1356,12 @@ NODE:
 				$summaryHash{$node}{health_color} = "#aaaaaa";
 				$summaryHash{$node}{response_color} = "#aaaaaa";
 			}
+		}
+		# node not part of the selection (group/customer/businessservice), 
+		# don't include it in the response
+		else
+		{
+			delete $summaryHash{$node};
 		}
 	}
 

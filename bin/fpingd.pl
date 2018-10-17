@@ -315,6 +315,8 @@ while (!$mustexit)
 			host => $noderec->{host},	# this is either the  primary or the secondary host/ip
 			policy => $noderec->{polling_policy} || 'default',
 		};
+		# make sure host info isn't stale, ever (e.g. node with host field == ip address, which is then changed)
+		$thisstate->{host} = $noderec->{host};
 
 		if (exists($multihomed{$thisstate->{uuid}})) # temporary property is present for both
 		{
