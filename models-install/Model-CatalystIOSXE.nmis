@@ -82,7 +82,7 @@
       'ifAdminStatus' => 'false',
       'ifNumber' => 'false',
       'ifLastChange' => 'true',
-      'ifTableLastChange' => 'true',
+      'ifTableLastChange' => 'false',
     }
   },
   'interface' => {
