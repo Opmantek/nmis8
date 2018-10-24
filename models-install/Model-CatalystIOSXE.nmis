@@ -79,7 +79,7 @@
   },
   'custom' => {
     'interface' => {
-      'ifAdminStatus' => 'false',
+      'ifAdminStatus' => 'true',
       'ifNumber' => 'false',
       'ifLastChange' => 'true',
       'ifTableLastChange' => 'false',
