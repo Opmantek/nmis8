@@ -3539,6 +3539,7 @@ sub updateNodeInfo
 		if ($S->status->{snmp_enabled}
 				&& !$S->status->{snmp_error}
 				&& $sysObjectID ne $NI->{system}{sysObjectID})
+				&& $NI->{system}{sysObjectID}) ne "noSuchObject"
 		{
 			# fixme: who not a complete doUpdate?
 			logMsg("INFO ($NI->{system}{name}) Device type/model changed $sysObjectID now $NI->{system}{sysObjectID}");
