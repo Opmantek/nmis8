@@ -446,7 +446,8 @@ sub open
 			&& $self->{snmp}->testsession;
 	if (!$isok)
 	{
-		if (defined($self->{cfg}->{node}->{host_backup}))
+		if (defined($self->{cfg}->{node}->{host_backup})
+				&& $self->{cfg}->{node}->{host_backup} ne '')
 		{
 			$snmpcfg->{host} = $self->{cfg}->{node}->{host_backup};
 			dbg("SNMP session using primary address for $self->{name} failed, trying backup address $snmpcfg->{host}");
@@ -1736,7 +1737,7 @@ sub parseString
 			my $s = $str; # copy
 			$str =~ s{\$(\w+)}{if(defined${$1}){${$1};}else{"ERROR, no variable \$$1 ";}}egx;
 
-			if ($str =~ /ERROR/) 
+			if ($str =~ /ERROR/)
 			{
 				logMsg("ERROR ($self->{info}{system}{name}) ($s) in expanding variables, \"$str\"");
 				return undef;
