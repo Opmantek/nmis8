@@ -3647,8 +3647,9 @@ sub updateNodeInfo
 		# however, ensure this is not attempted if snmp wasn't configured or didn't work anyway
 		if ($S->status->{snmp_enabled}
 				&& !$S->status->{snmp_error}
-				&& $sysObjectID ne $NI->{system}{sysObjectID})
-		{
+				&& $sysObjectID ne $NI->{system}{sysObjectID}
+				&& $NI->{system}{sysObjectID} ne "noSuchObject"
+		)	{
 			# fixme: who not a complete doUpdate?
 			logMsg("INFO ($NI->{system}{name}) Device type/model changed $sysObjectID now $NI->{system}{sysObjectID}");
 			$exit = getNodeInfo(sys=>$S);
