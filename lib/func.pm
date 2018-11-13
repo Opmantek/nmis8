@@ -1461,7 +1461,7 @@ sub logMsg
 		}
 	}
 
-	$string .= "<br>$msg";
+	$string .= "[$$]<br>$msg";
 	$string =~ s/\n/ /g;      #remove all embedded newlines
 
 	# we MUST NOT use setfileprot because it may call logmsg...
