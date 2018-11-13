@@ -332,7 +332,10 @@
           'ifLastChange' => {
             'oid' => 'ifLastChange',
             'title' => 'Last Change'
-          }
+          },
+          'ifHighSpeed' => {
+            'oid' => 'ifHighSpeed'
+          },
         }
       },
       'extra' => {
