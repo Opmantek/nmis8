@@ -177,7 +177,7 @@
         'snmp' => {
           'cmtscpu' => {
             'oid' => '.1.3.6.1.4.1.4998.1.1.5.3.1.1.1.8',
-            'title' => 'CPU Utilization'
+            'title' => 'Idle CPU'
           },
         },
       },
@@ -201,6 +201,8 @@
         'snmp' => {
           'cmtsisnr' => {
             'oid' => '.1.3.6.1.2.1.10.127.1.1.4.1.5',
+            # modelling discrepencies with previous version.
+            'calculate' => 'return $r/10;',
             'title' => 'Signal Noise'
           },
           'ifDescr' => {
@@ -213,7 +215,9 @@
         'indexed' => 'cmtsmonups',
         'snmpObjectName' => 'channId',
         'index_oid' => '1.3.6.1.4.1.4998.1.1.20.2.27.1.13',
-        'index_regex' => '\.(\d+\.\d+)$',
+        'index_regex' => '\\.(\\d+\\.\\d+)$',
+        # modelling discrepencies with previous version.
+        #'index_regex' => '\.(\d+\.\d+)$',
         'headers' => 'ifDescr,Description,cmtsmonups',
         'snmp' => {
           'ifDescr' => {
@@ -336,17 +340,12 @@
           'ifHighSpeed' => {
             'oid' => 'ifHighSpeed'
           },
-        }
-      },
-      'extra' => {
-        'indexed' => 'true',
-        'snmp' => {
           'Description' => {
             'oid' => 'ifAlias',
             'title' => 'Description (ifAlias)'
           }
         }
-      }
+      },
     },
     'rrd' => {
       'interface' => {
