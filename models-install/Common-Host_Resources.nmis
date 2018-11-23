@@ -28,6 +28,20 @@
 # *****************************************************************************
 
 %hash = (
+  'database' => {
+    'type' => {
+      'Host_Processor' => '/nodes/$node/health/hrProcessorLoad-$index.rrd',
+      'Host_Storage' => '/nodes/$node/health/hrStorage-$index.rrd',
+      'Host_Memory' => '/nodes/$node/health/hrMemory.rrd',
+    }
+  },  
+  'heading' => {
+    'graphtype' => {
+			'Host_Storage' => 'Storage Usage',
+			'Host_Storage_Util' => 'Storage Utilisation',
+			'Host_Memory' => 'Real Memory Usage',
+    }
+  },
   'alerts' => {
   },
   'system' => {
