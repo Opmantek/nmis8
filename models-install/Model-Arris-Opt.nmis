@@ -350,8 +350,6 @@
     'rrd' => {
       'interface' => {
         'indexed' => 'true',
-        'threshold' => 'util_in,util_out,pkt_errors_in,pkt_errors_out',
-        'graphtype' => 'bits,abits,maxbits,util,autil,pkts_hc,errpkts_hc',
         'snmp' => {
           'ifOperStatus' => {
             'replace' => {
@@ -369,6 +367,14 @@
           'ifDescr' => {
             'oid' => 'ifDescr'
           },
+          'ifInOctets' => {
+            'oid' => 'ifInOctets',
+            'option' => 'counter,0:U'
+          },
+          'ifHCOutOctets' => {
+            'oid' => 'ifHCOutOctets',
+            'option' => 'counter,0:U'
+          },
           'ifAdminStatus' => {
             'replace' => {
               '6' => 'notPresent',
@@ -381,10 +387,25 @@
             },
             'oid' => 'ifAdminStatus'
           },
-          #'ifInOctets' => {
-          #  'oid' => 'ifInOctets',
-          #  'option' => 'counter,0:U'
-          #},
+          'ifOutOctets' => {
+            'oid' => 'ifOutOctets',
+            'option' => 'counter,0:U'
+          },
+          'ifHCInOctets' => {
+            'oid' => 'ifHCInOctets',
+            'option' => 'counter,0:U'
+          }
+        },
+        'threshold' => 'util_in,util_out',
+        'graphtype' => 'bits,abits,maxbits,util,autil'
+      },
+  		'pkts_hc' => {
+  			'indexed' => 'true',
+        'threshold' => 'pkt_errors_in,pkt_errors_out',
+        'graphtype' => 'pkts_hc,errpkts_hc',
+        'control_comment' => 'docsCableDownstream does not support packet counters',
+        'control' => '$ifType ne "docsCableDownstream"',
+  			'snmp' => {
   				'ifHCInOctets' => {
   					'oid' => 'ifHCInOctets',
   					'option' => 'counter,0:U'
@@ -409,11 +430,6 @@
   					'oid' => 'ifInErrors',
   					'option' => 'counter,0:U'
   				},
-
-          #'ifOutOctets' => {
-          #  'oid' => 'ifOutOctets',
-          #  'option' => 'counter,0:U'
-          #},
   				'ifHCOutOctets' => {
   					'oid' => 'ifHCOutOctets',
   					'option' => 'counter,0:U'
@@ -438,8 +454,8 @@
   					'oid' => 'ifOutErrors',
   					'option' => 'counter,0:U'
   				},
-        },
-      },
+  			}
+  		}
     },
     'collect' => {
       'Description' => '(CNOC|Collection)',
