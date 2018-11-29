@@ -7146,6 +7146,9 @@ sub weightResponseTime
 #=========================================================================================
 
 ### 2011-12-29 keiths, centralising the copy of the remote files from slaves, so others can just load them.
+#
+# This function remains for backwards compatibility with opHA 1x.
+# This function is not relevant to opHA 2.
 sub nmisMaster
 {
 	my %args = @_;
