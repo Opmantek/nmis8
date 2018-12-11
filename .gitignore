@@ -11,4 +11,6 @@ private
 dev
 build
 test
-
+install/plugins-dev
+models-dev
+models-minimal
