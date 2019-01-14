@@ -41,12 +41,13 @@ if ( $ARGV[0] eq "" ) {
 	print <<EO_TEXT;
 $0 Will search the nmis event log and display human readable timestamps
 
-usage: $0 search=<search string> [logs=all]
+usage: $0 search=<search string> [logs=all] [file=filename]
 search can be a partial string or regular expression.
 logs all will look in all rotated event log files in the folder.
 
 eg: $0 search="router1|router2|switch3" logs=all
 eg: $0 search="Node Down|Node Up" logs=all
+eg: $0 search="Node Down|Node Up" file=/path/to/event.log
 
 EO_TEXT
 	exit 1;
@@ -71,6 +72,9 @@ if ($arg{logs} eq "all") {
 			print "\n";
 		}
 	}
+}
+elsif ( defined $arg{file} and -r $arg{file} ) {
+  processLogFile(file => $arg{file});
 }
 else {
 	processLogFile(file => "$C->{log_root}/event.log");
