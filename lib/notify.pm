@@ -319,6 +319,19 @@ sub logJsonEvent {
 	# add the time now to the event data.
 	$event->{time} = time;
 	
+	if ( $event->{event} =~ /^(\w+) (Up|Down)/ ) {	
+		$event->{stateful} = $1;
+		$event->{state} = lc($2);
+	}
+	elsif ( $event->{event} =~ /(Proactive .+|Alert: .+) Closed/ ) {	
+		$event->{stateful} = $1;
+		$event->{state} = "closed";
+	}
+	elsif ( $event->{event} =~ /(Proactive .+|Alert: .+)/ ) {	
+		$event->{stateful} = $1;
+		$event->{state} = "open";
+	}
+		
 	my $file ="$dir/$event->{startdate}-$fcount.json";
 	while ( -f $file ) {
 		++$fcount;
