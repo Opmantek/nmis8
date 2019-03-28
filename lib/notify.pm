@@ -318,6 +318,7 @@ sub logJsonEvent {
 	
 	# add the time now to the event data.
 	$event->{time} = time;
+	$event->{type} = "nmis_json_event";
 	
 	if ( $event->{event} =~ /^(\w+) (Up|Down)/ ) {	
 		$event->{stateful} = $1;
@@ -330,6 +331,13 @@ sub logJsonEvent {
 	elsif ( $event->{event} =~ /(Proactive .+|Alert: .+)/ ) {	
 		$event->{stateful} = $1;
 		$event->{state} = "open";
+	}
+
+	# if this is a down event then set the time to the startdate not the time now.
+	# because if this is a down event it will be delayed by escalation and needs 
+	# to use the origin time.
+	if ( $event->{state} =~ /(down|open)/ ) { 
+		$event->{time} = $event->{startdate};
 	}
 		
 	my $file ="$dir/$event->{startdate}-$fcount.json";
