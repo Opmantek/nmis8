@@ -4202,6 +4202,8 @@ sub checkEvent
 		$newevent->{event} = $event;
 		$newevent->{details} = $details;
 		$newevent->{level} = $level;
+		# so the event has the time it was logged cached.
+		$newevent->{enddate} = time();
 
 		# make the new one FIRST
 		if (my $error = eventUpdate(event => $newevent, create_if_missing => 1))
@@ -4309,9 +4311,9 @@ sub notify
 				# then log a json update event.......
 				if ( $erec->{notify} =~ /json:/ ) {
 					# clone the event, update the details and log it.
-					my %logEvent = $erec;
-					$logEvent{details} .= " Updated";
-					logJsonEvent(event => \%logEvent, dir => $C->{'json_logs'});
+					my $logEvent = $erec;
+					$logEvent->{details} .= " Updated";
+					logJsonEvent(event => $logEvent, dir => $C->{'json_logs'});
 				}
 			}
 		}

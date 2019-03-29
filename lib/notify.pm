@@ -339,6 +339,9 @@ sub logJsonEvent {
 	if ( $event->{state} =~ /(down|open)/ ) { 
 		$event->{time} = $event->{startdate};
 	}
+	elsif ( $event->{state} =~ /(up|closed)/ and defined $event->{enddate} ) {
+		$event->{time} = $event->{enddate};
+	}
 		
 	my $file ="$dir/$event->{startdate}-$fcount.json";
 	while ( -f $file ) {
