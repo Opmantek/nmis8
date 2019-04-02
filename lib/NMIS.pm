@@ -3447,10 +3447,12 @@ sub eventExist
 {
 	my ($node, $eventname, $element) = @_;
 
-	my $efn = event_to_filename(event => { node => $node,
-																				 event => $eventname,
-																				 element => $element },
-															category => "current" );
+	my $efn = event_to_filename(event => { 
+			node => $node,																				 
+			event => $eventname,
+			element => $element 
+		}, category => "current" 
+	);
 	return ($efn and -f $efn)? $efn : 0;
 }
 
