@@ -63,7 +63,7 @@
         'test' => 'CVAR1=tempValue;$CVAR1 < 80',
         'type' => 'test',
 				'title' => "Temperature",
-        'unit' => '°C',
+        'unit' => 'C',
         'value' => 'CVAR1=tempValue;int($CVAR1)'
       }
     },
