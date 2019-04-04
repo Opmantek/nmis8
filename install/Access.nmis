@@ -1484,8 +1484,8 @@
     'group' => 'access',
     'level0' => '1',
     'level1' => '0',
-    'level2' => '1',
-    'level3' => '1',
+    'level2' => '0',
+    'level3' => '0',
     'level4' => '0',
     'level5' => '0',
     'name' => 'tls_nmis_runtime'
