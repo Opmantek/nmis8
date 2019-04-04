@@ -69,6 +69,7 @@ my $C;
 $SIG{PIPE} = sub { };  # Supress broken pipe error messages.
 
 if (!($C = loadConfTable(conf=>$Q->{conf},debug=>$Q->{debug}))) { exit 1; };
+$Q->{conf} = $C->{conf};
 
 # -------------------------------------------------------
 # Before going any further, check to see if we must handlegrep

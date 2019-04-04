@@ -45,6 +45,8 @@ my $Q = $q->Vars; # param values in hash
 
 my $C = loadConfTable(conf=>$Q->{conf},debug=>$Q->{debug})
 		or die "Cannot read Conf table, conf=$Q->{conf}\n";
+# now set the conf back to what was used.
+$Q->{conf} = $C->{conf};
 
 # widget mode: default false if not told otherwise, and true if jquery-called
 my $wantwidget = exists $Q->{widget}? getbool($Q->{widget}) : defined($ENV{"HTTP_X_REQUESTED_WITH"});
