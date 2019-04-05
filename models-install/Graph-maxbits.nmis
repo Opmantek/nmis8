@@ -46,13 +46,13 @@
 			'CDEF:inputBitsSplit=input,8,*,$split,*',
 			'CDEF:inputBits=input,8,*',
 			'CDEF:outputBits=output,8,*',
-			'LINE1:inputBitsSplit#0000ff:In bits/sec',
-			'LINE1:outputBits#00ff00:Out bits/sec',
-			'GPRINT:status:AVERAGE:Avg Availability %1.2lf',
-			'GPRINT:inputBits:MAX:Max In bits/sec %1.2lf',
-			'GPRINT:outputBits:MAX:Max Out bits/sec %1.2lf',
 			'HRULE:$ifSpeed#ff0000',
-			'COMMENT:Interface Speed $speed'
+			'LINE1:inputBitsSplit#0000ff:In bits/sec',
+			'GPRINT:inputBits:MAX:Max In bits/sec %1.2lf\n',
+			'LINE1:outputBits#00ff00:Out bits/sec',
+			'GPRINT:outputBits:MAX:Max Out bits/sec %1.2lf\n',
+			'GPRINT:status:AVERAGE:Avg Availability %1.2lf',
+			'COMMENT:Interface Speed $speed\n'
 		]
 	}
 );

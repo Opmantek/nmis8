@@ -996,13 +996,16 @@ EOHTML
 	print CGI::end_table;
 
 	print hidden(-name=>'conf', -default=>$config, -override=>'1');
-
+	
 	# put query string parameters into the form so that they are picked up by Vars (because it only takes get or post not both)
 	my @qs_params = param();
 	foreach my $key (@qs_params) {
-		# logAuth("adding $key ".param($key)."\n";
-		if( $key !~ /conf|auth_type|auth_username|auth_password/ ) {
-			print hidden(-name=>$key, -default=>param($key),-override=>'1');
+		# logAuth("adding $key ".param($key)."\n";  
+		# do not do this for login param.
+		# escapeHTML all other param's so stoopid people don't break it.
+		if( $key !~ /conf|auth_type|auth_username|auth_password|login/ ) {
+			my $param = escapeHTML(param($key));
+			print hidden(-name=>$key, -default=>$param,-override=>'1');
 		}
 	}
 
