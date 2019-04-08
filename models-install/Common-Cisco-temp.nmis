@@ -44,7 +44,7 @@
         'event' => 'High Temperature',
         'test' => '',
 				'title' => "Temperature",
-        'unit' => '°C',
+        'unit' => 'C',
         'value' => 'CVAR1=currentTemp;int($CVAR1)'
       }
     },
