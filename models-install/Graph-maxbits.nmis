@@ -63,7 +63,7 @@
                         'CDEF:outputBits=output,8,*',
                         'LINE:inputBitsSplit#0000ff:In  bits/sec',
                         'LINE:outputBits#00ff00:Out bits/sec',
-                        'COMMENT:Interface Speed $speed\\n'
+                        'COMMENT:Interface Speed $speed'
 		]
 	}
 );
