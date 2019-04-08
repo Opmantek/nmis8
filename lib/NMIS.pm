@@ -3447,10 +3447,12 @@ sub eventExist
 {
 	my ($node, $eventname, $element) = @_;
 
-	my $efn = event_to_filename(event => { node => $node,
-																				 event => $eventname,
-																				 element => $element },
-															category => "current" );
+	my $efn = event_to_filename(event => { 
+			node => $node,																				 
+			event => $eventname,
+			element => $element 
+		}, category => "current" 
+	);
 	return ($efn and -f $efn)? $efn : 0;
 }
 
@@ -3843,11 +3845,14 @@ sub cleanEvent
 		if (!$eventname or ref($events_config->{$eventname}) ne "HASH"
 				or !getbool($events_config->{$eventname}->{Log}, "invert") )
 		{
-			logEvent( node => $node,
-								event => "$caller: deleted event: $eventname",
-								level => "Normal",
-								element => $erec->{element}||'',
-								details => $erec->{details}||'');
+			# changed to for more consistent handling of events being managed in the GUI.
+			my $S = Sys->new;
+			$S->init(name => $node);
+			checkEvent(sys => $S, node => $node,
+									 event => $eventname,
+									 element => $erec->{element}||'',
+									 details => "closed from $caller: ". $erec->{details}||'closed from $caller'
+			);
 		}
 		# now move the event into the history section if we can
 		if ($historydirname and -d $historydirname)
@@ -4199,6 +4204,8 @@ sub checkEvent
 		$newevent->{event} = $event;
 		$newevent->{details} = $details;
 		$newevent->{level} = $level;
+		# so the event has the time it was logged cached.
+		$newevent->{enddate} = time();
 
 		# make the new one FIRST
 		if (my $error = eventUpdate(event => $newevent, create_if_missing => 1))
@@ -4300,6 +4307,16 @@ sub notify
 
 				(undef, $log, $syslog) = getLevelLogEvent(sys=>$S, event=>$event, level=>$level);
 				$details .= " Updated";
+				
+				# send a json event if this matches an escalation policy.........
+				# if Event Exits and "notify" : "json:server", includes "json:"
+				# then log a json update event.......
+				if ( $erec->{notify} =~ /json:/ ) {
+					# clone the event, update the details and log it.
+					my $logEvent = $erec;
+					$logEvent->{details} .= " Updated";
+					logJsonEvent(event => $logEvent, dir => $C->{'json_logs'});
+				}
 			}
 		}
 		else # not an proactive/alert event - no changes are supported

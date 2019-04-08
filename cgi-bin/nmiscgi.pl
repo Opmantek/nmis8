@@ -51,6 +51,7 @@ my $Q = $q->Vars; # values in hash
 $Q->{conf} = $Q->{conf} ? $Q->{conf} : 'Config.nmis';
 
 my $C = loadConfTable(conf=>$Q->{conf},debug=>$Q->{debug});
+$Q->{conf} = $C->{conf};
 
 if ( ($Q->{conf} eq "" )
 	and -f "$C->{'<nmis_conf>'}/Tenants.nmis"

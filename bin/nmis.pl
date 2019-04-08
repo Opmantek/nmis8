@@ -3647,8 +3647,9 @@ sub updateNodeInfo
 		# however, ensure this is not attempted if snmp wasn't configured or didn't work anyway
 		if ($S->status->{snmp_enabled}
 				&& !$S->status->{snmp_error}
-				&& $sysObjectID ne $NI->{system}{sysObjectID})
-		{
+				&& $sysObjectID ne $NI->{system}{sysObjectID}
+				&& $NI->{system}{sysObjectID} ne "noSuchObject"
+		)	{
 			# fixme: who not a complete doUpdate?
 			logMsg("INFO ($NI->{system}{name}) Device type/model changed $sysObjectID now $NI->{system}{sysObjectID}");
 			$exit = getNodeInfo(sys=>$S);
@@ -7145,6 +7146,9 @@ sub weightResponseTime
 #=========================================================================================
 
 ### 2011-12-29 keiths, centralising the copy of the remote files from slaves, so others can just load them.
+#
+# This function remains for backwards compatibility with opHA 1x.
+# This function is not relevant to opHA 2.
 sub nmisMaster
 {
 	my %args = @_;

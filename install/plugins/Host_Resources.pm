@@ -200,7 +200,7 @@ sub update_plugin
 		{
 			my $entry = $NI->{Host_Storage}{$index};
 
-			if ( defined $entry->{hrStorageType} and $mibs->{$entry->{hrStorageType}} ne "" ) {
+			if ( defined $entry->{hrStorageType} and defined $mibs->{$entry->{hrStorageType}} and $mibs->{$entry->{hrStorageType}} ne "" ) {
 				$entry->{hrStorageTypeOid} = $entry->{hrStorageType};
 				$entry->{hrStorageType} = $mibs->{$entry->{hrStorageType}};
 				$changesweremade = 1;
@@ -222,7 +222,7 @@ sub update_plugin
 		{
 			my $entry = $NI->{Host_File_System}{$index};
 
-			if ( defined $entry->{hrFSType} and $mibs->{$entry->{hrFSType}} ne "" ) {
+			if ( defined $entry->{hrFSType} and defined $mibs->{$entry->{hrFSType}} and $mibs->{$entry->{hrFSType}} ne "" ) {
 				$entry->{hrFSTypeOid} = $entry->{hrFSType};
 				$entry->{hrFSType} = $mibs->{$entry->{hrFSType}};
 				$changesweremade = 1;

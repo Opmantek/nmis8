@@ -1761,23 +1761,8 @@ sub getConfFileName {
 		if ( -e $altconf ) {
 			$configfile = $altconf;
 		} else {
-			if ( $ENV{SCRIPT_NAME} ne "" ) {
-				print header();
-				print start_html(
-					-title => "NMIS Network Management Information System",
-					-meta => { 'CacheControl' => "no-cache",
-						'Pragma' => "no-cache",
-						'Expires' => -1
-					});
-			}
-
-			print "Can't access neither NMIS configuration file=$configfile, nor $altconf \n";
-
-			if ( $ENV{SCRIPT_NAME} ne "" ) {
-				print "</body></html>";
-			}
-
-			return;
+			# fail with return 0 and leave calling code to handle.
+			return 0;
 		}
 	}
 	print STDERR "DEBUG getConfFileName: configfile=$configfile\n" if $confdebug;
@@ -1821,11 +1806,21 @@ sub loadConfTable {
 	elsif ( $conf eq "" ) {
 		$conf = 'Config';
 	}
-
+	
 	# on start of program parameters are defined
 	return $C_cache if defined $C_cache and scalar @_ == 0;
+	
+	$configfile=getConfFileName(conf=>$conf, dir=>$dir);
+	
+	my $message;
+	if ( not $configfile ) {
+		$message = CGI::escapeHTML("ERROR Bad conf: $conf");
+		$conf = 'Config';
+		$configfile=getConfFileName(conf=>$conf, dir=>$dir);
+	}
 
-	if (($configfile=getConfFileName(conf=>$conf, dir=>$dir))) {
+	# this should always load the default Config if all else fails.
+	if ($configfile) {
 
 		# check if config file is updated, if not, use file cache
 		if ($Table_cache{$conf}{mtime} ne '' and $Table_cache{$conf}{mtime} eq stat($configfile)->mtime) {
@@ -1910,6 +1905,8 @@ sub loadConfTable {
 
 			return $C_cache;
 		}
+		# now we have a config we can log something.
+		logMsg($message) if $message;
 	}
 	return; # failed
 }
