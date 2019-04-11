@@ -1,5 +1,5 @@
 {
-	"apiKey":"93544d4e17db4fe46f25aaffb584a2e412eda5aa",
+	"apiKey":"XXXXXXXXX",
 	"apiBase":"https://api.meraki.com/api/v0",
 	"databaseDir":"/usr/local/nmis8/var/meraki",
 	"historySeconds":300
