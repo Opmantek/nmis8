@@ -1391,8 +1391,16 @@ sub doCollect
 	info("node=$NI->{system}{name} role=$NI->{system}{roleType} type=$NI->{system}{nodeType}");
 	info("vendor=$NI->{system}{nodeVendor} model=$NI->{system}{nodeModel} interfaces=$NI->{system}{ifNumber}");
 
-	# are we meant to and able to talk to the node?
-	if (runPing(sys=>$S) && getbool($NC->{node}{collect}))
+	# MAALS 2019-01-18 # Determine wether to attempt collection, based on ping status and node configuration
+	# Requirements: pingable, {collect} enabled, at least one {collect_<protocol>} enabled
+	my %status;
+	$status{ping} = getbool(runPing(sys=>$S));
+	$status{collect} = getbool($NC->{node}{collect});
+	$status{snmp} = getbool($S->status->{snmp_enabled});
+	$status{wmi} = getbool($S->status->{wmi_enabled});
+	my $should_collect = $status{ping} && $status{collect} && ($status{wmi} || $status{snmp});
+
+	if ($should_collect)
 	{
 		if ($S->status->{snmp_enabled})
 		{
@@ -1432,6 +1440,10 @@ sub doCollect
 									 details => "SNMP Session using primary address \"$NC->{node}->{host}\"");
 			}
 			HandleNodeDown(sys => $S, type => "snmp", up => 1, details => "snmp ok") if ($candosnmp);
+		} else {
+			# MAALS 2019-01-18
+			# Remove SNMP Down event if SNMP collection is disabled
+			HandleNodeDown(sys => $S, type => "snmp", up => 1, details => "snmp collection disabled for node");
 		}
 
 		# returns 1 if one or more sources have worked, also updates snmp/wmi down states in nodeinfo
@@ -1491,6 +1503,8 @@ sub doCollect
 			logMsg("ERROR $msg");
 			info("Error: $msg");
 		}
+	} else {
+		logMsg("WARNING: Skipping data collection for '$name'. Config: collect=$status{collect} collect_snmp=$status{snmp} collect_wmi=$status{wmi}");
 	}
 
 	# Need to poll services under all circumstances, i.e. if no ping, or node down or set to no collect
