@@ -1649,6 +1649,10 @@ EO_HTML
 				# a few special ones
 				if ($k eq 'status')
 				{
+					# added this so that status reflected by node down event existing.
+					# this means other things can create Node Down events have status correct.
+					$status{overall} = nodeStatus(NI => $NI);
+					
 					if ( !$status{overall} )
 					{
 						$value = "unreachable";
@@ -1733,7 +1737,12 @@ EO_HTML
 				$printData = 0 if $k eq "businessService" and not tableExists('BusinessServices');
 				$printData = 0 if $k eq "serviceStatus" and not tableExists('ServiceStatus');
 				$printData = 0 if $k eq "location" and not tableExists('Locations');
-
+				
+				# lets not print empty snmp things.....
+				if ( $value eq "" and $k =~ /sysName|sysUpTime|sysContact|sysLocation|sysDescr|ifNumber|lastUpdate|sysObjectName|sysName/ ) {
+					$printData = 0;
+				}
+				
 				if ( $printData ) {
 					push @out,Tr(td({class=>'info Plain'}, escapeHTML($title)),
 											 td({class=>'info Plain',style=>getBGColor($color)},$content));
@@ -1971,6 +1980,30 @@ EO_HTML
 
 		}
 
+	}
+	# is this a node with no collect
+	elsif ( $M->{system}{nodeModel} ne "Model" and $M->{system}{nodeModel} ne "Default" 
+		and defined $M->{system}{nodegraph} and $M->{system}{nodegraph} ne "" 
+	) {		
+		my $GTT = $S->loadGraphTypeTable(); # translate graphtype to type
+		my @graphs = split /,/,$M->{system}{nodegraph};
+
+		foreach my $graph (@graphs) {
+			my @pr;
+
+			# check if database rule exists
+			next unless $GTT->{$graph} ne '';
+			next if $graph eq 'response'
+					and getbool($NI->{system}{ping},"invert"); # no ping done
+			# first two or all graphs
+			push @pr, [ $M->{heading}{graphtype}{$graph}, $graph ];
+
+			#### now print it
+			foreach ( @pr ) {
+				print Tr(td({class=>'header'},$_->[0])),
+				Tr(td({class=>'image'},htmlGraph(graphtype=>$_->[1],node=>$node,intf=>$_->[2], width=>$smallGraphWidth,height=>$smallGraphHeight) ));
+			}
+		} # end for		
 	}
 	else {
 		print Tr(td({class=>'info Plain'},'no Graph info'));

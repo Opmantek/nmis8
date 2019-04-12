@@ -24,7 +24,7 @@ use Exporter;
 	getMerakiData
 );
 
-my $debug = 1;
+my $debug = 0;
 
 sub collect_plugin
 {
@@ -34,7 +34,7 @@ sub collect_plugin
 	my $NI = $S->ndinfo;
 	my $V = $S->view;
 	
-	logMsg("Wprking on $node $NI->{system}{nodeModel}");
+	logMsg("Working on $node $NI->{system}{nodeModel}");
 
 	# this plugin deals only with CiscoMerakiCloud
 	return (0,undef) if ( $NI->{system}{nodeModel} ne "CiscoMerakiCloud" );
@@ -43,7 +43,6 @@ sub collect_plugin
 	if ( defined $merakiData->{error} ) {
 		logMsg("ERROR with $node: $merakiData->{error}");
 	}
-	logMsg("$node: status=$merakiData->{status} perfScore=$merakiData->{perfScore} avgLatency=$merakiData->{avgLatency} avgLossPercent=$merakiData->{avgLossPercent} maxLossPercent=$merakiData->{maxLossPercent}");
 
 	my $rrddata = {
 		'perfScore' => { "option" => "GAUGE,0:U", "value" => $merakiData->{perfScore}},
@@ -54,36 +53,75 @@ sub collect_plugin
 	
 	# updateRRD subrutine is called from rrdfunc.pm module
 	my $updatedrrdfileref = updateRRD(data=>$rrddata, sys=>$S, type=>"meraki", index => undef);
+	
+	# if the graphtype we make is not there, lets add it.
+	if ( not defined $NI->{graphtype}{meraki} ) {
+		$NI->{graphtype}{meraki} = "Meraki_Health"
+	}
+
+	######### what events do we want to raise?
+	# if the thing is offline, then the node is down, online and alerting are Node Up
+	if ( $merakiData->{status} eq "offline" ) {
+		# raise a new event.
+		notify(sys => $S, event => "Node Down", element => "", details => "Meraki Cloud Reporting device offline");
+	} 
+	else {
+		# check if event exists and clear it
+		checkEvent(sys => $S, event => "Node Down", level => "Normal", element => undef, details => "");
+	}
+
+	# if the thing is alerting, then the node is degraded (I think)
+	if ( $merakiData->{status} eq "alerting" ) {
+		# raise a new event.
+		notify(sys => $S, event => "Alert: Device Status Alerting", element => "", details => "Meraki Cloud Reporting device alerting");
+	} 
+	elsif ( $merakiData->{status} eq "online" ) {
+		# check if event exists and clear it
+		checkEvent(sys => $S, event => "Alert: Device Status Alerting", level => "Normal", element => "", details => "");
+	}
+	
+	# set the lat and log based on the API data.
+	if ( defined $merakiData->{'lat'} and defined $merakiData->{'lng'} 
+		and ( $merakiData->{'lat'} ne $NI->{system}{'location_latitude'} 
+		or $merakiData->{'lng'} ne $NI->{system}{'location_longitude'} ) )
+	{ 
+		info("$node Update Location Lat-Long: lat $merakiData->{'lat'} long $merakiData->{'lng'}");
+		my $output = `/usr/local/nmis8/admin/node_admin.pl act=set node=$node entry.location_latitude=$merakiData->{'lat'} entry.location_longitude=$merakiData->{'lng'}`;
+		$NI->{system}{'location_latitude'} = $merakiData->{'lat'};
+		$NI->{system}{'location_longitude'} = $merakiData->{'lng'};
+	}
+	
+	$NI->{system}{'nodeVendor'} = "Meraki Networks, Inc.";
 
 	# Store the results for the GUI to display
 	$V->{system}{"merakistatus_value"} = $merakiData->{status};
-	$V->{system}{"merakistatus_title"} = 'Status';
+	$V->{system}{"merakistatus_title"} = 'Meraki Status';
 	$V->{system}{"merakistatus_color"} = '#00FF00';
 	$V->{system}{"merakistatus_color"} = '#FF0000' if $merakiData->{status} eq "offline";
 
 	$V->{system}{"perfScore_value"} = $merakiData->{perfScore};
-	$V->{system}{"perfScore_title"} = 'Performance Score';
+	$V->{system}{"perfScore_title"} = 'Meraki Performance Score';
 
 	$V->{system}{"loss_value"} = $merakiData->{avgLossPercent};
-	$V->{system}{"loss_title"} = 'AVG Loss Percent';
+	$V->{system}{"loss_title"} = 'Meraki AVG Loss Percent';
 
 	$V->{system}{"serial_value"} = $merakiData->{serial};
-	$V->{system}{"serial_title"} = 'Serial';
+	$V->{system}{"serial_title"} = 'Meraki Serial';
 
 	$V->{system}{"lanIp_value"} = $merakiData->{lanIp};
-	$V->{system}{"lanIp_title"} = 'lanIp';
+	$V->{system}{"lanIp_title"} = 'Meraki LAN IP Address';
 
 	$V->{system}{"wan1Ip_value"} = $merakiData->{wan1Ip};
-	$V->{system}{"wan1Ip_title"} = 'wan1Ip';
+	$V->{system}{"wan1Ip_title"} = 'Meraki WAN1 IP';
 
 	$V->{system}{"publicIp_value"} = $merakiData->{publicIp};
-	$V->{system}{"publicIp_title"} = 'publicIp';
+	$V->{system}{"publicIp_title"} = 'Meraki Public IP';
 
 	$V->{system}{"networkId_value"} = $merakiData->{networkId};
-	$V->{system}{"networkId_title"} = 'networkId';
+	$V->{system}{"networkId_title"} = 'Meraki Network Id';
 
 	$V->{system}{"mac_value"} = $merakiData->{mac};
-	$V->{system}{"mac_title"} = 'mac';
+	$V->{system}{"mac_title"} = 'Meraki MAC Address';
 
 	return (1,undef);							# happy, changes were made so save view and nodes files
 }
@@ -115,7 +153,7 @@ sub getMerakiData {
 	if ( not defined $merakiState->{orgId} ) {
 		my $data = getApiData(url => "$apiBase/organizations", ua => $ua, apiKey => $apiKey, debug => 0);
 
-		print "Saving organizations data\n" if $debug;
+		info("Saving organizations data");
 		saveJsonFile("$databaseDir/organizations.json",$data);
 		
 		my $count = 0;	
@@ -123,13 +161,13 @@ sub getMerakiData {
 			$merakiState->{orgId} = $org->{'id'};
 		}
 	}
-	print "orgId = $merakiState->{orgId}\n" if $debug;
+	info("orgId = $merakiState->{orgId}");
 	
 	# have we got device status data recently?
 	if ( not defined $merakiState->{lastDeviceStatuses}
 		or time() - $merakiState->{lastDeviceStatuses} > 300 
 	) {	
-		print "deviceStatuses is old, refreshing the cache\n" if $debug;
+		info("deviceStatuses is old, refreshing the cache");
 		my $data = getApiData(url => "$apiBase/organizations/$merakiState->{orgId}/deviceStatuses", ua => $ua, apiKey => $apiKey, debug => 0);
 		my $count = 0;	
 		foreach my $device (@$data) {
@@ -137,7 +175,7 @@ sub getMerakiData {
 			saveJsonFile("$databaseDir/devices/$device->{name}.json",$device);	
 		}
 		$merakiState->{lastDeviceStatuses} = time;
-		print "there were $count devices\n" if $debug;
+		info("there were $count devices");
 	}
 
 	# get the lossAndLatencyHistory for one deviceName

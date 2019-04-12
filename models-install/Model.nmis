@@ -628,6 +628,13 @@
         }
       }
     },
+    'Meraki Networks, Inc.' => {
+      'order' => {
+        '10' => {
+          'CiscoMerakiController' => 'Cisco Meraki Cloud Controller'
+        }
+      }
+    },
   },
   'system' => {
     'nodeModel' => 'Default',

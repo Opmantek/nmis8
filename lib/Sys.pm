@@ -269,11 +269,30 @@ sub init
 	}
 	# no specific model, update yes, ping yes, collect no -> pingonly
 	elsif (getbool($thisnodeconfig->{ping})
-				 and !getbool($thisnodeconfig->{collect})
-				 and $self->{update})
+		and !getbool($thisnodeconfig->{collect})
+		and $self->{update})
 	{
 		$loadthis = "Model-PingOnly";
 	}
+	# no specific model, update yes, ping no, collect no -> serviceonly
+	elsif (!getbool($thisnodeconfig->{ping})
+		and !getbool($thisnodeconfig->{collect})
+		and defined $thisnodeconfig->{services}
+		and $thisnodeconfig->{services} ne ""
+		and $self->{update})
+	{
+		$loadthis = "Model-ServiceOnly";
+	}
+	# node configured specific model, update yes, ping no, collect no -> must be using API's and has a static model
+	elsif (!getbool($thisnodeconfig->{ping})
+		and !getbool($thisnodeconfig->{collect})
+		and defined $thisnodeconfig->{model}
+		and $thisnodeconfig->{model} ne "automatic"
+		and $self->{update})
+	{
+		$loadthis = "Model-$thisnodeconfig->{model}";
+	}
+
 	# default model otherwise
 	dbg("loading model $loadthis for node $self->{name}");
 	# model loading failures are terminal
