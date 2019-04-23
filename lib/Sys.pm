@@ -238,6 +238,12 @@ sub init
 		if ($self->{cfg}->{node})
 		{
 			dbg("cfg of node=$self->{name} loaded");
+			# MAALS 2019-01-18
+			# Check wether node is configured to collect SNMP/WMI and set control variables 
+			if (exists $self->{cfg}{node}{collect_snmp} && exists $self->{cfg}{node}{collect_wmi}) {
+				$snmp = getbool($self->{cfg}{node}{collect_snmp});
+				$wantwmi = getbool($self->{cfg}{node}{collect_wmi});
+			}
 		}
 		else
 		{
