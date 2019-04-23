@@ -780,7 +780,7 @@
       }
     },
     'nocollect' => {
-      'Description' => '/mnt/cdrom|boot'
+      'Description' => '^(/mnt/cdrom$|/media|/run|/dev/shm|/sys)',
     }
   },
 );
