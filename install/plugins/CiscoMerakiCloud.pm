@@ -227,8 +227,8 @@ sub getMerakiData {
 				}
 			}
 		
-			$merakiData->{avgLatency} = sprintf("%.2f", $totalLatency / $count);
-			$merakiData->{avgLossPercent} = sprintf("%.2f", $totalLoss / $count);
+			$merakiData->{avgLatency} = sprintf("%.2f", $totalLatency / $count) if $totalLatency > 0 and $count > 0;
+			$merakiData->{avgLossPercent} = sprintf("%.2f", $totalLoss / $count) if $totalLoss > 0 and $count > 0;
 			$merakiData->{perfScore} = $performance->{perfScore};
 		}
 		else {
