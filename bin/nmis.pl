@@ -848,8 +848,14 @@ sub	runThreads
 			}
 		}
 
-		dbg("Starting runEscalate");
-		runEscalate();
+		# only runEscalate if this is multiple nodes.
+		if ( $nodecount > 1 ) {
+			dbg("Starting runEscalate");
+			runEscalate();
+		}
+		else {
+			dbg("Skipping runEscalate for a single node");
+		}
 
 		# nmis collect runtime, process counts and save
 		my $D = {};
