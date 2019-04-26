@@ -1268,6 +1268,10 @@ sub doServices
 	my (%args) = @_;
 	my $name = $args{name};
 
+	# lets return really early from even trying services.
+	my $NT = loadLocalNodeTable();
+	return if ( not defined $NT->{$name}{services} or $NT->{$name}{services} eq "" );
+	
 	info("================================");
 	info("Starting services, node $name");
 
