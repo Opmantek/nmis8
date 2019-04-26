@@ -8875,7 +8875,8 @@ PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 
 ######################################################
 # Run (selective) Statistics and Service Status Collection often
-* * * * * $usercol $C->{'<nmis_base>'}/bin/nmis.pl type=collect mthread=true ; $C->{'<nmis_base>'}/bin/nmis.pl type=services mthread=true
+*/1 * * * * $usercol $C->{'<nmis_base>'}/bin/nmis.pl type=collect mthread=true 
+*/2 * * * * $usercol $C->{'<nmis_base>'}/bin/nmis.pl type=services mthread=true
 
 ######################################################
 # Run Summary Update every 5 minutes
