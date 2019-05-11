@@ -1,0 +1,7 @@
+{
+	"apiBase":"https://sandboxsdwan.cisco.com:8443",
+  "username":"devnetuser",
+	"password":"Cisco123!",
+	"databaseDir":"/usr/local/nmis8/var/viptela",
+	"historySeconds":300
+}
