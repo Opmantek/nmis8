@@ -1,4 +1,33 @@
 #!/usr/bin/perl
+#
+#  Copyright (C) Opmantek Limited (www.opmantek.com)
+#
+#  ALL CODE MODIFICATIONS MUST BE SENT TO CODE@OPMANTEK.COM
+#
+#  This file is part of Network Management Information System ("NMIS").
+#
+#  NMIS is free software: you can redistribute it and/or modify
+#  it under the terms of the GNU General Public License as published by
+#  the Free Software Foundation, either version 3 of the License, or
+#  (at your option) any later version.
+#
+#  NMIS is distributed in the hope that it will be useful,
+#  but WITHOUT ANY WARRANTY; without even the implied warranty of
+#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+#  GNU General Public License for more details.
+#
+#  You should have received a copy of the GNU General Public License
+#  along with NMIS (most likely in a file named LICENSE).
+#  If not, see <http://www.gnu.org/licenses/>
+#
+#  For further information on NMIS or for a license other than GPL please see
+#  www.opmantek.com or email contact@opmantek.com
+#
+#  User group details:
+#  http://support.opmantek.com/users/
+#
+# *****************************************************************************
+
 our $VERSION = '1.0.0';
 
 use strict;
@@ -65,13 +94,24 @@ my @nodesOK;
 foreach my $node (@nodesToMigrate) {
 	my $cfg = $LNT->{$node};		
 	my ($collect_wmi, $collect_snmp);
-
+	
 	# If WMI username and password are set, we can assume this node uses WMI
 	$collect_wmi = (length $cfg->{wmipassword} and length $cfg->{wmipassword});
 
-	# If SNMP community is set, we can assume this node uses SNMP
-	$collect_snmp = length $cfg->{community} ? 1 : 0;
+	if ( defined $cfg->{version} and $cfg->{version} =~ /snmpv1|snmpv2c/ ) {
+		# If SNMP community is set, we can assume this node uses SNMP
+		$collect_snmp = length $cfg->{community} ? 1 : 0;
+	}
+	elsif ( defined $cfg->{version} and $cfg->{version} =~ /snmpv3/ ) {
+		# If SNMP username and passwords are sent then we can assume this node uses SNMPv3
+		$collect_snmp = (length $cfg->{username} and length $cfg->{authpassword} and length $cfg->{privpassword});
+	}
 
+	# has this node been configured for collection?
+	if ( $cfg->{collect} ne "true" ) {
+		$collect_snmp = 0;
+		$collect_wmi = 0;
+	}
 	# Add the properties to node table, print warning if both are missing (and -v given)
 	_log UNDERLINE, "$node", RESET, "\n" if $opt_verbose;
 	if ($collect_wmi or $collect_snmp) {
@@ -89,6 +129,7 @@ foreach my $node (@nodesToMigrate) {
 
 	$LNT->{$node}{collect_snmp} = $collect_snmp ? 'true' : 'false';
 	$LNT->{$node}{collect_wmi} = $collect_wmi ? 'true' : 'false';
+
 }
 
 # _log status report
@@ -110,8 +151,42 @@ if (scalar @nodesError > 0) {
 # Finally, write Nodes.nmis (unless it's a dry run)
 unless ($opt_dry) {
 	my $conf_dir = $C->{'<nmis_conf>'};
-	#writeHashtoFile(file => "$conf_dir/Nodes.nmis", data => $LNT);
+	backupFile(file => "$conf_dir/Nodes.nmis");
+	writeHashtoFile(file => "$conf_dir/Nodes.nmis", data => $LNT);
 	_log "\nWrote changes to '$conf_dir/Nodes.nmis'.\n";
 } else {
 	_log "\n(", BOLD "DRY RUN", RESET, " - no changes are saved)\n" if $opt_dry;
+}
+
+sub backupFile {
+	my %arg = @_;
+	my $buff;
+	my $backupFileName = "$arg{file}.backup";
+	my $backupCount = 0;
+	while ( -f $backupFileName ) {
+		++$backupCount;
+		$backupFileName = "$arg{file}.backup.$backupCount";
+	}
+	
+	if ( not -f $backupFileName ) {
+		if ( -r $arg{file} ) {
+			open(IN,$arg{file}) or warn ("ERROR: problem with file $arg{file}; $!");
+			open(OUT,">$backupFileName") or warn ("ERROR: problem with file $backupFileName; $!");
+			binmode(IN);
+			binmode(OUT);
+			while (read(IN, $buff, 8 * 2**10)) {
+			    print OUT $buff;
+			}
+			close(IN);
+			close(OUT);
+			return 1;
+		} else {
+			print STDERR "ERROR: source file $arg{file} not readable.\n";
+			return 0;
+		}
+	}
+	else {
+		print STDERR "ERROR: backup target $backupFileName already exists.\n";
+		return 0;
+	}
 }
