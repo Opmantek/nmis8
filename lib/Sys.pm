@@ -63,6 +63,7 @@ sub new
 			cfg => {},			# configuration of node
 			rrd => {},			# RRD table for loading - fixme unused
 			reach => {},		# tmp reach table
+			reachdata => {}, # data primed by something else to be handled later, e.g. a plugin
 			alerts => [],		# getValues() saves stuff there, nmis.pl consumes
 
 			error => undef,						# last internal error
@@ -88,6 +89,7 @@ sub cbinfo 	{ my $self = shift; return $self->{info}{cbqos} };		# my $CB = $S->c
 sub pvcinfo 	{ my $self = shift; return $self->{info}{pvc} };	# my $PVC = $S->pvcinfo
 sub callsinfo 	{ my $self = shift; return $self->{info}{calls} };	# my $CALL = $S->callsinfo
 sub reach 	{ my $self = shift; return $self->{reach} };			# my $R = $S->reach
+sub reachdata 	{ my $self = shift; return $self->{reachdata} };			# my $RD = $S->reachdata
 sub ndcfg	{ my $self = shift; return $self->{cfg} };				# ONLY set after init( snmp or wmi=>true)!
 sub envinfo	{ my $self = shift; return $self->{info}{environment} };# my $ENV = $S->envinfo
 sub syshealth	{ my $self = shift; return $self->{info}{systemHealth} };# my $SH = $S->syshealth

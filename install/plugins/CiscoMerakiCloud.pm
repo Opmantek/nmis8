@@ -64,6 +64,10 @@ sub collect_plugin
 	my $V = $S->view;
 	
 	logMsg("Working on $node $NI->{system}{nodeModel}");
+	
+	if ( $NI->{system}{model} ne $NI->{system}{nodeModel} ) {
+		logMsg("ERROR Model inconsistency on $node $NI->{system}{model} vs $NI->{system}{nodeModel}");
+	}
 
 	# this plugin deals only with CiscoMerakiCloud
 	return (0,undef) if ( $NI->{system}{nodeModel} ne "CiscoMerakiCloud" );

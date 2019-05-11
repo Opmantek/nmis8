@@ -1558,7 +1558,20 @@ sub doCollect
 	}
 	my $polltime = $pollTimer->elapTime();
 	info("polltime for $name was $polltime");
+	
+	# get any reachdata populated along the way and get it into the RRD
+	my $RD = $S->reachdata;
+	foreach my $key (sort (keys %{$RD})) {
+		dbg("Found some late reachdata to include for $key");
+		# copy the data to the stuff about to be inserted.
+		$reachdata->{$key} = $RD->{$key};
+	}
+	
+	
 	$reachdata->{polltime} = { value =>  $polltime, option => "gauge,0:U" };
+	
+	my $debugReach = Dumper $reachdata;
+	dbg("DEBUG reachdata: $debugReach");
 	# parrot the previous reading's update time
 	my $prevval = "U";
 	if (my $rrdfilename = $S->getDBName(type => "health"))
