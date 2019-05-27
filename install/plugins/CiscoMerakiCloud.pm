@@ -62,15 +62,18 @@ sub collect_plugin
 
 	my $NI = $S->ndinfo;
 	my $V = $S->view;
+	my $RD = $S->reachdata;
 	
 	logMsg("Working on $node $NI->{system}{nodeModel}");
 	
-	if ( $NI->{system}{model} ne $NI->{system}{nodeModel} ) {
-		logMsg("ERROR Model inconsistency on $node $NI->{system}{model} vs $NI->{system}{nodeModel}");
-	}
-
 	# this plugin deals only with CiscoMerakiCloud
 	return (0,undef) if ( $NI->{system}{nodeModel} ne "CiscoMerakiCloud" );
+
+	# this plugin will run every minute so lets not poll the API too often.
+	if ( defined $NI->{system}{last_poll} and time() - $NI->{system}{last_poll} < 300 ) {
+		info("Skipping, plugin ran for $node less than 300 seconds ago.");
+		return (0,undef);
+	}
 
 	my $merakiData = getMerakiData(name => $node);
 	if ( defined $merakiData->{error} ) {
@@ -92,26 +95,40 @@ sub collect_plugin
 		$NI->{graphtype}{meraki} = "Meraki_Health"
 	}
 
+	# lets give it some health
+	my $health = 100;
+	my $reachability = undef;
+
 	######### what events do we want to raise?
 	# if the thing is offline, then the node is down, online and alerting are Node Up
 	if ( $merakiData->{status} eq "offline" ) {
 		# raise a new event.
 		notify(sys => $S, event => "Node Down", element => "", details => "Meraki Cloud Reporting device offline");
+		$reachability = 0;
+		# take off the reachability part of health
+		$health = $health - ($C->{weight_reachability} * 100);
 	} 
 	else {
 		# check if event exists and clear it
 		checkEvent(sys => $S, event => "Node Down", level => "Normal", element => undef, details => "");
+		$reachability = 100;
 	}
 
 	# if the thing is alerting, then the node is degraded (I think)
 	if ( $merakiData->{status} eq "alerting" ) {
 		# raise a new event.
 		notify(sys => $S, event => "Alert: Device Status Alerting", element => "", details => "Meraki Cloud Reporting device alerting");
+		$health = $health - 5;
+
 	} 
 	elsif ( $merakiData->{status} eq "online" ) {
 		# check if event exists and clear it
 		checkEvent(sys => $S, event => "Alert: Device Status Alerting", level => "Normal", element => "", details => "");
 	}
+
+	# lets send some health metrics back from the pludin data
+	$RD->{health} = { value =>  $health, option => "gauge,0:U" };
+	$RD->{reachability} = { value =>  $reachability, option => "gauge,0:U" };
 	
 	# set the lat and log based on the API data.
 	if ( defined $merakiData->{'lat'} and defined $merakiData->{'lng'} 
@@ -124,7 +141,23 @@ sub collect_plugin
 		$NI->{system}{'location_longitude'} = $merakiData->{'lng'};
 	}
 	
+	$NI->{system}{last_poll} = time();
+	
 	$NI->{system}{'nodeVendor'} = "Meraki Networks, Inc.";
+	$V->{system}{nodeVendor_value} = $NI->{system}{nodeVendor};
+	$V->{system}{nodeVendor_title} = 'Vendor';
+	$V->{system}{group_value} = $NI->{system}{group};
+	$V->{system}{group_title} = 'Group';
+	$V->{system}{customer_value} = $NI->{system}{customer};
+	$V->{system}{customer_title} = 'Customer';
+	$V->{system}{location_value} = $NI->{system}{location};
+	$V->{system}{location_title} = 'Location';
+	$V->{system}{businessService_value} = $NI->{system}{businessService};
+	$V->{system}{businessService_title} = 'Business Service';
+	$V->{system}{serviceStatus_value} = $NI->{system}{serviceStatus};
+	$V->{system}{serviceStatus_title} = 'Service Status';
+	$V->{system}{notes_value} = $NI->{system}{notes};
+	$V->{system}{notes_title} = 'Notes';
 
 	# Store the results for the GUI to display
 	$V->{system}{"merakistatus_value"} = $merakiData->{status};

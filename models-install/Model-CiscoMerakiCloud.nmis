@@ -35,7 +35,7 @@
     'nodeModel' => 'CiscoMerakiCloud',
     'nodeType' => 'cloud',
     'nodeVendor' => 'Cisco Systems',
-    'nodegraph' => 'Meraki_Health',
+    'nodegraph' => 'health,Meraki_Health',
 
     'rrd' => {
       'meraki' => {
