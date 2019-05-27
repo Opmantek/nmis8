@@ -1070,15 +1070,15 @@ sub selectLarge {
 			my $color;
 			if ( getbool($NT->{$node}{active}) ) {
 				if ( !getbool($NT->{$node}{ping})
-						 and !getbool($NT->{$node}{collect}) ) {
+						 and !isNodeCollectable(node => $node) ) {
 					$color = "#C8C8C8"; # grey
 					$groupSummary->{$node}{health_color} = $color;
 					$groupSummary->{$node}{reachable_color} = $color;
 					$groupSummary->{$node}{available_color} = $color;
 					$groupSummary->{$node}{event_color} = $color;
-					$groupSummary->{$node}{health} = '';
-					$groupSummary->{$node}{reachable} = '';
-					$groupSummary->{$node}{available} = '';
+					# regardless of collect or not show what we have collected when viewing the list of nodes.
+					#$groupSummary->{$node}{health} = '';
+					#$groupSummary->{$node}{reachable} = '';
 				}
 				else {
 					##$color = "#ffffff"; # white color
@@ -1142,6 +1142,12 @@ sub selectLarge {
 					$groupSummary->{$node}{"$t-bg"} = "background-color:" . colorPercentHi($groupSummary->{$node}{$t});
 				}
 			}
+			
+			# you can only display interface availabilty if you are collecting interfaces.
+			my $available = td({class=>'info Plain',style=>$groupSummary->{$node}{'available-bg'}},img({src=>$C->{$groupSummary->{$node}{'available-icon'}}}),$groupSummary->{$node}{available},"%");
+			if ( $groupSummary->{$node}{intfCollect} eq "NaN" ) {
+				$available = td({class=>'info Plain',style=>getBGColor("#C8C8C8")},"N/A");
+			}
 
 			# response time
 			my $responsetime;
@@ -1192,7 +1198,7 @@ sub selectLarge {
 				td({class=>"info $statusClass"},$statusValue),
 				td({class=>'info Plain',style=>$groupSummary->{$node}{'health-bg'}},img({src=>$C->{$groupSummary->{$node}{'health-icon'}}}),$groupSummary->{$node}{health},"%"),
 				td({class=>'info Plain',style=>$groupSummary->{$node}{'reachable-bg'}},img({src=>$C->{$groupSummary->{$node}{'reachable-icon'}}}),$groupSummary->{$node}{reachable},"%"),
-				td({class=>'info Plain',style=>$groupSummary->{$node}{'available-bg'}},img({src=>$C->{$groupSummary->{$node}{'available-icon'}}}),$groupSummary->{$node}{available},"%"),
+				$available,
 				$responsetime,
 				$outage,
 				td({class=>'info Plain'},$escalate),
@@ -1279,7 +1285,7 @@ sub viewPollingSummary {
 					}
 				}
 			}
-			if ( getbool($LNT->{$node}{collect}) ) {
+			if ( isNodeCollectable(node => $node) ) {
 				++$sum->{count}{collect};
 			}
 			if ( getbool($LNT->{$node}{ping}) ) {
@@ -1894,7 +1900,7 @@ EO_HTML
 	}
 
 
-	if ( getbool($NI->{system}{collect})
+	if ( isNodeCollectable(node => $node)
 			 or getbool($NI->{system}{ping}) ) {
 		my $GTT = $S->loadGraphTypeTable(); # translate graphtype to type
 		my $cnt = 0;
@@ -1925,7 +1931,7 @@ EO_HTML
 			## display more graphs by default
 			if ($cnt == 3
 					and !getbool($Q->{expand})
-					and getbool($NI->{system}{collect})
+					and isNodeCollectable(node => $node)
 					and getbool($C->{auto_expand_more_graphs},"invert")) {
 				if ($#graphs > 1) {
 					# signal there are more graphs
@@ -3422,7 +3428,7 @@ sub viewTop10 {
 			# cpu only for routers, switch cpu and memory in practice not an indicator of performance.
 			# avgBusy1min, avgBusy5min, ProcMemUsed, ProcMemFree, IOMemUsed, IOMemFree
 			if ($NI->{graphtype}{nodehealth} =~ /cpu/
-					and getbool($NI->{system}{collect})) {
+					and isNodeCollectable(node => $reportnode)) {
 				%cpuTable = (%cpuTable,%{ getSummaryStats(sys=>$S,type=>"nodehealth",start=>$start,end=>$end,index=>$reportnode) // {} });
 				print STDERR "Result: ". Dumper \%cpuTable;
 			}
@@ -3610,7 +3616,8 @@ sub nodeAdminSummary
 			"last update poll",
 			"ping (icmp)",
 			"icmp working",
-			"collect (snmp/wmi)",
+			"collect_snmp",
+			"collect_wmi",
 			"wmi working",
 			"snmp working",
 			"community",
@@ -3658,7 +3665,7 @@ sub nodeAdminSummary
 				my @issueList;
 
 				# Is the node active and are we doing stats on it.
-				if ( getbool($LNT->{$node}{active}) and getbool($LNT->{$node}{collect}) ) {
+				if ( getbool($LNT->{$node}{active}) and isNodeCollectable(node => $node) ) {
 					for my $ifIndex (keys %{$IF}) {
 						++$intCount;
 						if ( $IF->{$ifIndex}{collect} eq "true") {
@@ -3745,7 +3752,7 @@ sub nodeAdminSummary
 					# figure out what sources are enabled and which of those work/are misconfig'd etc
 					my %status = PreciseNodeStatus(system => $S);
 
-					if ( !getbool($LNT->{$node}{collect}) or !$status{wmi_enabled} )
+					if ( !isNodeCollectable(node => $node) or !$status{wmi_enabled} )
 					{
 						$wmiworks = "N/A";
 					}
@@ -3764,7 +3771,7 @@ sub nodeAdminSummary
 						}
 					}
 
-					if ( !getbool($LNT->{$node}{collect}) or !$status{snmp_enabled} )
+					if ( !isNodeCollectable(node => $node) or !$status{snmp_enabled} )
 					{
 						$community = $snmpable = "N/A";
 					}
@@ -3846,7 +3853,8 @@ sub nodeAdminSummary
 						td({class => 'info Plain'},$LNT->{$node}{ping}),
 						td({class => $pingClass},$pingable),
 
-						td({class => 'info Plain'},$LNT->{$node}{collect}),
+						td({class => 'info Plain'},$LNT->{$node}{collect_snmp}),
+						td({class => 'info Plain'},$LNT->{$node}{collect_wmi}),
 
 						td({class => $wmiclass},$wmiworks),
 

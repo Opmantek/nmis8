@@ -1577,7 +1577,7 @@ sub doCollect
 	$reachdata->{polltime} = { value =>  $polltime, option => "gauge,0:U" };
 	
 	my $debugReach = Dumper $reachdata;
-	dbg("DEBUG reachdata: $debugReach");
+	dbg("DEBUG reachdata: $debugReach",2);
 	# parrot the previous reading's update time
 	my $prevval = "U";
 	if (my $rrdfilename = $S->getDBName(type => "health"))
@@ -1797,6 +1797,7 @@ sub getNodeInfo
 	my $oldstate = $S->status;		# what did we start with for snmp_enabled, wmi_enabled?
 	my $curstate;
 	# if collect is off, only nodeconf overrides are loaded
+	#if (getbool($NC->{node}{collect_snmp}) or getbool($NC->{node}{collect_wmi}))
 	if (getbool($NC->{node}{collect}))
 	{
 		# get basic node info by snmp or wmi: sysDescr, sysObjectID, sysUpTime etc. and store in $NI table

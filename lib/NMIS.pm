@@ -101,6 +101,7 @@ use Exporter;
 		findCfgEntry
 
 		checkNodeName
+		isNodeCollectable
 
 		eventLevel
 		eventExist
@@ -4666,6 +4667,21 @@ sub loadNodeConfTable
 		return {};
 	}
 	return $data;
+}
+
+# this method returns 1 or 0 if one of collect, collect_snmp or collect_wmi is true
+# this depends on the node table cache system to run super fast.
+# 
+# args: node => node name
+sub isNodeCollectable 
+{
+	my (%args) = @_;
+	my $nodename = $args{node};
+	my $NT = loadNodeTable();
+	
+	my $nodeCollectable = getbool($NT->{$nodename}{collect}) or getbool($NT->{$nodename}{collect_snmp}) or getbool($NT->{$nodename}{collect_wmi}) ? 1 : 0;
+
+	return $nodeCollectable;
 }
 
 # this method renames a node, and all its files, too
