@@ -47,24 +47,24 @@
 			'DEF:memBuffers=$database:memBuffers:AVERAGE',
 
 			'AREA:memUsed#00FFFF:memUsed',
-			'GPRINT:memUsed:LAST:Current %1.3lf',
-			'GPRINT:memUsed:AVERAGE:Avg %1.3lf',
-			'GPRINT:memUsed:MAX:Max %1.3lf\\n',
+			'GPRINT:memUsed:LAST:Current %1.3lf %sb',
+			'GPRINT:memUsed:AVERAGE:Avg %1.3lf %Sb',
+			'GPRINT:memUsed:MAX:Max %1.3lf %Sb\\n',
 
 			'STACK:memCached#aaaaaa:memCached',
-			'GPRINT:memCached:LAST:Current %1.3lf',
-			'GPRINT:memCached:AVERAGE:Avg %1.3lf',
-			'GPRINT:memCached:MAX:Max %1.3lf\\n',
+			'GPRINT:memCached:LAST:Current %1.3lf %sb',
+			'GPRINT:memCached:AVERAGE:Avg %1.3lf %Sb',
+			'GPRINT:memCached:MAX:Max %1.3lf %Sb\\n',
 
 			'STACK:memBuffers#cccccc:memBuffers',
-			'GPRINT:memBuffers:LAST:Current %1.3lf',
-			'GPRINT:memBuffers:AVERAGE:Avg %1.3lf',
-			'GPRINT:memBuffers:MAX:Max %1.3lf\\n',
+			'GPRINT:memBuffers:LAST:Current %1.3lf %sb',
+			'GPRINT:memBuffers:AVERAGE:Avg %1.3lf %Sb',
+			'GPRINT:memBuffers:MAX:Max %1.3lf %Sb\\n',
 
 			'STACK:memFree#eeeeee:memFree',
-			'GPRINT:memFree:LAST:Current %1.3lf',
-			'GPRINT:memFree:AVERAGE:Avg %1.3lf',
-			'GPRINT:memFree:MAX:Max %1.3lf\\n',
+			'GPRINT:memFree:LAST:Current %1.3lf %sb',
+			'GPRINT:memFree:AVERAGE:Avg %1.3lf %Sb',
+			'GPRINT:memFree:MAX:Max %1.3lf %Sb\\n',
 		],
 		'small' => [
 			'DEF:memUsed=$database:memUsed:AVERAGE',
@@ -73,24 +73,24 @@
 			'DEF:memBuffers=$database:memBuffers:AVERAGE',
 
 			'AREA:memUsed#00FFFF:memUsed',
-			'GPRINT:memUsed:LAST:Current %1.3lf',
-			'GPRINT:memUsed:AVERAGE:Avg %1.3lf',
-			'GPRINT:memUsed:MAX:Max %1.3lf\\n',
+			'GPRINT:memUsed:LAST:Current %1.3lf %sb',
+			'GPRINT:memUsed:AVERAGE:Avg %1.3lf %Sb',
+			'GPRINT:memUsed:MAX:Max %1.3lf %Sb\\n',
 
 			'STACK:memCached#aaaaaa:memCached',
-			'GPRINT:memCached:LAST:Current %1.3lf',
-			'GPRINT:memCached:AVERAGE:Avg %1.3lf',
-			'GPRINT:memCached:MAX:Max %1.3lf\\n',
+			'GPRINT:memCached:LAST:Current %1.3lf %sb',
+			'GPRINT:memCached:AVERAGE:Avg %1.3lf %Sb',
+			'GPRINT:memCached:MAX:Max %1.3lf %Sb\\n',
 
 			'STACK:memBuffers#cccccc:memBuffers',
-			'GPRINT:memBuffers:LAST:Current %1.3lf',
-			'GPRINT:memBuffers:AVERAGE:Avg %1.3lf',
-			'GPRINT:memBuffers:MAX:Max %1.3lf\\n',
+			'GPRINT:memBuffers:LAST:Current %1.3lf %sb',
+			'GPRINT:memBuffers:AVERAGE:Avg %1.3lf %Sb',
+			'GPRINT:memBuffers:MAX:Max %1.3lf %Sb\\n',
 
 			'STACK:memFree#eeeeee:memFree',
-			'GPRINT:memFree:LAST:Current %1.3lf',
-			'GPRINT:memFree:AVERAGE:Avg %1.3lf',
-			'GPRINT:memFree:MAX:Max %1.3lf\\n',
+			'GPRINT:memFree:LAST:Current %1.3lf %sb',
+			'GPRINT:memFree:AVERAGE:Avg %1.3lf %Sb',
+			'GPRINT:memFree:MAX:Max %1.3lf %Sb\\n',
 		]
 	}
 );

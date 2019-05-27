@@ -56,7 +56,14 @@ sub collect_plugin
 
 	# this plugin deals only with CiscoViptelaCloud
 	return (0,undef) if ( $NI->{system}{nodeModel} ne "CiscoViptelaCloud" );
-
+	
+	# this plugin will run every minute so lets not poll the API too often.
+	if ( defined $NI->{system}{last_poll} and time() - $NI->{system}{last_poll} < 300 ) {
+		info("Skipping, plugin ran for $node less than 300 seconds ago.");
+		return (0,undef);
+	}
+	
+	# use the API to get data from the Cloud controller
 	my $viptelaData = getViptelaData(name => $node);
 	if ( defined $viptelaData->{error} ) {
 		logMsg("ERROR with $node: $viptelaData->{error}");
@@ -111,32 +118,33 @@ sub collect_plugin
 	}
 
 	# get some OMP and BFD data and events happening.
-	my $ompPeersTotal = $viptelaData->{ompPeersUp} + $viptelaData->{ompPeersDown};
-	my $bfdSessionsTotal = $viptelaData->{bfdSessionsUp} + $viptelaData->{bfdSessionsDown};
+	my $ompPeersTotal = $viptelaData->{ompPeersUp} + $viptelaData->{ompPeersDown} if $viptelaData->{peerData};
+	my $bfdSessionsTotal = $viptelaData->{bfdSessionsUp} + $viptelaData->{bfdSessionsDown} if $viptelaData->{peerData};
 
 	# if the thing is offline, then the node is down, online and alerting are Node Up
-	if ( $viptelaData->{ompPeersDown} ) {
+	if ( $viptelaData->{peerData} and $viptelaData->{ompPeersDown} ) {
 		# raise a new event.
 		notify(sys => $S, event => "OMP Peers Down", element => "", details => "Viptela Cloud Reporting OMP Peers are Down");
 		# reduce the health a bit
 		$health = $health - 5;
 	}
-	else {
+	elsif ( $viptelaData->{peerData} ) {
 		# check if event exists and clear it
 		checkEvent(sys => $S, event => "OMP Peers Down", level => "Normal", element => undef, details => "");
 	}
 
-	if ( $viptelaData->{bfdSessionsDown} ) {
+	if ( $viptelaData->{peerData} and $viptelaData->{bfdSessionsDown} ) {
 		# raise a new event.
 		notify(sys => $S, event => "BFD Sessions Down", element => "", details => "Viptela Cloud Reporting BFD Sessions are Down");
 		# reduce the health a bit
 		$health = $health - 5;
 	}
-	else {
+	elsif ( $viptelaData->{peerData} ) {
 		# check if event exists and clear it
 		checkEvent(sys => $S, event => "BFD Sessions Down", level => "Normal", element => undef, details => "");
 	}
-		
+	
+	# lets send some health metrics back from the pludin data
 	$RD->{health} = { value =>  $health, option => "gauge,0:U" };
 	$RD->{reachability} = { value =>  $reachability, option => "gauge,0:U" };
 
@@ -150,8 +158,29 @@ sub collect_plugin
 		$NI->{system}{'location_latitude'} = $viptelaData->{'latitude'};
 		$NI->{system}{'location_longitude'} = $viptelaData->{'longitude'};
 	}
+	
+	$NI->{system}{last_poll} = time();
 
-	$NI->{system}{'nodeVendor'} = "Cisco Systems, Inc.";
+	# Set some of the default display inforamtion
+	$NI->{system}{nodeVendor} = "Cisco Systems, Inc.";
+	$V->{system}{nodeVendor_value} = $NI->{system}{nodeVendor};
+	$V->{system}{nodeVendor_title} = 'Vendor';
+	$V->{system}{group_value} = $NI->{system}{group};
+	$V->{system}{group_title} = 'Group';
+	$V->{system}{customer_value} = $NI->{system}{customer};
+	$V->{system}{customer_title} = 'Customer';
+	$V->{system}{location_value} = $NI->{system}{location};
+	$V->{system}{location_title} = 'Location';
+	$V->{system}{businessService_value} = $NI->{system}{businessService};
+	$V->{system}{businessService_title} = 'Business Service';
+	$V->{system}{serviceStatus_value} = $NI->{system}{serviceStatus};
+	$V->{system}{serviceStatus_title} = 'Service Status';
+	$V->{system}{notes_value} = $NI->{system}{notes};
+	$V->{system}{notes_title} = 'Notes';
+
+	#$NI->{system}{"device-model"} = $viptelaData->{'device-model'};
+	#$V->{system}{"device-model_value"} = $viptelaData->{'device-model'};
+	#$V->{system}{"device-model_title"} = 'Viptela Device Model';
 
 	$V->{system}{"systemIp_value"} = $viptelaData->{'system-ip'};
 	$V->{system}{"systemIp_title"} = 'Viptela IP Address';
@@ -163,13 +192,15 @@ sub collect_plugin
 	# $V->{system}{"mac_title"} = 'Viptela MAC Address';
 
 	# Store the results for the GUI to display
+	$NI->{system}{"viptelastatus"} = $viptelaData->{'status'};
 	$V->{system}{"viptelastatus_value"} = $viptelaData->{status};
 	$V->{system}{"viptelastatus_title"} = 'Viptela Status';
 	$V->{system}{"viptelastatus_color"} = '#00FF00';
 	$V->{system}{"viptelastatus_color"} = '#FF0000' if $viptelaData->{reachability} eq "unreachable";
 
-	$V->{system}{"boardserial_value"} = $viptelaData->{'board-serial'};
-	$V->{system}{"boardserial_title"} = 'Viptela Board Serial';
+	$NI->{system}{"board-serial"} = $viptelaData->{'board-serial'};
+	$V->{system}{"board-serial_value"} = $viptelaData->{'board-serial'};
+	$V->{system}{"board-serial_title"} = 'Viptela Board Serial';
 
 	# $V->{system}{"perfScore_value"} = $viptelaData->{perfScore};
 	# $V->{system}{"perfScore_title"} = 'Viptela Performance Score';
@@ -177,25 +208,34 @@ sub collect_plugin
 	# $V->{system}{"publicIp_value"} = $viptelaData->{publicIp};
 	# $V->{system}{"publicIp_title"} = 'Viptela Public IP';
 
+	$NI->{system}{"viptela-uuid"} = $viptelaData->{'uuid'};
 	$V->{system}{"uuid_value"} = $viptelaData->{uuid};
 	$V->{system}{"uuid_title"} = 'Viptela UUID';
 
+	$NI->{system}{"personality"} = $viptelaData->{'personality'};
 	$V->{system}{"personality_value"} = $viptelaData->{personality};
 	$V->{system}{"personality_title"} = 'Viptela Personality';
 
+	$NI->{system}{"siteid"} = $viptelaData->{'site-id'};
 	$V->{system}{"siteid_value"} = $viptelaData->{'site-id'};
 	$V->{system}{"siteid_title"} = 'Viptela Site ID';
 
-	$V->{system}{"ompPeers_value"} = "$viptelaData->{ompPeersDown} of $ompPeersTotal";
-	$V->{system}{"ompPeers_title"} = 'OMP Peers Down';
-	$V->{system}{"ompPeers_color"} = '#00FF00';
-	$V->{system}{"ompPeers_color"} = '#ffd700' if $viptelaData->{ompPeersDown};
-
-	$V->{system}{"bfdSessions_value"} = "$viptelaData->{bfdSessionsDown} of $bfdSessionsTotal";
-	$V->{system}{"bfdSessions_title"} = 'BFD Sessions Down';
-	$V->{system}{"bfdSessions_color"} = '#00FF00';
-	$V->{system}{"bfdSessions_color"} = '#ffd700' if $viptelaData->{bfdSessionsDown};
-
+	if ( $viptelaData->{peerData} ) {
+		$NI->{system}{"ompPeersDown"} = $viptelaData->{ompPeersDown};
+		$NI->{system}{"ompPeersTotal"} = $ompPeersTotal;
+		$V->{system}{"ompPeers_value"} = "$viptelaData->{ompPeersDown} of $ompPeersTotal";
+		$V->{system}{"ompPeers_title"} = 'OMP Peers Down';
+		$V->{system}{"ompPeers_color"} = '#00FF00';
+		$V->{system}{"ompPeers_color"} = '#ffd700' if $viptelaData->{ompPeersDown};
+	
+		$NI->{system}{"bfdSessionsDown"} = $viptelaData->{bfdSessionsDown};
+		$NI->{system}{"bfdSessionsTotal"} = $bfdSessionsTotal;
+		$V->{system}{"bfdSessions_value"} = "$viptelaData->{bfdSessionsDown} of $bfdSessionsTotal";
+		$V->{system}{"bfdSessions_title"} = 'BFD Sessions Down';
+		$V->{system}{"bfdSessions_color"} = '#00FF00';
+		$V->{system}{"bfdSessions_color"} = '#ffd700' if $viptelaData->{bfdSessionsDown};
+	}
+	
 	return (1,undef);							# happy, changes were made so save view and nodes files
 }
 
@@ -251,8 +291,8 @@ sub getViptelaData {
 			saveJsonFile("$databaseDir/devices/$device->{'host-name'}.json",$device);
 			$deviceFound = 1;
 		}
-		$viptelaState->{lastDeviceStatuses} = time;
-		info("there were $count devices");
+		$viptelaState->{lastDeviceStatuses} = time();
+		info("there were $count Viptela devices");
 	}
 
 	# get the lossAndLatencyHistory for one deviceName
@@ -263,6 +303,11 @@ sub getViptelaData {
 		my $deviceData = loadJsonFile("$databaseDir/devices/$deviceName.json");
 		# get all the data from the cache.
 		$viptelaData = $deviceData;
+		
+		$viptelaData->{peerData} = 0;
+		if ( $viptelaData->{personality} =~ /vedge/ ) {
+			$viptelaData->{peerData} = 1;
+		}
 
 		#"status":"offline"}
 
@@ -312,18 +357,19 @@ sub getViptelaData {
 			$viptelaData->{mem_cached} = @$statisticData[0]->{mem_cached};
 			$viptelaData->{mem_buffers} = @$statisticData[0]->{mem_buffers};
 
-			$apiCall = "$apiBase/dataservice/device/counters?deviceId=$deviceData->{deviceId}";  # OK
-			info("about to run $apiCall");
-
-			my $counterData = getApiData(loginUrl => "$apiBase/j_security_check", url => $apiCall, username => $username, password => $password, debug => 0);
-			# my $statisticData = postApiData(loginUrl => "$apiBase/j_security_check", url => $apiCall, query => $query, username => $username, password => $password, debug => 0);
-
-			$viptelaData->{ompPeersUp} = @$counterData[0]->{ompPeersUp};
-			$viptelaData->{ompPeersDown} = @$counterData[0]->{ompPeersDown};
-			$viptelaData->{bfdSessionsUp} = @$counterData[0]->{bfdSessionsUp};
-			$viptelaData->{bfdSessionsDown} = @$counterData[0]->{bfdSessionsDown};
-			$viptelaData->{rebootCount} = @$counterData[0]->{rebootCount};
-			
+			if ( $viptelaData->{peerData} ) {
+				$apiCall = "$apiBase/dataservice/device/counters?deviceId=$deviceData->{deviceId}";  # OK
+				info("about to run $apiCall");
+	
+				my $counterData = getApiData(loginUrl => "$apiBase/j_security_check", url => $apiCall, username => $username, password => $password, debug => 0);
+				# my $statisticData = postApiData(loginUrl => "$apiBase/j_security_check", url => $apiCall, query => $query, username => $username, password => $password, debug => 0);
+	
+				$viptelaData->{ompPeersUp} = @$counterData[0]->{ompPeersUp};
+				$viptelaData->{ompPeersDown} = @$counterData[0]->{ompPeersDown};
+				$viptelaData->{bfdSessionsUp} = @$counterData[0]->{bfdSessionsUp};
+				$viptelaData->{bfdSessionsDown} = @$counterData[0]->{bfdSessionsDown};
+				$viptelaData->{rebootCount} = @$counterData[0]->{rebootCount};
+			}			
 			# NOT RETURNING ANY DATA IN DEMO
 			# $apiCall = "$apiBase/dataservice/device/ip/mfibstats?deviceId=$deviceData->{deviceId}";  # OK
 			# $apiCall = "$apiBase/dataservice/device/ip/nat/interfacestatistics?deviceId=$deviceData->{deviceId}";  # OK
@@ -342,11 +388,13 @@ sub getViptelaData {
 			$viptelaData->{mem_cached} = "U";
 			$viptelaData->{mem_buffers} = "U";
 
-			$viptelaData->{ompPeersUp} = "U";
-			$viptelaData->{ompPeersDown} = "U";
-			$viptelaData->{bfdSessionsUp} = "U";
-			$viptelaData->{bfdSessionsDown} = "U";
-			$viptelaData->{rebootCount} = "U";
+			if ( $viptelaData->{peerData} ) {
+				$viptelaData->{ompPeersUp} = "U";
+				$viptelaData->{ompPeersDown} = "U";
+				$viptelaData->{bfdSessionsUp} = "U";
+				$viptelaData->{bfdSessionsDown} = "U";
+				$viptelaData->{rebootCount} = "U";
+			}
 		}
 		saveJsonFile("$databaseDir/devices/$deviceName-data.json",$viptelaData);
 	}	else {
@@ -354,7 +402,7 @@ sub getViptelaData {
 	}
 
 	# save the viptela state info for caching
-	saveJsonFile("$viptelaStateFile", $viptelaState);
+	saveJsonFile($viptelaStateFile, $viptelaState);
 
 	# send back the results.
 	return $viptelaData;

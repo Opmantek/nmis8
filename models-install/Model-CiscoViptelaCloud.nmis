@@ -37,7 +37,7 @@
     'nodeModel' => 'CiscoViptelaCloud',
     'nodeType' => 'cloud',
     'nodeVendor' => 'Cisco Systems',
-    'nodegraph' => 'Viptela_CPU,Viptela_MEM',
+    'nodegraph' => 'health,Viptela_CPU,Viptela_MEM',
     'rrd' => {
       'viptelacpu' => {
       	'graphtype' => 'Viptela_CPU',
