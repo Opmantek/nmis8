@@ -30,13 +30,13 @@
 # This helper is there to help get your Nodes.nmis clean of issues when people make bad edits.
 
 use FindBin;
-use lib "$FindBin::Bin/../../nmis8/lib";
+use lib "$FindBin::Bin/../lib";
 use strict;
 use warnings;
 use func;
 
 my %arg = getArguements(@ARGV);
-my $nodesFile = '/usr/local/nmis8/conf/Nodes.nmis';
+my $nodesFile = "$FindBin::Bin/../conf/Nodes.nmis";
 
 my $usage = "Usage: act=run\n";
 

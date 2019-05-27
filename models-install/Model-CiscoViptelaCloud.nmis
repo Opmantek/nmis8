@@ -23,23 +23,27 @@
   },
   'database' => {
     'type' => {
-      'meraki' => '/nodes/$node/health/meraki.rrd',
+      'viptelacpu' => '/nodes/$node/health/viptelacpu.rrd',
+      'viptelamem' => '/nodes/$node/health/viptelamem.rrd',
     }
   },
   'heading' => {
     'graphtype' => {
-      'Meraki_Health' => "Meraki Device Health",      
+      'Viptela_CPU' => "Viptela Device CPU",
+      'Viptela_MEM' => "Viptela Device MEM",
     }
   },
   'system' => {
-    'nodeModel' => 'CiscoMerakiCloud',
+    'nodeModel' => 'CiscoViptelaCloud',
     'nodeType' => 'cloud',
     'nodeVendor' => 'Cisco Systems',
-    'nodegraph' => 'health,Meraki_Health',
-
+    'nodegraph' => 'health,Viptela_CPU,Viptela_MEM',
     'rrd' => {
-      'meraki' => {
-      	'graphtype' => 'Meraki_Health',
+      'viptelacpu' => {
+      	'graphtype' => 'Viptela_CPU',
+      },
+      'viptelamem' => {
+      	'graphtype' => 'Viptela_MEM',
       }
     },
   },
