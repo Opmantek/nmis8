@@ -423,9 +423,16 @@ sub	runThreads
 			if ($type eq "update" or $type eq "collect"); # relevant only for these
 	my %problematic;
 
-	if ($type eq "update" or $type eq "services")
+	if ($type eq "update" )
 	{
 		@todo_nodes = grep(getbool($NT->{$_}->{active}), @candnodes);
+	}
+	# only consider nodes for services if they have some services to poll
+	elsif ($type eq "services")
+	{
+		foreach my $maybe (@candnodes) {
+			push(@todo_nodes,$maybe) if ( defined $NT->{$maybe}->{services} and $NT->{$maybe}->{services} ne "" );
+		}
 	}
 	else
 	{
@@ -1267,10 +1274,6 @@ sub doServices
 {
 	my (%args) = @_;
 	my $name = $args{name};
-
-	# lets return really early from even trying services.
-	my $NT = loadLocalNodeTable();
-	return if ( not defined $NT->{$name}{services} or $NT->{$name}{services} eq "" );
 	
 	info("================================");
 	info("Starting services, node $name");
@@ -1499,7 +1502,8 @@ sub doCollect
 
 	# Need to poll services under all circumstances, i.e. if no ping, or node down or set to no collect
 	# but try snmp services only if snmp is actually ok
-	runServices(sys=>$S, snmp => getbool($NI->{system}->{snmpdown})? 'false':'true' );
+	# only do services if the node has services defined.
+	runServices(sys=>$S, snmp => getbool($NI->{system}->{snmpdown})? 'false':'true' ) if ( defined $NC->{node}{services} and $NC->{node}{services} ne "" );
 
 	runCheckValues(sys=>$S);
 	# don't let runreach perform the rrd update, we want to add the polltime to it!
