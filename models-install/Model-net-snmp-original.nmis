@@ -53,18 +53,16 @@
       'software' => {
         'common-model' => 'software'
       },
-      'Host_Resources' => {
-        'common-model' => 'Host_Resources'
-      },
-    }    
+    }
   },
 
   'system' => 
 	{
-    'nodeModel' => 'net-snmp',
+    'nodeModel' => 'net-snmp-original',
     'nodeVendor' => 'net-snmp',
     'nodeType' => 'server',
-    'nodegraph' => 'health,response,ip,tcp-conn,tcp-segs,hrsystem,ss-cpu,laload,Host_Memory,hrsmpcpu,hrmem,hrcachemem,hrbufmem,hrswapmem,hrvmem',
+    
+		'nodegraph' => 'health,response,ip,tcp-conn,tcp-segs,hrsystem,ss-cpu,laload,hrsmpcpu,hrmem,hrcachemem,hrbufmem,hrswapmem,hrvmem',
     
 		'sys' => 
 		{
@@ -413,20 +411,8 @@
         'level' => '',
         'control' => 'CVAR=hrStorageType;$CVAR =~ /Fixed Disk/',
       },
-      'CriticalDiskUsage' => {
-        'element' => 'hrStorageDescr',
-        'event' => 'Critical Disk Usage',
-        'level' => 'Critical',
-        'test' => 'CVAR1=hrStorageSize;CVAR2=hrStorageUsed;$CVAR2 / $CVAR1 * 100 > 90',
-        'type' => 'test',
-        'title' => 'Critical Disk Usage',
-        'unit' => '%',
-        'value' => 'CVAR1=hrStorageSize;CVAR2=hrStorageUsed;$CVAR2 / $CVAR1 * 100',
-        'control' => 'CVAR=hrStorageType;$CVAR =~ /Fixed Disk/',
-      },
       'HighMemoryUsage' => {
         'type' => 'threshold-rising',
-				# to disable particular levels, set their value to the same as the desired one
         'threshold' => {
           'Warning' => '99.4',
           'Minor' => '99.4',
@@ -461,29 +447,10 @@
         'level' => '',
         'control' => 'CVAR=hrStorageType;$CVAR =~ /Swap/',
 			},
-      'CriticalSwapUsage' => {
-        'type' => 'threshold-rising',
-				# to disable particular levels, set their value to the same as the desired one
-        'threshold' => {
-          'Warning' => '50',
-          'Minor' => '50',
-          'Major' => '50',
-          'Critical' => '50',
-          'Fatal' => '75',
-        },
-        'test' => '',
-        'value' => 'CVAR1=hrStorageSize;CVAR2=hrStorageUsed;$CVAR2 / $CVAR1 * 100',
-        'element' => 'hrStorageDescr',
-        'unit' => '%',
-        'event' => 'Critical Swap Usage',
-        'level' => '',
-        'control' => 'CVAR=hrStorageType;$CVAR =~ /Swap/',
-			},
     },
   },
   'systemHealth' => {
-    #Server_Connections
-    'sections' => 'diskIOTable,software,Host_Device,Host_Processor,Host_Storage,Host_Disk_Storage,Host_Partition,Host_File_System',
+    'sections' => 'diskIOTable,software',
     'sys' => {
       'diskIOTable' => {        
         'indexed' => 'diskIOIndex',        
@@ -813,7 +780,7 @@
       }
     },
     'nocollect' => {
-      'Description' => '/mnt/cdrom|boot'
+      'Description' => '^(/mnt/cdrom$|/media|/run|/dev/shm|/sys)',
     }
   },
 );
