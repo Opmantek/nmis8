@@ -61,6 +61,8 @@ my $C = loadConfTable(conf=>$conf);
 die "Failed to read configuration!\n" if (ref($C) ne "HASH" or !keys %$C);
 
 my $reportdir = $C->{report_root};
+# does this exist and if not make it
+createDir($reportdir);
 
 my ($start, $end, $outfile);
 my $time = time();
