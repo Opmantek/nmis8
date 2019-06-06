@@ -219,6 +219,23 @@
           'level' => 'Warning'
         }
       },
+      'node configuration change detected' => {
+        'core' => {
+          'logging' => 'true',
+          'syslog' => 'true',
+          'level' => 'Warning'
+        },
+        'access' => {
+          'logging' => 'true',
+          'syslog' => 'true',
+          'level' => 'Normal'
+        },
+        'distribution' => {
+          'logging' => 'true',
+          'syslog' => 'true',
+          'level' => 'Warning'
+        }
+      },
       'proactive' => {
         'core' => {
           'logging' => 'true',
