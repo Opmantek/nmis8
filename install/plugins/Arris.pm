@@ -73,7 +73,7 @@ sub update_plugin
 				$entry->{cadMacChlChannelIfIndex} = shift(@parts);
 				
 				# use a shorter easier name now
-				my $ifIndex = $entry->{cadMacChlChannelIfIndex}
+				my $ifIndex = $entry->{cadMacChlChannelIfIndex};
 	
 				# do I have an interface defined for that index?
 				if ( defined $IF->{$ifIndex}{ifDescr} ) {
