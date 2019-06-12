@@ -146,6 +146,17 @@ $length = 24 if ( $length < 24 ); # minimum packet size is 20 + 4 bytes
 my $retries = $C->{fastping_retries} || 3;
 my $count   = $C->{fastping_count} || 3;
 
+# new fping options for "interval between sending ping packets" and "interval between ping packets to one target"
+# some crazy firewalls like to have larger gaps, so -i 80 and -p 100 could be used in the config.
+my $interval = $C->{fastping_interval} || 1;
+my $target_interval   = $C->{fastping_target_interval} || 1;
+
+# need to set these as well, but never less than the limits for non-root users.
+my $non_root_interval = $C->{fastping_interval} || 10;
+my $non_root_target_interval   = $C->{fastping_target_interval} || 20;
+$non_root_interval = 10 if $non_root_interval < 10;
+$non_root_target_interval = 20 if $non_root_interval < 20;
+
 # we want fping to do the work, no need to avg/min/max ourselves
 # -c X produces: 'somenode : xmt/rcv/%loss = 5/5/0%, min/avg/max = 0.73/0.86/0.97'
 my @fpingcmd = 	("fping", "-t", $timeout, "-c", $count, "-q",
@@ -153,9 +164,9 @@ my @fpingcmd = 	("fping", "-t", $timeout, "-c", $count, "-q",
 
 push @fpingcmd, ($< == 0?
 								 # use this command for fping if script run as user root
-								 ("-i", 1, "-p", 1)
+								 ("-i", $interval, "-p", $target_interval)
 								 : 	# non-root requires i >= 10, p >= 20, r < 20, and t >= 50
-								 ("-i", 10, "-p", 20));
+								 ("-i", $non_root_interval, "-p", $non_root_target_interval));
 
 # how many nodes per fping invocation
 my $maxnodes = $C->{fastping_node_poll} || 200;
