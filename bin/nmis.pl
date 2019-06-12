@@ -523,6 +523,8 @@ sub	runThreads
 						? Statistics::Lite::min( $intervals{$polname}->{snmp}, $intervals{$polname}->{wmi} )
 						: $intervals{$polname}->{update};
 
+				## fixme, if the node is polled every 60 seconds then it is always a candidate........		
+						
 				# but do make sure to try a newly added node NOW!
 				my $fudgefactor = ($C->{polling_interval_factor} || 0.9);
 				my $nexttry = defined $lasttry? $lasttry
@@ -1496,6 +1498,7 @@ sub doCollect
 			runAlerts(sys=>$S) if defined $S->{mdl}{alerts};
 
 			# remember when the collect poll last completed successfully
+			$NI->{system}{collectPollDelta} = time() - $NI->{system}{lastCollectPoll};
 			$NI->{system}{lastCollectPoll} = time();
 		}
 		else
@@ -1555,6 +1558,9 @@ sub doCollect
 	my $polltime = $pollTimer->elapTime();
 	info("polltime for $name was $polltime");
 	$reachdata->{polltime} = { value =>  $polltime, option => "gauge,0:U" };
+	# when did we start polling? what is the difference between polls, using time as a counter will give us the delta between polls.
+	$reachdata->{polldelta} = { value => $NI->{system}{collectPollDelta}, option => "gauge,0:U," };
+
 	# parrot the previous reading's update time
 	my $prevval = "U";
 	if (my $rrdfilename = $S->getDBName(type => "health"))
