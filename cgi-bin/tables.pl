@@ -411,7 +411,16 @@ sub editTable
 			. hidden(-override => 1, -name => "cancel", -value => '', -id=> "cancelinput")
  			. hidden(-override => 1, -name => "update", -value => '', -id=> "updateinput");
 
-
+	# ugly hack to avoid Chrome autofill the form 
+	print  " <span style='display:none'>Username</span>" .
+			textfield(-name=>"authusername",
+								-style=> 'opacity: 0;position: absolute;',
+								-size=>  ($wantwidget? 35 : 70)),
+			" <span style='display:none'>Password</span>" .
+			 password_field(-name=>"fakepassword", 
+												-style=> 'opacity: 0;position: absolute;',
+												-size=>  ($wantwidget? 35 : 70) );
+			 
 	my $anyMandatory = 0;
 	print start_table;
 	print Tr(th({class=>'title',colspan=>'2'},"Table $table"));
