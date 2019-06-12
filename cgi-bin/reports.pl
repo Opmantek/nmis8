@@ -773,8 +773,10 @@ sub timesReport
 
 			my %entry = ( node => $reportnode,
 										polltime => "N/A",
+										polldelta => "N/A",
 										updatetime => "N/A",
 										polltimecolor => "#000000",
+										polldeltacolor => "#000000",
 										updatetimecolor => "#000000" );
 			# find health rrd
 			if (-f (my $rrdfilename = $S->getDBName(type => "health")))
@@ -783,7 +785,7 @@ sub timesReport
 																index => undef, item => undef,
 																start => $start,  end => $end);
 
-				for my $thing (qw(polltime updatetime))
+				for my $thing (qw(polltime polldelta updatetime))
 				{
 					my $value = $stats->{$thing}->{mean};
 					if (defined $value)
@@ -834,6 +836,8 @@ sub timesReport
 		td({class=>'header',align=>'center'},
 			 a({href=>"$url&sort=polltime"},'Collect Time (s)')),
 		td({class=>'header',align=>'center'},
+			 a({href=>"$url&sort=polldelta"},'Collect Delta (s)')),
+		td({class=>'header',align=>'center'},
 			 a({href=>"$url&sort=updatetime"},'Update Time (s)')),
 			);
 
@@ -842,10 +846,13 @@ sub timesReport
 												 $sortcrit eq "node"? $first->{$sortcrit} cmp $second->{$sortcrit}
 												 : $first->{$sortcrit} <=> $second->{$sortcrit}; } @report)
 	{
-		my ($node,$poll,$update,$pollcolor,$updatecolor) = @{$sorted}{"node","polltime","updatetime",
-																																	"polltimecolor","updatetimecolor"};
+		my ($node,$poll,$delta,$update,$pollcolor,$deltacolor,$updatecolor) = @{$sorted}{"node","polltime","polldelta","updatetime",
+																																	"polltimecolor","polldeltacolor","updatetimecolor"};
 		$poll = "N/A" if (!defined $poll);
+		$delta = "N/A" if (!defined $delta);
 		$update = "N/A" if (!defined $update);
+		
+		$deltacolor = "#ffffff";
 
 		my $thisnodegraph = $graphlinkbase ."&node=".uri_escape($node);
 
@@ -861,6 +868,12 @@ sub timesReport
 						onclick => "viewwndw(\'$node\',\'$thisnodegraph\',$C->{win_width},$C->{win_height} * 1.5)"},
 					 $poll)),
 
+			td({class=>'info Plain', style=> getBGColor($deltacolor)},
+				 a({target => "Graph-$node",
+						class => "islink",
+						onclick => "viewwndw(\'$node\',\'$thisnodegraph\',$C->{win_width},$C->{win_height} * 1.5)"},
+					 $delta)),
+					 
 			td({class=>'info Plain', style => getBGColor($updatecolor)},
 				 a({target => "Graph-$node",
 						class => "islink",
