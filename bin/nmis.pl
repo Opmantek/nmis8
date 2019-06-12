@@ -7795,6 +7795,8 @@ LABEL_ESC:
 					$EST->{$esc}{Event_Element} = ($EST->{$esc}{Event_Element} eq '') ? '.*' : $EST->{$esc}{Event_Element};
 					$EST->{$esc}{Event_Node} =~ s;/;;g;
 					$EST->{$esc}{Event_Element} =~ s;/;\\/;g;
+					# to handle c:\\ as an element
+					$EST->{$esc}{Event_Element} =~ s;\\\\;\\;g;
 					if ($klst eq $esc_short
 							and $thisevent->{node} =~ /$EST->{$esc}{Event_Node}/i
 							and $thisevent->{element} =~ /$EST->{$esc}{Event_Element}/i
