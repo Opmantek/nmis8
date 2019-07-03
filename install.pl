@@ -877,7 +877,7 @@ else
 		# patch config changes that affect existing entries, which update_config_defaults
 		# doesn't handle
 		# which includes enabling uuid and showing the polling_policy
-		execPrint("$site/admin/patch_config.pl -b $site/conf/Config.nmis /system/non_stateful_events='Node Configuration Change, Node Configuration Change Detected, Node Reset, NMIS runtime exceeded'  /system/node_summary_field_list,=uuid /system/json_node_fields,=uuid /system/network_viewNode_field_list,=polling_policy");
+		execPrint("$site/admin/patch_config.pl -b $site/conf/Config.nmis /system/non_stateful_events='Node Configuration Change, Node Configuration Change Detected, Node Reset, NMIS runtime exceeded, Interface ifAdminStatus Changed'  /system/node_summary_field_list,=uuid /system/json_node_fields,=uuid /system/network_viewNode_field_list,=polling_policy");
 		echolog("\n");
 
 		echolog("By default this version NMIS demotes nodes that have never

@@ -4113,7 +4113,7 @@ sub checkEvent
 	my $thisevent_control = $events_config->{$event} || { Log => "true", Notify => "true", Status => "true"};
 
 	# set defaults just in case any are blank.
-	$C->{'non_stateful_events'} ||= 'Node Configuration Change, Node Reset';
+	$C->{'non_stateful_events'} ||= 'Node Configuration Change, Node Configuration Change Detected, Node Reset, NMIS runtime exceeded, Interface ifAdminStatus Changed';
 	$C->{'threshold_falling_reset_dampening'} ||= 1.1;
 	$C->{'threshold_rising_reset_dampening'} ||= 0.9;
 

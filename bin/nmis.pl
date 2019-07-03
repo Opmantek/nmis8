@@ -4013,7 +4013,14 @@ sub getIntfData
 				if (($ifAdminTable->{$index} == 1 and $IF->{$index}{ifAdminStatus} ne 'up')
 					or ($ifAdminTable->{$index} != 1 and $IF->{$index}{ifAdminStatus} eq 'up') )
 				{
-					### logMsg("INFO ($S->{name}) ifIndex=$index, Admin was $IF->{$index}{ifAdminStatus} now $ifAdminTable->{$index} (1=up) rebuild");
+					my $ifAdminStatusNow = $ifAdminTable->{$index} ? "up" : "down";
+					logMsg("INFO ($S->{name}) ifIndex=$index, $IF->{$index}{ifDescr}, Admin was $IF->{$index}{ifAdminStatus} now $ifAdminStatusNow($ifAdminTable->{$index}) rebuild");
+					notify(sys=>$S,
+								 event=>"Interface ifAdminStatus Changed",
+								 element=>"$IF->{$index}{ifDescr}",
+								 details=>"Admin was $IF->{$index}{ifAdminStatus} now $ifAdminStatusNow",
+								 context => { type => "node" },
+							);			
 					getIntfInfo(sys=>$S,index=>$index); # update this interface
 				}
 				# total number of interfaces up
@@ -7679,7 +7686,9 @@ LABEL_ESC:
 
 		### 2013-08-07 keiths, taking too long when MANY interfaces e.g. > 200,000
 		if ( $thisevent->{event} =~ /interface/i
-				 and $thisevent->{event} !~ /proactive/i )
+				 and $thisevent->{event} !~ /proactive/i 
+				 and $thisevent->{event} !~ /Interface ifAdminStatus Changed/i 
+			)
 		{
 			### load the interface information and check the collect status.
 			my $S = Sys->new; # node object

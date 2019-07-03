@@ -236,6 +236,23 @@
           'level' => 'Warning'
         }
       },
+      'interface ifadminstatus changed' => {
+        'core' => {
+          'logging' => 'true',
+          'syslog' => 'true',
+          'level' => 'Minor'
+        },
+        'access' => {
+          'logging' => 'true',
+          'syslog' => 'true',
+          'level' => 'Normal'
+        },
+        'distribution' => {
+          'logging' => 'true',
+          'syslog' => 'true',
+          'level' => 'Warning'
+        }
+      },
       'proactive' => {
         'core' => {
           'logging' => 'true',

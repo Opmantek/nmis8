@@ -155,9 +155,8 @@
     'CancelingEvent' => 'Backup Host Up',
     'Description' => 'The host_backup address has become unreachable.',
   },
-
-  'Node Configuration Change' => {
-    'Event' => 'Node Configuration Change',
+  'Node Configuration Change Detected' => {
+    'Event' => 'Node Configuration Change Detected',
     'Notify' => 'true',
     'Status' => 'true',
     'Log' => 'true',
@@ -165,8 +164,8 @@
     'CancelingEvent' => 'N/A',
     'Description' => 'A configuration change has been detected on this node.',
   },
-  'Node Configuration Change Detected' => {
-    'Event' => 'Node Configuration Change Detected',
+  'Node Configuration Change' => {
+    'Event' => 'Node Configuration Change',
     'Notify' => 'true',
     'Status' => 'true',
     'Log' => 'true',
