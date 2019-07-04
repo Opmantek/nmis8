@@ -4010,11 +4010,12 @@ sub getIntfData
 			{
 				logMsg("INFO ($S->{name}) entry ifAdminStatus for index=$index not found in interface table") if not exists $IF->{$index}{ifAdminStatus};
 
-				if (($ifAdminTable->{$index} == 1 and $IF->{$index}{ifAdminStatus} ne 'up')
-					or ($ifAdminTable->{$index} != 1 and $IF->{$index}{ifAdminStatus} eq 'up') )
+				if ( ($ifAdminTable->{$index} == 1 and $IF->{$index}{ifAdminStatus} ne 'up')
+					or ($ifAdminTable->{$index} != 1 and $IF->{$index}{ifAdminStatus} eq 'up') 
+					)
 				{
-					my $ifAdminStatusNow = $ifAdminTable->{$index} ? "up" : "down";
-					logMsg("INFO ($S->{name}) ifIndex=$index, $IF->{$index}{ifDescr}, Admin was $IF->{$index}{ifAdminStatus} now $ifAdminStatusNow($ifAdminTable->{$index}) rebuild");
+					my $ifAdminStatusNow = $ifAdminTable->{$index} == 1 ? "up" : "down";
+					dbg("INFO ($S->{name}) ifIndex=$index, $IF->{$index}{ifDescr}, Admin was $IF->{$index}{ifAdminStatus} now $ifAdminStatusNow($ifAdminTable->{$index}) rebuild",1);
 					notify(sys=>$S,
 								 event=>"Interface ifAdminStatus Changed",
 								 element=>"$IF->{$index}{ifDescr}",
