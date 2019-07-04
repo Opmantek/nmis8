@@ -812,6 +812,9 @@ if ($isnewinstall)
 }
 else
 {
+	# if somehow this got installed, lets uninstall it.
+	unlink("$site/conf/plugins/TestPlugin.pm") if (-f "$site/conf/plugins/TestPlugin.pm");
+
 	# copy over missing plugins if allowed
 	opendir(D,"$site/install/plugins") or warn "cannot open directory install/plugins: $!\n";
 	my @candidates = grep(/\.pm$/, readdir(D));
