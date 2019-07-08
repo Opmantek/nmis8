@@ -104,8 +104,9 @@ if ( -f $pidfile )
 
 # and also make sure no others are lurking
 my $ptable = Proc::ProcessTable->new(enable_ttys => 0);
-# note: strict equality is required, or wrapping processes like sudo ./bin/fpingd.pl will be killed as well.
-for my $maybe (grep($_->cmndline eq $C->{'daemon_fping_filename'},
+# strict equality check not possible as some platforms add space padding
+# when $0 is changed
+for my $maybe (grep($_->cmndline =~ /^$C->{'daemon_fping_filename'}/,
 										@{$ptable->table}))
 {
 	my $thatpid = $maybe->pid;

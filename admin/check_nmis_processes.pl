@@ -48,7 +48,7 @@ my $now = time();
 printf($FORMAT, "PID", "TTY", "STAT", "START", "RUNTIME", "COMMAND"); 
 foreach my $p ( @{$t->table} ){
 	my $runtime = time - $p->start;
-	if ( $p->cmndline =~ /nmis.pl.collect/ ) {
+	if ( $p->cmndline =~ /^nmis.pl.collect/ ) {
 		printf($FORMAT, 
 		$p->pid, 
 		$p->ttydev, 
