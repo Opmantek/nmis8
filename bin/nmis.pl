@@ -80,11 +80,45 @@ my $C = loadConfTable(conf => $cmdargs->{conf}, debug=>$cmdargs->{debug}, info=>
 die "nmis cannot operate without config!\n" if (ref($C) ne "HASH");
 diag_log(LOG_INFO, "NMIS process started.");
 
-# check for global collection off or on
-# useful for disabling nmis poll for server maintenance, nmis upgrades etc.
-my $lockoutfile = $C->{'<nmis_conf>'}."/NMIS_IS_LOCKED";
+# let's consume all the supported command line arguments
+# operation type
+my $type		= lc($cmdargs->{type});
+# cisco import file
+my $rmefile		= $cmdargs->{rmefile};
 
-if (-f $lockoutfile or getbool($C->{global_collect},"invert"))
+# these can be empty, an array or a single node name
+my $nodeselect		= $cmdargs->{node};
+my $groupselect	= $cmdargs->{group};
+my $forceoverride = getbool($cmdargs->{force}); # ignore the polling policy, ignore old nodeinfo files for update
+my $simulate = getbool($cmdargs->{simulate});		# for purge_files
+
+my $sleep	= $cmdargs->{sleep};
+my $ignorerunning = getbool($cmdargs->{ignore_running}); # to kill or not to kill, that is the question
+
+# model-related debug flag
+my $model		= getbool($cmdargs->{model});
+my $wantsystemcron = getbool($cmdargs->{system}); # for printCrontab
+
+# multiprocessing: commandline overrides config
+my $mthread	= (exists $cmdargs->{mthread}? $cmdargs->{mthread} : $C->{nmis_mthread}) || 0;
+my $maxThreads = (exists $cmdargs->{maxthreads}? $cmdargs->{maxthreads} : $C->{nmis_maxthreads}) || 1;
+my $mthreadDebug=$cmdargs->{mthreaddebug}; # cmdline only for this debugging flag
+
+# park the list of collect/update plugins globally
+my @active_plugins;
+
+# if no type given, just run the command line options
+if ( $type eq "" )
+{
+	print "No runtime option type= on command line\n\n";
+	checkArgs();
+	exit(1);
+}
+
+# check for locked nmis and bail out early; except for administrative actions which are ok when locked
+my $lockoutfile = $C->{'<nmis_conf>'}."/NMIS_IS_LOCKED";
+if ((-f $lockoutfile or getbool($C->{global_collect},"invert"))
+		and $type !~ /^(config|audit|apache|apache24|crontab)$/)				# allow those actions even while locked
 {
 	# if nmis is locked, run a quick nondelay selftest so that we have something for the GUI
 	my $varsysdir = $C->{'<nmis_var>'}."/nmis_system";
@@ -118,40 +152,6 @@ if (-f $lockoutfile or getbool($C->{global_collect},"invert"))
 
 		die "Attention: NMIS is currently disabled!\nSet the configuration variable \"global_collect\" to \"true\" to re-enable.\n\n";
 	}
-}
-
-# let's consume all the supported command line arguments
-# operation type
-my $type		= lc($cmdargs->{type});
-# cisco import file
-my $rmefile		= $cmdargs->{rmefile};
-
-# these can be empty, an array or a single node name
-my $nodeselect		= $cmdargs->{node};
-my $groupselect	= $cmdargs->{group};
-my $forceoverride = getbool($cmdargs->{force}); # ignore the polling policy, ignore old nodeinfo files for update
-my $simulate = getbool($cmdargs->{simulate});		# for purge_files
-
-my $sleep	= $cmdargs->{sleep};
-my $ignorerunning = getbool($cmdargs->{ignore_running}); # to kill or not to kill, that is the question
-
-# model-related debug flag
-my $model		= getbool($cmdargs->{model});
-my $wantsystemcron = getbool($cmdargs->{system}); # for printCrontab
-
-# multiprocessing: commandline overrides config
-my $mthread	= (exists $cmdargs->{mthread}? $cmdargs->{mthread} : $C->{nmis_mthread}) || 0;
-my $maxThreads = (exists $cmdargs->{maxthreads}? $cmdargs->{maxthreads} : $C->{nmis_maxthreads}) || 1;
-my $mthreadDebug=$cmdargs->{mthreaddebug}; # cmdline only for this debugging flag
-
-# park the list of collect/update plugins globally
-my @active_plugins;
-
-# if no type given, just run the command line options
-if ( $type eq "" ) {
-	print "No runtime option type= on command line\n\n";
-	checkArgs();
-	exit(1);
 }
 
 print qq/
@@ -523,8 +523,8 @@ sub	runThreads
 						? Statistics::Lite::min( $intervals{$polname}->{snmp}, $intervals{$polname}->{wmi} )
 						: $intervals{$polname}->{update};
 
-				## fixme, if the node is polled every 60 seconds then it is always a candidate........		
-						
+				## fixme, if the node is polled every 60 seconds then it is always a candidate........
+
 				# but do make sure to try a newly added node NOW!
 				my $fudgefactor = ($C->{polling_interval_factor} || 0.9);
 				my $nexttry = defined $lasttry? $lasttry
@@ -1282,7 +1282,7 @@ sub doServices
 {
 	my (%args) = @_;
 	my $name = $args{name};
-	
+
 	info("================================");
 	info("Starting services, node $name");
 
@@ -4011,7 +4011,7 @@ sub getIntfData
 				logMsg("INFO ($S->{name}) entry ifAdminStatus for index=$index not found in interface table") if not exists $IF->{$index}{ifAdminStatus};
 
 				if ( ($ifAdminTable->{$index} == 1 and $IF->{$index}{ifAdminStatus} ne 'up')
-					or ($ifAdminTable->{$index} != 1 and $IF->{$index}{ifAdminStatus} eq 'up') 
+					or ($ifAdminTable->{$index} != 1 and $IF->{$index}{ifAdminStatus} eq 'up')
 					)
 				{
 					my $ifAdminStatusNow = $ifAdminTable->{$index} == 1 ? "up" : "down";
@@ -4021,7 +4021,7 @@ sub getIntfData
 								 element=>"$IF->{$index}{ifDescr}",
 								 details=>"Admin was $IF->{$index}{ifAdminStatus} now $ifAdminStatusNow",
 								 context => { type => "node" },
-							);			
+							);
 					getIntfInfo(sys=>$S,index=>$index); # update this interface
 				}
 				# total number of interfaces up
@@ -7687,8 +7687,8 @@ LABEL_ESC:
 
 		### 2013-08-07 keiths, taking too long when MANY interfaces e.g. > 200,000
 		if ( $thisevent->{event} =~ /interface/i
-				 and $thisevent->{event} !~ /proactive/i 
-				 and $thisevent->{event} !~ /Interface ifAdminStatus Changed/i 
+				 and $thisevent->{event} !~ /proactive/i
+				 and $thisevent->{event} !~ /Interface ifAdminStatus Changed/i
 			)
 		{
 			### load the interface information and check the collect status.
@@ -8908,7 +8908,7 @@ PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 
 ######################################################
 # Run (selective) Statistics and Service Status Collection often
-*/1 * * * * $usercol $C->{'<nmis_base>'}/bin/nmis.pl type=collect mthread=true 
+*/1 * * * * $usercol $C->{'<nmis_base>'}/bin/nmis.pl type=collect mthread=true
 */1 * * * * $usercol $C->{'<nmis_base>'}/bin/nmis.pl type=services mthread=true
 
 ######################################################
