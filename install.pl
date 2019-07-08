@@ -253,7 +253,7 @@ libcrypt-ssleay-perl apache2 fping nmap snmp snmpd snmptrapd libnet-snmp-perl
 libcrypt-passwdmd5-perl libjson-xs-perl libnet-dns-perl
 libio-socket-ssl-perl libwww-perl libnet-smtp-ssl-perl libnet-smtps-perl
 libcrypt-unixcrypt-perl libcrypt-rijndael-perl libuuid-tiny-perl libproc-processtable-perl libdigest-sha-perl
-libnet-ldap-perl libnet-snpp-perl libdbi-perl libtime-modules-perl
+libnet-ldap-perl libnet-snpp-perl libdbi-perl
 libsoap-lite-perl libauthen-simple-radius-perl libauthen-tacacsplus-perl
 libauthen-sasl-perl rrdtool librrds-perl libtest-deep-perl dialog libcrypt-des-perl libdigest-hmac-perl libclone-perl
 libexcel-writer-xlsx-perl libmojolicious-perl libdatetime-perl
@@ -293,10 +293,18 @@ perl-Text-CSV perl-Text-CSV_XS));
 	# stretch no longer ships with these packages...
 	push @debpackages, (qw(libui-dialog-perl libsys-syslog-perl))
 			if ($osflavour eq "debian" and $osmajor <= 8);
+	# buster/10 ships with these packages...
+	push @debpackages, (qw(libtime-parsedate-perl libui-dialog-perl))
+			if ($osflavour eq "debian" and $osmajor >= 10);
+	# ...but buster no longer ships with those - now virtual
+	push @debpackages, (qw(libtime-modules-perl))
+			if ($osflavour eq "debian" and $osmajor <= 9);
+
 	# ubuntu 16.04.3 lts does have a different subset
 	push @debpackages, (qw(libproc-queue-perl libstatistics-lite-perl libgd-perl libui-dialog-perl))
 			if ($osflavour eq "ubuntu" and $osmajor >= 16);
-
+	# ubuntu ships with that one up to and including 18.04lts
+	push @debpackages, (qw(libtime-modules-perl)) if ($osflavour eq "ubuntu");
 
 	my $pkgmgr = $osflavour eq "redhat"? "YUM": ($osflavour eq "debian" or $osflavour eq "ubuntu")? "APT": undef;
 	my $pkglist = $osflavour eq "redhat"? \@rhpackages : ($osflavour eq "debian" or $osflavour eq "ubuntu")? \@debpackages: undef;
@@ -1243,6 +1251,9 @@ It is highly recommended that you perform the RRD migration.");
 		}
 	}
 }
+
+# pidfiles etc. need that dir
+safemkdir("$site/var") if (!-d "$site/var");
 
 echolog("Ensuring correct file permissions...");
 execPrint("$site/admin/fixperms.pl");
