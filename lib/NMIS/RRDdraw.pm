@@ -27,7 +27,7 @@
 #
 # *****************************************************************************
 package NMIS::RRDdraw;
-our $VERSION = "8.6.7G";
+our $VERSION = "8.6.8G";
 
 use strict;
 use FindBin;
