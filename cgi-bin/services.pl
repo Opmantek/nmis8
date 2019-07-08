@@ -27,18 +27,20 @@
 #  http://support.opmantek.com/users/
 #
 # *****************************************************************************
-# Auto configure to the <nmis-base>/lib
+use strict;
+
+
 use FindBin;
 use lib "$FindBin::Bin/../lib";
 
-use strict;
 use URI::Escape;
+use CGI;
+use Data::Dumper;
+use List::Util 1.33;
 
 use func;
 use NMIS;
 use Auth;
-use CGI;
-use Data::Dumper;
 
 my $q = new CGI; # processes all parameters passed via GET and POST
 my $Q = $q->Vars; # param values in hash
@@ -99,8 +101,12 @@ sub display_details
 	pageStart(title => "NMIS Services", refresh => $Q->{refresh})
 			if (!$wantwidget);
 
+	my @configuredgroups = (split(/\s*,\s*/, $C->{group_list}));
 	my $LNT = loadLocalNodeTable;
-	if (!$wantnode or !$LNT->{$wantnode} or !$AU->InGroup($LNT->{$wantnode}->{group}))
+	if (!$wantnode or !$LNT->{$wantnode}
+			or !$AU->InGroup($LNT->{$wantnode}->{group})
+			or List::Util::none { $LNT->{$wantnode}->{group} eq $_ }
+			(@configuredgroups))
 	{
 		print "You are not Authorized to view services on node '$wantnode'!";
 		pageEnd if (!$wantwidget);
@@ -354,6 +360,7 @@ sub display_overview
 	$q->td({-class=>"header"}, $q->a({-class=>"wht", -href=>$url."&sort=status_text"}, "Last Status Text")),
 	"</tr>";
 
+	my @configuredgroups = (split(/\s*,\s*/, $C->{group_list}));
 	my $LNT = loadLocalNodeTable;
 
 	# get all known service statuses, all nodes, all services.
@@ -371,8 +378,11 @@ sub display_overview
 	{
 		for my $nname (keys %{$sstatus{$sname}})
 		{
-			# skip if we're not allowed to see this node
-			next if (!$AU->InGroup($LNT->{$nname}->{group}));
+			# skip if we're not allowed to see this node,
+			# ditto for unconfigured group
+			next if (!$AU->InGroup($LNT->{$nname}->{group})
+							 or List::Util::none { $LNT->{$nname}->{group} eq $_ } (@configuredgroups) );
+
 			next if ($filter and
 							 (( $filter eq "ok" and $sstatus{$sname}->{$nname}->{status} != 100)
 								or ($filter eq "notok" and $sstatus{$sname}->{$nname}->{status} == 100)));
@@ -387,7 +397,7 @@ sub display_overview
 		my $detailurl = $serviceurl . "&node=".uri_escape($one->{node})
 				."&service=".uri_escape($one->{service});
 
-		# need separate view id per node+service to show more than one widget at at time, 
+		# need separate view id per node+service to show more than one widget at at time,
 		# but spaces and () badly confuse the js widget code...
 		my $viewid = "service_view_$one->{node}_$one->{service}";
 		$viewid =~ s/[^a-zA-Z0-9_-]+//g;

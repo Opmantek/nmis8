@@ -3,48 +3,49 @@
 ## $Id: events.pl,v 8.9 2012/10/02 03:38:06 keiths Exp $
 #
 #  Copyright (C) Opmantek Limited (www.opmantek.com)
-#  
+#
 #  ALL CODE MODIFICATIONS MUST BE SENT TO CODE@OPMANTEK.COM
-#  
+#
 #  This file is part of Network Management Information System (“NMIS”).
-#  
+#
 #  NMIS is free software: you can redistribute it and/or modify
 #  it under the terms of the GNU General Public License as published by
 #  the Free Software Foundation, either version 3 of the License, or
 #  (at your option) any later version.
-#  
+#
 #  NMIS is distributed in the hope that it will be useful,
 #  but WITHOUT ANY WARRANTY; without even the implied warranty of
 #  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 #  GNU General Public License for more details.
-#  
+#
 #  You should have received a copy of the GNU General Public License
-#  along with NMIS (most likely in a file named LICENSE).  
+#  along with NMIS (most likely in a file named LICENSE).
 #  If not, see <http://www.gnu.org/licenses/>
-#  
+#
 #  For further information on NMIS or for a license other than GPL please see
-#  www.opmantek.com or email contact@opmantek.com 
-#  
+#  www.opmantek.com or email contact@opmantek.com
+#
 #  User group details:
 #  http://support.opmantek.com/users/
-#  
+#
 # *****************************************************************************
-# Auto configure to the <nmis-base>/lib
+use strict;
+
 use FindBin;
 use lib "$FindBin::Bin/../lib";
-
-# 
-use strict;
-use NMIS;
-use Sys;
-use func;
 
 use Data::Dumper;
 $Data::Dumper::Indent = 1;
 
 use URI::Escape;
-
+use List::Util 1.33;
 use CGI qw(:standard *table *Tr *td *form *Select *div);
+
+use NMIS;
+use Sys;
+use func;
+use Auth;
+
 
 my $q = new CGI; # This processes all parameters passed via GET and POST
 my $Q = $q->Vars; # values in hash
@@ -55,8 +56,6 @@ if (!($C = loadConfTable(conf=>$Q->{conf},debug=>$Q->{debug}))) { exit 1; };
 # Before going any further, check to see if we must handle
 # an authentication login or logout request
 
-# NMIS Authentication module
-use Auth;
 
 # variables used for the security mods
 my $headeropts = {type=>'text/html',expires=>'now'};
@@ -80,19 +79,19 @@ my $wantwidget = $widget eq 'true';
 
 # select function
 
-if ($Q->{act} eq 'event_table_view') 
-{	
+if ($Q->{act} eq 'event_table_view')
+{
 	viewEvent();
-} elsif ($Q->{act} eq 'event_table_list') 
-{		
+} elsif ($Q->{act} eq 'event_table_list')
+{
 	listEvent();
-} 
-elsif ($Q->{act} eq 'event_table_update') 
+}
+elsif ($Q->{act} eq 'event_table_update')
 {
 	updateEvent(); listEvent();
-} 
-else 
-{ 
+}
+else
+{
 	print header($headeropts);
 	print "Tables: ERROR, act=$Q->{act}, node=$Q->{node}, intf=$Q->{intf}\n";
 	print "Requested data not found!\n";
@@ -104,13 +103,13 @@ exit 1;
 #
 #
 
-sub viewEvent 
+sub viewEvent
 {
 	my $node = $Q->{node};
-	
+
 	#start of page
 	print header($headeropts);
-	pageStartJscript(title => "NMIS View Event $node",refresh => 86400) 
+	pageStartJscript(title => "NMIS View Event $node",refresh => 86400)
 			if (!$wantwidget);
 
 	my $S = Sys::->new;
@@ -133,7 +132,7 @@ sub viewEvent
 	# print data
 	my %nodeevents = loadAllEvents(node => $node);
 	my $cnt = keys %nodeevents;
-	for my $eventkey (sorthash(\%nodeevents,['startdate'],'fwd')) 
+	for my $eventkey (sorthash(\%nodeevents,['startdate'],'fwd'))
 	{
 		my $thisevent = $nodeevents{$eventkey};
 
@@ -153,8 +152,8 @@ sub viewEvent
 										 return $line;
 							});
 	}
-	
-	if (!$cnt) 
+
+	if (!$cnt)
 	{
 		print Tr(td({class=>'info Plain',colspan=>'4'},"No events current for Node $node"));
 	}
@@ -164,7 +163,7 @@ sub viewEvent
 }
 
 ###
-sub listEvent 
+sub listEvent
 {
 	print header($headeropts);
 	pageStartJscript(title => "NMIS List Events") if (!$wantwidget);
@@ -193,9 +192,9 @@ sub listEvent
 		for my $srv (keys %{$ST}) {
 			## don't process server localhost for opHA2
 			next if $srv eq "localhost";
-			
-			my $table = "nmis-$srv-event";       
-			if ( -r getFileName(file => "$C->{'<nmis_var>'}/$table") ) 
+
+			my $table = "nmis-$srv-event";
+			if ( -r getFileName(file => "$C->{'<nmis_var>'}/$table") )
 			{
 				# this is: either an old-style eventhash->event table file,
 				# or a new-style eventfilename->event structure. fortunately the guts are compatible.
@@ -214,7 +213,7 @@ sub listEvent
 
 # this receives one of two flavours of event hash:
 # new-style, eventfilename => event data, or old-style, eventhash => event data
-sub displayEvents 
+sub displayEvents
 {
 	my ($eventdata, $server) = @_;
 
@@ -226,7 +225,7 @@ sub displayEvents
 	my $outage;
  	my $tempnode;
 	my $nodehash;
-	my $tempnodeack; 
+	my $tempnodeack;
 	my %eventackcount;
 	my %eventnoackcount;
 	my %eventcount;
@@ -238,10 +237,11 @@ sub displayEvents
 	my $C = loadConfTable();
 	my $NT = loadNodeTable();
 	my $GT = loadGroupTable();
+	my @configuredgroups = (split(/\s*,\s*/, $C->{group_list}));
 
 	# header
 	print Tr(th({class=>'title',colspan=>'10'},"$server Event List"));
-       
+
 	# only display the table if there are any events.
 	if (not keys %{$eventdata}) {
 		print Tr(td({class=>'info Plain'},"No Events Current"));
@@ -249,15 +249,15 @@ sub displayEvents
 	}
 
 	# rip thru the table once and count all the events by node....helps heaps later.
-	for my $eventkey ( keys %{$eventdata})  
+	for my $eventkey ( keys %{$eventdata})
 	{
 		my $thisevent = $eventdata->{$eventkey};
-		
-		if ( getbool($thisevent->{ack}) ) 
+
+		if ( getbool($thisevent->{ack}) )
 		{
 			++$eventackcount{$thisevent->{node}};
 		}
-		else 
+		else
 		{
 			++$eventnoackcount{$thisevent->{node}};
 		}
@@ -273,16 +273,21 @@ sub displayEvents
 
 	my $event_cnt = 0; # index for update routine eventAck()
 
-	for my $eventkey ( sort { $eventdata->{$a}{ack} cmp  $eventdata->{$b}{ack} 
-														 or $eventdata->{$a}{node} cmp $eventdata->{$b}{node} 
-														 or $eventdata->{$b}{startdate} cmp $eventdata->{$a}{startdate} 
+	for my $eventkey ( sort { $eventdata->{$a}{ack} cmp  $eventdata->{$b}{ack}
+														 or $eventdata->{$a}{node} cmp $eventdata->{$b}{node}
+														 or $eventdata->{$b}{startdate} cmp $eventdata->{$a}{startdate}
 														 or $eventdata->{$a}{escalate} cmp $eventdata->{$b}{escalate}
-											} keys %{$eventdata})  
+											} keys %{$eventdata})
 	{
 		my $thisevent = $eventdata->{$eventkey};
 		next if (!$thisevent->{node}); # should not ever be hit
-		# check auth
-		next unless $AU->InGroup($NT->{$thisevent->{node}}{group});
+
+		# check that you're allowed to see this group
+		# and that the group is configured
+		next unless ($AU->InGroup($NT->{$thisevent->{node}}{group})
+								 and List::Util::first
+								 { $_ eq $NT->{$thisevent->{node}}->{group} }
+								 (@configuredgroups) );
 
 		# print all events
 
@@ -312,9 +317,9 @@ sub displayEvents
 			$tempnode = $thisevent->{node};
 			$node_cnt = 0;
 
-			active($server,$tempnode,$tempnodeack,\%eventnoackcount) 
+			active($server,$tempnode,$tempnodeack,\%eventnoackcount)
 					if (getbool($thisevent->{ack},"invert"));
-			inactive($server,$tempnode,$tempnodeack,\%eventackcount) 
+			inactive($server,$tempnode,$tempnodeack,\%eventackcount)
 					if (getbool($thisevent->{ack}));
 
 		}
@@ -334,7 +339,7 @@ sub displayEvents
 			$button = "true";
 		}
 		else {
-			$button = "false";	
+			$button = "false";
 		}
 		# print row , Tr with id for set hidden
 		### 2012-10-02 keiths, changed color to be done by CSS
@@ -420,7 +425,7 @@ sub typeHeader {
 }
 
 # change ack for the matching events
-sub updateEvent 
+sub updateEvent
 {
 	my @par = $q->param(); # parameter names
 	my @nm = $q->param('node'); # node names
@@ -431,19 +436,19 @@ sub updateEvent
 	# the value of the checkbox is equal to the index of arrays
 	my $i = 0;
 	# the value of the checkbox is equal to the index of arrays
-	for my $par (@par) 
+	for my $par (@par)
 	{
-		if ($par =~ /false|true/) 
+		if ($par =~ /false|true/)
 		{ 		# false|true is part of the checkbox name
 			my @a = $q->param($par);		# get the values (numbers) of the checkboxes
-			foreach my $i (@a) 
+			foreach my $i (@a)
 			{
 				# check for change of event
-				if ($i ne "" and ((getbool($ack[$i]) and $par =~ /false/) 
-													or (getbool($ack[$i],"invert") and $par =~ /true/))) 
+				if ($i ne "" and ((getbool($ack[$i]) and $par =~ /false/)
+													or (getbool($ack[$i],"invert") and $par =~ /true/)))
 				{
 					# event changes
-					eventAck( ack=>$ack[$i], 
+					eventAck( ack=>$ack[$i],
 										node=>$nm[$i],
 										event=>$evnt[$i],
 										element=>$elmnt[$i],
