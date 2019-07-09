@@ -15,3 +15,5 @@ test
 install/plugins-dev
 models-dev
 models-minimal
+Vagrantfile
+.vagrant
