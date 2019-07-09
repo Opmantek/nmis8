@@ -43,7 +43,7 @@
 			'--lower-limit','0',
 			'--rigid',
 			'DEF:cpsAlarmEntryAst=$database:cpsAlarmEntryAst:AVERAGE',
-			'AREA:cpsAlarmEntryAst#ff0000:Alarm Status',
+			'AREA:cpsAlarmEntryAst#ff0000: Alarm Status',
 			'GPRINT:cpsAlarmEntryAst:AVERAGE:Avg %1.2lf%',
 			'COMMENT:\t0 Alarm Inactive, 1 Alarm Active\\n'
 		],
@@ -52,7 +52,7 @@
 			'--lower-limit','0',
 			'--rigid',
 			'DEF:cpsAlarmEntryAst=$database:cpsAlarmEntryAst:AVERAGE',
-			'AREA:cpsAlarmEntryAst#ff0000:Alarm Status',
+			'AREA:cpsAlarmEntryAst#ff0000: Alarm Status',
 			'GPRINT:cpsAlarmEntryAst:AVERAGE:Avg %1.2lf%',
 			'COMMENT:\t0 Alarm Inactive, 1 Alarm Active\\n'
 		]

@@ -50,7 +50,7 @@
 			'AREA:perUsedMem#ccccaa: % Proc Mem Used',
 			'STACK:perFreeMem#eeeeee: % Proc Mem Free\n',
 			'CDEF:nulline=perUsedMem,100,/',
-			'LINE1:nulline#ccccaa:',
+			'LINE1:nulline#ccccaa: ',
 			'GPRINT:MemUsed:AVERAGE:Mem Used %1.2lf%sb',
 			'GPRINT:MemFree:AVERAGE:Mem Free %1.2lf%sb',
 			'GPRINT:totalMem:AVERAGE:Total Mem %1.2lf%sb\n',

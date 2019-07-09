@@ -71,7 +71,7 @@
             'GPRINT:MatchedDropBytes:AVERAGE:Avg %1.2lf\n',
 			#'AREA:MatchedPassBytes#000088: MatchedPassBytes',
             #'GPRINT:MatchedBytes:AVERAGE:Avg %1.2lf%%',
-			#'STACK:MatchedDropBytes#FD2A0A:MatchedDropBytes',
+			#'STACK:MatchedDropBytes#FD2A0A: MatchedDropBytes',
 		]
 	}
 );
