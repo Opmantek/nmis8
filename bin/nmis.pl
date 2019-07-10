@@ -7350,6 +7350,7 @@ sub runEscalate
 	my $pollTimer = NMIS::Timing->new;
 
 	my $NT = loadLocalNodeTable();
+	my $ST = loadServicesTable;
 
 	my $outage_time;
 	my $planned_outage;
@@ -7489,7 +7490,12 @@ sub runEscalate
 								}
 								$event_age = convertSecsHours(time - $thisevent->{startdate});
 
-								$message .= "Node:\t$thisevent->{node}\nUP Event Notification\nEvent Elapsed Time:\t$event_age\nEvent:\t$thisevent->{event}\nElement:\t$thisevent->{element}\nDetails:\t$thisevent->{details}\n\n";
+								# use the service description if one is present
+								# element == service name
+								my $custUpDesc = (ref($ST->{$thisevent->{element}}) eq "HASH"
+																	&& exists($ST->{$thisevent->{element}}->{Description}))?
+																	$ST->{$thisevent->{element}}->{Description} : "null";
+								$message .= "Node:\t$thisevent->{node}\nUP Event Notification\nEvent Elapsed Time:\t$event_age\nEvent:\t$thisevent->{event}\nElement:\t$thisevent->{element}\nDescription:\t$custUpDesc\nDetails:\t$thisevent->{details}\n\n";
 
 								if ( getbool($C->{mail_combine}) )
 								{
@@ -7984,9 +7990,15 @@ LABEL_ESC:
 												$priority = &eventToSMTPPri($thisevent->{level}) ;
 											}
 
-											###2013-10-08 arturom, keiths, Added link to interface name if interface event.
 											$C->{nmis_host_protocol} = "http" if $C->{nmis_host_protocol} eq "";
-											$message .= "Node:\t$thisevent->{node}\nNotification at Level$thisevent->{escalate}\nEvent Elapsed Time:\t$event_age\nSeverity:\t$thisevent->{level}\nEvent:\t$thisevent->{event}\nElement:\t$thisevent->{element}\nDetails:\t$thisevent->{details}\nLink to Node: $C->{nmis_host_protocol}://$C->{nmis_host}$C->{network}?act=network_node_view&widget=false&node=$thisevent->{node}\n";
+
+											# add description from service if a/v
+											my $custDownDesc = (ref($ST->{$thisevent->{element}}) eq "HASH"
+																					&& exists($ST->{$thisevent->{element}}->{Description}))?
+																					$ST->{$thisevent->{element}}->{Description} : "null";
+
+											$message .= "Node:\t$thisevent->{node}\nNotification at Level$thisevent->{escalate}\nEvent Elapsed Time:\t$event_age\nSeverity:\t$thisevent->{level}\nEvent:\t$thisevent->{event}\nElement:\t$thisevent->{element}\nDescription:\t$custDownDesc\nDetails:\t$thisevent->{details}\nLink to Node: $C->{nmis_host_protocol}://$C->{nmis_host}$C->{network}?act=network_node_view&widget=false&node=$thisevent->{node}\n";
+
 											if ( $thisevent->{event} =~ /Interface/ ) {
 												my $ifIndex = undef;
 												my $S = Sys->new; # node object

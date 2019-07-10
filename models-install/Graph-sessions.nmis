@@ -47,7 +47,7 @@
 			'DEF:panSessActICMP=$database:panSessActICMP:AVERAGE',
 			'DEF:panSessActSslProxy=$database:panSessActSslProxy:AVERAGE',
 
-			#'HRULE:panSessionMax#ff0000:Max Sessions',
+			#'HRULE:panSessionMax#ff0000: Max Sessions',
 
 			'LINE1:panSessionActive#00ff00: Active Sessions\t',
 			'GPRINT:panSessionActive:AVERAGE:Avg %8.0lf\t',
@@ -79,7 +79,7 @@
 			'DEF:panSessActICMP=$database:panSessActICMP:AVERAGE',
 			'DEF:panSessActSslProxy=$database:panSessActSslProxy:AVERAGE',
 
-			#'HRULE:panSessionMax#ff0000:Max Sessions',
+			#'HRULE:panSessionMax#ff0000: Max Sessions',
 
 			'LINE1:panSessionActive#00ff00: Avg Active Sess.',
 			'GPRINT:panSessionActive:AVERAGE:%2.0lf\t',

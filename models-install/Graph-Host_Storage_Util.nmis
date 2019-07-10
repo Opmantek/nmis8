@@ -60,7 +60,7 @@
 			'DEF:hrStorageSize=$database:hrStorageSize:MAX',
 			'DEF:hrStorageUsed=$database:hrStorageUsed:MAX',
 			'CDEF:perUsedD=hrStorageUsed,hrStorageSize,/,100,*',
-			'AREA:perUsedD#00FFFF:',
+			'AREA:perUsedD#00FFFF: ',
 			'GPRINT:perUsedD:LAST:Current %1.1lf%%',
 			'GPRINT:perUsedD:AVERAGE:Average %1.1lf%%',
 			'GPRINT:perUsedD:MAX:Maximum %1.1lf%%\\n',

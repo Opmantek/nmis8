@@ -49,7 +49,7 @@
 			'GPRINT:memCapFastRam:AVERAGE:Avg %4.0lf',
 			'GPRINT:memCapFastRam:MAX:Max %4.0lf\\n',
 			
-			'LINE1:memUsageFastRam#4682B4:Usage Fast RAM',
+			'LINE1:memUsageFastRam#4682B4: Usage Fast RAM',
 			'GPRINT:memUsageFastRam:AVERAGE:Avg %4.0lf',
 			'GPRINT:memUsageFastRam:MAX:Max %4.0lf\\n',
 

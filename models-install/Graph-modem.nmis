@@ -46,12 +46,12 @@
 			'DEF:ModemsUnavailable=$database:ModemsUnavailable:MAX', 
 			'DEF:ModemsOffline=$database:ModemsOffline:MAX', 
 			'DEF:ModemsDead=$database:ModemsDead:MAX', 
-			'AREA:ModemsDead#bbbbbb:Dead Modems',
-			'STACK:ModemsOffline#aaaaaa:Modems Offline',
-			'STACK:ModemsInUse#0000ff:Modems InUse',
-			'LINE2:TotalModems#00ff00:Total Modems',
-			'LINE2:ModemsAvailable#ff0000:Modems Available',
-			'LINE1:ModemsOffline#555555:Modems Offline',
+			'AREA:ModemsDead#bbbbbb: Dead Modems',
+			'STACK:ModemsOffline#aaaaaa: Modems Offline',
+			'STACK:ModemsInUse#0000ff: Modems InUse',
+			'LINE2:TotalModems#00ff00: Total Modems',
+			'LINE2:ModemsAvailable#ff0000: Modems Available',
+			'LINE1:ModemsOffline#555555: Modems Offline',
 			'GPRINT:TotalModems:LAST:TotalModems %1.0lf',
 			'GPRINT:ModemsInUse:LAST:ModemsInUse %1.0lf',
 			'GPRINT:ModemsAvailable:LAST:ModemsAvailable %1.0lf',
@@ -66,12 +66,12 @@
 			'DEF:ModemsUnavailable=$database:ModemsUnavailable:MAX', 
 			'DEF:ModemsOffline=$database:ModemsOffline:MAX', 
 			'DEF:ModemsDead=$database:ModemsDead:MAX', 
-			'AREA:ModemsDead#bbbbbb:Dead Modems',
-			'STACK:ModemsOffline#aaaaaa:Modems Offline',
-			'STACK:ModemsInUse#0000ff:Modems InUse',
-			'LINE2:TotalModems#00ff00:Total Modems',
-			'LINE2:ModemsAvailable#ff0000:Modems Available',
-			'LINE1:ModemsOffline#555555:Modems Offline'
+			'AREA:ModemsDead#bbbbbb: Dead Modems',
+			'STACK:ModemsOffline#aaaaaa: Modems Offline',
+			'STACK:ModemsInUse#0000ff: Modems InUse',
+			'LINE2:TotalModems#00ff00: Total Modems',
+			'LINE2:ModemsAvailable#ff0000: Modems Available',
+			'LINE1:ModemsOffline#555555: Modems Offline'
 		]
 	}
 );

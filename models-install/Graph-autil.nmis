@@ -67,7 +67,7 @@
 			#'GPRINT:inputPct:95th%% %4.2lf%%',
 			'GPRINT:inputUtil:MAX:Maximum %4.2lf%%\\n',
 			'$GLINE:outputUtil#00FF7F: Average Output\\t',
-			'LINE1:outputUtilM#2E8B57:Maximum Output\\t',
+			'LINE1:outputUtilM#2E8B57: Maximum Output\\t',
 			'GPRINT:outputUtil:LAST:Current %4.2lf%%',
 			'GPRINT:outputUtil:AVERAGE:Average %4.2lf%%',
 			#'GPRINT:outputPct:95th%% %4.2lf%%',
