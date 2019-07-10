@@ -197,14 +197,17 @@ sub typeGraph
 			print "Not Authorized to view graphs on node '$node' in group $NT->{$node}{group}";
 			return 0;
 		}
-	} elsif ( $group ) {
-		if ( ! $AU->InGroup($group) or !exists $GT->{$group} )
+	}
+	elsif ( $group )
+	{
+		# group 'network' is used for metrics graphs and is special:
+		# it exists automatically no matter what the group_list configuration or group table says.
+		if ( ! $AU->InGroup($group) or (!exists $GT->{$group} and $group ne "network" ))
 		{
 			print "Not Authorized to view graphs on nodes in group $group";
 			return 0;
 		}
 	}
-
 
 	my $time = time();
 
@@ -837,8 +840,8 @@ sub typeExport
 	bailout(message => "Failed to retrieve mode=MAX RRD data: $meta->{error}\n") if ($meta->{error});
 
 	# no data? complain, don't produce an empty csv
-	bailout(message => "mode=AVERAGE: No exportable data found!") if (!keys %$statvalMAX or !$meta->{rows_with_data});	
-	
+	bailout(message => "mode=AVERAGE: No exportable data found!") if (!keys %$statvalMAX or !$meta->{rows_with_data});
+
 	# graphtypes for custom service graphs are fixed and not found in the model system
 	# note: format known here, in services.pl and nmis.pl
 	my $heading;
@@ -860,7 +863,7 @@ sub typeExport
 	$headeropts->{"Content-Disposition"} = "attachment; filename=\"$filename\"";
 
 	print header($headeropts);
-	
+
 	my $merged_head = [ (map "AVG:@$headAVG[$_]", 0..$#$headAVG),
 		   			    (map "MAX:@$headMAX[$_]", 0..$#$headMAX) ];
 	undef $headAVG;
@@ -901,7 +904,7 @@ sub typeExport
 			print $csv->string,"\n";
 		}
 	}
-	
+
 	exit 0;
 }
 
