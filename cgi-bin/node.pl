@@ -811,7 +811,7 @@ sub typeExport
 													&& $Q->{resolution} != 0?
 													$Q->{resolution}: undef );
 
-	my ($statvalAVG,$headAVG,$meta) = getRRDasHash(sys=>$S,
+	(my $statvalAVG,my $headAVG,my $meta) = getRRDasHash(sys=>$S,
 																					 graphtype=>$Q->{graphtype},
 																					 index=>$Q->{intf},item=>$Q->{item},
 																					 mode=>"AVERAGE",
@@ -825,7 +825,7 @@ sub typeExport
 	# no data? complain, don't produce an empty csv
 	bailout(message => "mode=AVERAGE: No exportable data found!") if (!keys %$statvalAVG or !$meta->{rows_with_data});
 
-	my ($statvalMAX,$headMAX,$meta) = getRRDasHash(sys=>$S,
+	(my $statvalMAX,my $headMAX,$meta) = getRRDasHash(sys=>$S,
 																					 graphtype=>$Q->{graphtype},
 																					 index=>$Q->{intf},item=>$Q->{item},
 																					 mode=>"MAX",
