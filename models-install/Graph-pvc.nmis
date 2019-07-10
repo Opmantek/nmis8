@@ -41,8 +41,8 @@
 		'standard' => [
 			'DEF:ReceivedBECNs=$database:ReceivedBECNs:MAX',
 			'DEF:ReceivedFECNs=$database:ReceivedFECNs:MAX',
-			'LINE2:ReceivedBECNs#FF0000:ReceivedBECNs',
-			'STACK:ReceivedFECNs#FF6600:ReceivedFECNs',
+			'LINE2:ReceivedBECNs#FF0000: ReceivedBECNs',
+			'STACK:ReceivedFECNs#FF6600: ReceivedFECNs',
 			'GPRINT:ReceivedBECNs:AVERAGE:Avg Rcvd BECNs %1.2lf',
 			'GPRINT:ReceivedBECNs:MAX:Max Rcvd BECNs %1.2lf',
 			'GPRINT:ReceivedFECNs:AVERAGE:Avg Rcvd FECNs %1.2lf',
@@ -51,8 +51,8 @@
 		'small' => [
 			'DEF:ReceivedBECNs=$database:ReceivedBECNs:MAX',
 			'DEF:ReceivedFECNs=$database:ReceivedFECNs:MAX',
-			'LINE2:ReceivedBECNs#FF0000:ReceivedBECNs',
-			'STACK:ReceivedFECNs#FF6600:ReceivedFECNs'
+			'LINE2:ReceivedBECNs#FF0000: ReceivedBECNs',
+			'STACK:ReceivedFECNs#FF6600: ReceivedFECNs'
 		]
 	}
 );

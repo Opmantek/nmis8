@@ -45,7 +45,7 @@
 			'--rigid',
 			'DEF:ifAdminStatus=$database:ifAdminStatusNum:AVERAGE',
 			'DEF:ifOperStatus=$database:ifOperStatusNum:AVERAGE',
-			'LINE2:ifAdminStatus#0000ff:ifAdminStatus',
+			'LINE2:ifAdminStatus#0000ff: ifAdminStatus',
 			'GPRINT:ifAdminStatus:LAST:Current %4.0lf%%',
 			'GPRINT:ifAdminStatus:AVERAGE:Avg. %6.3lf%%\\n',
 			'AREA:ifOperStatus#00ff00: ifOperStatus',

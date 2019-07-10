@@ -41,7 +41,7 @@
 	'option' => {
 		'standard' => [
 			'DEF:LosAlarmThrPathS=$database:LosAlarmThrPathS:AVERAGE',
-			'LINE1:LosAlarmThrPathS#ff8000:Input LOS Alarm dBm\\t',
+			'LINE1:LosAlarmThrPathS#ff8000: Input LOS Alarm dBm\\t',
 			'GPRINT:LosAlarmThrPathS:LAST:Current %6.2lf',
 			'GPRINT:LosAlarmThrPathS:AVERAGE:Avg. %6.2lf',
 			'GPRINT:LosAlarmThrPathS:MIN:Min %6.2lf',
@@ -49,7 +49,7 @@
 		],
 		'small' => [
 			'DEF:LosAlarmThrPathS=$database:LosAlarmThrPathS:AVERAGE',
-			'LINE1:LosAlarmThrPathS#ff8000:Input LOS Alarm dBm\\t',
+			'LINE1:LosAlarmThrPathS#ff8000: Input LOS Alarm dBm\\t',
 			'GPRINT:LosAlarmThrPathS:LAST:Current %6.2lf',
 			'GPRINT:LosAlarmThrPathS:AVERAGE:Avg. %6.2lf',
 			'GPRINT:LosAlarmThrPathS:MIN:Min %6.2lf',

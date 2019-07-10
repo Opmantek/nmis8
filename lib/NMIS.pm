@@ -27,7 +27,7 @@
 #
 # *****************************************************************************
 package NMIS;
-our $VERSION = "8.6.9";
+our $VERSION = "8.6.9a";
 
 use NMIS::uselib;
 use lib "$NMIS::uselib::rrdtool_lib";
@@ -1358,7 +1358,7 @@ NODE:
 				$summaryHash{$node}{response_color} = "#aaaaaa";
 			}
 		}
-		# node not part of the selection (group/customer/businessservice), 
+		# node not part of the selection (group/customer/businessservice),
 		# don't include it in the response
 		else
 		{
@@ -3448,11 +3448,11 @@ sub eventExist
 {
 	my ($node, $eventname, $element) = @_;
 
-	my $efn = event_to_filename(event => { 
-			node => $node,																				 
+	my $efn = event_to_filename(event => {
+			node => $node,
 			event => $eventname,
-			element => $element 
-		}, category => "current" 
+			element => $element
+		}, category => "current"
 	);
 	return ($efn and -f $efn)? $efn : 0;
 }
@@ -4114,7 +4114,7 @@ sub checkEvent
 	my $thisevent_control = $events_config->{$event} || { Log => "true", Notify => "true", Status => "true"};
 
 	# set defaults just in case any are blank.
-	$C->{'non_stateful_events'} ||= 'Node Configuration Change, Node Reset';
+	$C->{'non_stateful_events'} ||= 'Node Configuration Change, Node Configuration Change Detected, Node Reset, NMIS runtime exceeded, Interface ifAdminStatus Changed';
 	$C->{'threshold_falling_reset_dampening'} ||= 1.1;
 	$C->{'threshold_rising_reset_dampening'} ||= 0.9;
 
@@ -4308,7 +4308,7 @@ sub notify
 
 				(undef, $log, $syslog) = getLevelLogEvent(sys=>$S, event=>$event, level=>$level);
 				$details .= " Updated";
-				
+
 				# send a json event if this matches an escalation policy.........
 				# if Event Exits and "notify" : "json:server", includes "json:"
 				# then log a json update event.......
@@ -4671,14 +4671,14 @@ sub loadNodeConfTable
 
 # this method returns 1 or 0 if one of collect, collect_snmp or collect_wmi is true
 # this depends on the node table cache system to run super fast.
-# 
+#
 # args: node => node name
-sub isNodeCollectable 
+sub isNodeCollectable
 {
 	my (%args) = @_;
 	my $nodename = $args{node};
 	my $NT = loadNodeTable();
-	
+
 	my $nodeCollectable = getbool($NT->{$nodename}{collect}) or getbool($NT->{$nodename}{collect_snmp}) or getbool($NT->{$nodename}{collect_wmi}) ? 1 : 0;
 
 	return $nodeCollectable;

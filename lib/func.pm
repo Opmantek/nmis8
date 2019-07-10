@@ -2527,7 +2527,7 @@ sub selftest
 		}
 		# fpingd is identifyable only by cmdline
 		elsif (getbool($config->{daemon_fping_active})
-					 && $pentry->cmndline =~ $config->{daemon_fping_filename})
+					 && $pentry->cmndline =~ /^$config->{daemon_fping_filename}/)
 		{
 			$fpingd_found=1;
 			last if ($cron_found && $fpingd_found);
@@ -2790,7 +2790,8 @@ sub find_nmis_processes
 			$execname = readlink("/proc/".$procentry->pid."/exe");
 		}
 
-		if ($type && $procname =~ /^nmis-$confname-$type(-(.*))?$/)
+		# some platforms add space padding when $0 is changed
+		if ($type && $procname =~ /^nmis-$confname-$type(-(.*))?\s*$/)
 		{
 			my $trouble = $2;
 			$others{$procentry->pid} = { name => $procname,

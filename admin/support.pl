@@ -318,6 +318,8 @@ sub collect_evidence
 			or warn  "can't list processes: $!\n";
 	# the lock status
 	system("cp","/proc/locks","$targetdir/system_status/");
+	# the cpuinfo
+	system("cp","/proc/cpuinfo","$targetdir/system_status/");
 
 	# dump the memory info, free
 	system("cp","/proc/meminfo","$targetdir/system_status/meminfo") == 0

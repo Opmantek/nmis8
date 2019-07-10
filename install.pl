@@ -253,11 +253,11 @@ libcrypt-ssleay-perl apache2 fping nmap snmp snmpd snmptrapd libnet-snmp-perl
 libcrypt-passwdmd5-perl libjson-xs-perl libnet-dns-perl
 libio-socket-ssl-perl libwww-perl libnet-smtp-ssl-perl libnet-smtps-perl
 libcrypt-unixcrypt-perl libcrypt-rijndael-perl libuuid-tiny-perl libproc-processtable-perl libdigest-sha-perl
-libnet-ldap-perl libnet-snpp-perl libdbi-perl libtime-modules-perl
+libnet-ldap-perl libnet-snpp-perl libdbi-perl
 libsoap-lite-perl libauthen-simple-radius-perl libauthen-tacacsplus-perl
 libauthen-sasl-perl rrdtool librrds-perl libtest-deep-perl dialog libcrypt-des-perl libdigest-hmac-perl libclone-perl
 libexcel-writer-xlsx-perl libmojolicious-perl libdatetime-perl
-libnet-ip-perl libscalar-list-utils-perl libtest-requires-perl libtest-fatal-perl libtest-number-delta-perl libtext-csv-perl libtext-csv-xs-perl
+libnet-ip-perl libscalar-list-utils-perl libtest-requires-perl libtest-fatal-perl libtest-number-delta-perl libtext-csv-perl libtext-csv-xs-perl libauthen-pam-perl
 
 ));
 
@@ -274,7 +274,7 @@ perl-Excel-Writer-XLSX perl-Net-IP perl-DateTime
 perl-Digest-HMAC perl-Crypt-DES perl-Clone perl-ExtUtils-CBuilder
 perl-ExtUtils-ParseXS perl-ExtUtils-MakeMaker perl-Test-Fatal perl-Test-Number-Delta
 perl-Test-Requires perl-JSON perl-XML-SAX perl-XML-SAX-Writer perl-Convert-ASN1
-perl-Text-CSV perl-Text-CSV_XS));
+perl-Text-CSV perl-Text-CSV_XS perl-Authen-PAM));
 
 	# perl-Time-modules no longer a/v in rh/centos7
 	push @rhpackages, ($osflavour eq "redhat" && $osmajor < 7)?
@@ -293,10 +293,18 @@ perl-Text-CSV perl-Text-CSV_XS));
 	# stretch no longer ships with these packages...
 	push @debpackages, (qw(libui-dialog-perl libsys-syslog-perl))
 			if ($osflavour eq "debian" and $osmajor <= 8);
+	# buster/10 ships with these packages...
+	push @debpackages, (qw(libtime-parsedate-perl libui-dialog-perl))
+			if ($osflavour eq "debian" and $osmajor >= 10);
+	# ...but buster no longer ships with those - now virtual
+	push @debpackages, (qw(libtime-modules-perl))
+			if ($osflavour eq "debian" and $osmajor <= 9);
+
 	# ubuntu 16.04.3 lts does have a different subset
 	push @debpackages, (qw(libproc-queue-perl libstatistics-lite-perl libgd-perl libui-dialog-perl))
 			if ($osflavour eq "ubuntu" and $osmajor >= 16);
-
+	# ubuntu ships with that one up to and including 18.04lts
+	push @debpackages, (qw(libtime-modules-perl)) if ($osflavour eq "ubuntu");
 
 	my $pkgmgr = $osflavour eq "redhat"? "YUM": ($osflavour eq "debian" or $osflavour eq "ubuntu")? "APT": undef;
 	my $pkglist = $osflavour eq "redhat"? \@rhpackages : ($osflavour eq "debian" or $osflavour eq "ubuntu")? \@debpackages: undef;
@@ -812,6 +820,9 @@ if ($isnewinstall)
 }
 else
 {
+	# if somehow this got installed, lets uninstall it.
+	unlink("$site/conf/plugins/TestPlugin.pm") if (-f "$site/conf/plugins/TestPlugin.pm");
+
 	# copy over missing plugins if allowed
 	opendir(D,"$site/install/plugins") or warn "cannot open directory install/plugins: $!\n";
 	my @candidates = grep(/\.pm$/, readdir(D));
@@ -877,7 +888,7 @@ else
 		# patch config changes that affect existing entries, which update_config_defaults
 		# doesn't handle
 		# which includes enabling uuid and showing the polling_policy
-		execPrint("$site/admin/patch_config.pl -b $site/conf/Config.nmis /system/non_stateful_events='Node Configuration Change, Node Reset, NMIS runtime exceeded'  /system/node_summary_field_list,=uuid /system/json_node_fields,=uuid /system/network_viewNode_field_list,=polling_policy");
+		execPrint("$site/admin/patch_config.pl -b $site/conf/Config.nmis /system/non_stateful_events='Node Configuration Change, Node Configuration Change Detected, Node Reset, NMIS runtime exceeded, Interface ifAdminStatus Changed'  /system/node_summary_field_list,=uuid /system/json_node_fields,=uuid /system/network_viewNode_field_list,=polling_policy");
 		echolog("\n");
 
 		echolog("By default this version NMIS demotes nodes that have never
@@ -1240,6 +1251,9 @@ It is highly recommended that you perform the RRD migration.");
 		}
 	}
 }
+
+# pidfiles etc. need that dir
+safemkdir("$site/var") if (!-d "$site/var");
 
 echolog("Ensuring correct file permissions...");
 execPrint("$site/admin/fixperms.pl");

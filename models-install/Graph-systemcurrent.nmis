@@ -39,12 +39,12 @@
 	},
 	'option' => {
 		'standard' => [
-      'DEF:systemcurrent=$database:systemcurrent:AVERAGE',
-      'LINE1:systemcurrent#00ff00:mA',
+			'DEF:systemcurrent=$database:systemcurrent:AVERAGE',
+			'LINE1:systemcurrent#00ff00: mA',
 		],
 		'small' => [
-      'DEF:systemcurrent=$database:systemcurrent:AVERAGE',
-      'LINE1:systemcurrent#00ff00:mA',
+			'DEF:systemcurrent=$database:systemcurrent:AVERAGE',
+			'LINE1:systemcurrent#00ff00: mA',
 		]
 	}
 );

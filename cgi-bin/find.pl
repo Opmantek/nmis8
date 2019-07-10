@@ -27,22 +27,21 @@
 #  http://support.opmantek.com/users/
 #
 # *****************************************************************************
-# Auto configure to the <nmis-base>/lib
+use strict;
+
 use FindBin;
 use lib "$FindBin::Bin/../lib";
 
-#
-use strict;
+use Data::Dumper;
+$Data::Dumper::Indent = 1;
+use CGI qw(:standard *table *Tr *td *form *Select *div);
+use URI::Escape;
+use List::Util 1.33;
+
 use NMIS;
 use func;
 use NMIS::Connect;
-
-use Data::Dumper;
-$Data::Dumper::Indent = 1;
-
-
-use CGI qw(:standard *table *Tr *td *form *Select *div);
-use URI::Escape;
+use Auth;
 
 my $q = new CGI; # This processes all parameters passed via GET and POST
 my $Q = $q->Vars; # values in hash
@@ -54,8 +53,6 @@ if (!($C = loadConfTable(conf=>$Q->{conf},debug=>$Q->{debug}))) { exit 1; };
 # Before going any further, check to see if we must handle
 # an authentication login or logout request
 
-# NMIS Authentication module
-use Auth;
 
 # variables used for the security mods
 my  $headeropts = {type=>'text/html',expires=>'now'};
@@ -100,7 +97,7 @@ exit 0;
 
 #===================
 
-sub menuFind 
+sub menuFind
 {
 	my $obj = shift;
 
@@ -117,7 +114,7 @@ sub menuFind
 		print hidden(-override => 1, -name => "conf", -value => $Q->{conf})
 				. hidden(-override => 1, -name => "act", -value => "find_${obj}_view")
 				. hidden(-override => 1, -name => "widget", -value => $widgetstate);
-		
+
 		print table(
 			Tr(td({class=>'header',align=>'center',colspan=>'4'},
 						eval { return ($obj eq 'node') ? 'Find a Node' : 'Find an Interface';} )),
@@ -132,7 +129,7 @@ sub menuFind
 }
 
 
-sub viewInterfaceFind 
+sub viewInterfaceFind
 {
 	my $find = $Q->{find};
 
@@ -157,6 +154,7 @@ sub viewInterfaceFind
 	# nmisdev 2011-09-13: fixed case insensitve search with a compiled regex.
 	my $qrfind = qr/$find/i;
 
+	my @configuredgroups = (split(/\s*,\s*/, $C->{group_list}));
 	my $II = loadInterfaceInfo();
 	my $NT = loadNodeTable();
 
@@ -179,7 +177,9 @@ sub viewInterfaceFind
 					$thisintf->{vlanPortVlan} =~ /$qrfind/
 				)
 		{
-			if ($AU->InGroup($NT->{$thisintf->{node}}{group})) {
+			if ($AU->InGroup($NT->{$thisintf->{node}}{group})
+					&& List::Util::first { $NT->{$thisintf->{node}}->{group} eq $_ } (@configuredgroups) )
+			{
 				++$counter;
 
 				$thisintf->{ifSpeed} = convertIfSpeed($thisintf->{ifSpeed});
@@ -233,8 +233,8 @@ sub viewInterfaceFind
 
 } # typeFind
 
-sub viewNodeFind {
-
+sub viewNodeFind
+{
 	my $find = $Q->{find};
 
 	# verify access to this command
@@ -251,6 +251,7 @@ sub viewNodeFind {
 	# nmisdev 2011-09-13: fixed case insensitve search with a compiled regex.
 	my $qrfind = qr/$find/i;
 
+	my @configuredgroups = (split(/\s*,\s*/, $C->{group_list}));
 	my $NT = loadNodeTable();
 
 	my $counter = 0;
@@ -267,7 +268,9 @@ sub viewNodeFind {
 				$thisnode->{description} =~ /$qrfind/ or
 				$thisnode->{depend} =~ /$qrfind/
 		) {
-			if ($AU->InGroup($thisnode->{group})) {
+			if ($AU->InGroup($thisnode->{group})
+					&& List::Util::first { $thisnode->{group} eq $_ } (@configuredgroups) )
+			{
 				++$counter;
 
 				push @out,Tr(

@@ -811,7 +811,7 @@ sub typeExport
 													&& $Q->{resolution} != 0?
 													$Q->{resolution}: undef );
 
-	my ($statval,$head,$meta) = getRRDasHash(sys=>$S,
+	my ($statvalAVG,$headAVG,$meta) = getRRDasHash(sys=>$S,
 																					 graphtype=>$Q->{graphtype},
 																					 index=>$Q->{intf},item=>$Q->{item},
 																					 mode=>"AVERAGE",
@@ -820,11 +820,25 @@ sub typeExport
 																					 resolution => $mayberesolution,
 																					 add_minmax => $Q->{add_minmax}?1:0);
 
-	bailout(message => "Failed to retrieve RRD data: $meta->{error}\n") if ($meta->{error});
+	bailout(message => "Failed to retrieve mode=AVERAGE RRD data: $meta->{error}\n") if ($meta->{error});
 
 	# no data? complain, don't produce an empty csv
-	bailout(message => "No exportable data found!") if (!keys %$statval or !$meta->{rows_with_data});
+	bailout(message => "mode=AVERAGE: No exportable data found!") if (!keys %$statvalAVG or !$meta->{rows_with_data});
 
+	my ($statvalMAX,$headMAX,$meta) = getRRDasHash(sys=>$S,
+																					 graphtype=>$Q->{graphtype},
+																					 index=>$Q->{intf},item=>$Q->{item},
+																					 mode=>"MAX",
+																					 start => $start,
+																					 end => $end,
+																					 resolution => $mayberesolution,
+																					 add_minmax => $Q->{add_minmax}?1:0);
+
+	bailout(message => "Failed to retrieve mode=MAX RRD data: $meta->{error}\n") if ($meta->{error});
+
+	# no data? complain, don't produce an empty csv
+	bailout(message => "mode=AVERAGE: No exportable data found!") if (!keys %$statvalMAX or !$meta->{rows_with_data});	
+	
 	# graphtypes for custom service graphs are fixed and not found in the model system
 	# note: format known here, in services.pl and nmis.pl
 	my $heading;
@@ -846,24 +860,48 @@ sub typeExport
 	$headeropts->{"Content-Disposition"} = "attachment; filename=\"$filename\"";
 
 	print header($headeropts);
+	
+	my $merged_head = [ (map "AVG:@$headAVG[$_]", 0..$#$headAVG),
+		   			    (map "MAX:@$headMAX[$_]", 0..$#$headMAX) ];
+	undef $headAVG;
+	undef $headMAX;
+
+ 	my $merged_statval = {};
+	while ( my ($k,$v) = each(%$statvalAVG) )
+	{
+		while ( my ($l,$w) = each(%$v) )
+		{
+			$merged_statval->{$k}->{"AVG:$l"} = $w;
+		}
+	}
+	while ( my ($k,$v) = each(%$statvalMAX) )
+	{
+		while ( my ($l,$w) = each(%$v) )
+		{
+			$merged_statval->{$k}->{"MAX:$l"} = $w;
+		}
+	}
+	undef $statvalAVG;
+	undef $statvalMAX;
 
 	my $csv = Text::CSV->new;
 	# header line, then the goodies
-	if (ref($head) eq "ARRAY" && @$head)
+	if (ref($merged_head) eq "ARRAY" && @$merged_head)
 	{
-		$csv->combine(@$head);
+		$csv->combine( @$merged_head );
 		print $csv->string,"\n";
 	}
 
 	# print any row that has at least one reading with known ds/header name
-	foreach my $rtime (sort keys %{$statval})
+	foreach my $rtime (sort keys %{ $merged_statval })
 	{
-		if ( List::Util::any { defined $statval->{$rtime}->{$_} } (@$head) )
+		if ( List::Util::any { defined $merged_statval->{$rtime}->{$_} } (@$merged_head) )
 		{
-			$csv->combine(map { $statval->{$rtime}->{$_} } (@$head));
+			$csv->combine( (map { $merged_statval->{$rtime}->{$_} } (@$merged_head)) );
 			print $csv->string,"\n";
 		}
 	}
+	
 	exit 0;
 }
 

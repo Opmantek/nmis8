@@ -80,11 +80,45 @@ my $C = loadConfTable(conf => $cmdargs->{conf}, debug=>$cmdargs->{debug}, info=>
 die "nmis cannot operate without config!\n" if (ref($C) ne "HASH");
 diag_log(LOG_INFO, "NMIS process started.");
 
-# check for global collection off or on
-# useful for disabling nmis poll for server maintenance, nmis upgrades etc.
-my $lockoutfile = $C->{'<nmis_conf>'}."/NMIS_IS_LOCKED";
+# let's consume all the supported command line arguments
+# operation type
+my $type		= lc($cmdargs->{type});
+# cisco import file
+my $rmefile		= $cmdargs->{rmefile};
 
-if (-f $lockoutfile or getbool($C->{global_collect},"invert"))
+# these can be empty, an array or a single node name
+my $nodeselect		= $cmdargs->{node};
+my $groupselect	= $cmdargs->{group};
+my $forceoverride = getbool($cmdargs->{force}); # ignore the polling policy, ignore old nodeinfo files for update
+my $simulate = getbool($cmdargs->{simulate});		# for purge_files
+
+my $sleep	= $cmdargs->{sleep};
+my $ignorerunning = getbool($cmdargs->{ignore_running}); # to kill or not to kill, that is the question
+
+# model-related debug flag
+my $model		= getbool($cmdargs->{model});
+my $wantsystemcron = getbool($cmdargs->{system}); # for printCrontab
+
+# multiprocessing: commandline overrides config
+my $mthread	= (exists $cmdargs->{mthread}? $cmdargs->{mthread} : $C->{nmis_mthread}) || 0;
+my $maxThreads = (exists $cmdargs->{maxthreads}? $cmdargs->{maxthreads} : $C->{nmis_maxthreads}) || 1;
+my $mthreadDebug=$cmdargs->{mthreaddebug}; # cmdline only for this debugging flag
+
+# park the list of collect/update plugins globally
+my @active_plugins;
+
+# if no type given, just run the command line options
+if ( $type eq "" )
+{
+	print "No runtime option type= on command line\n\n";
+	checkArgs();
+	exit(1);
+}
+
+# check for locked nmis and bail out early; except for administrative actions which are ok when locked
+my $lockoutfile = $C->{'<nmis_conf>'}."/NMIS_IS_LOCKED";
+if ((-f $lockoutfile or getbool($C->{global_collect},"invert"))
+		and $type !~ /^(config|audit|apache|apache24|crontab)$/)				# allow those actions even while locked
 {
 	# if nmis is locked, run a quick nondelay selftest so that we have something for the GUI
 	my $varsysdir = $C->{'<nmis_var>'}."/nmis_system";
@@ -118,40 +152,6 @@ if (-f $lockoutfile or getbool($C->{global_collect},"invert"))
 
 		die "Attention: NMIS is currently disabled!\nSet the configuration variable \"global_collect\" to \"true\" to re-enable.\n\n";
 	}
-}
-
-# let's consume all the supported command line arguments
-# operation type
-my $type		= lc($cmdargs->{type});
-# cisco import file
-my $rmefile		= $cmdargs->{rmefile};
-
-# these can be empty, an array or a single node name
-my $nodeselect		= $cmdargs->{node};
-my $groupselect	= $cmdargs->{group};
-my $forceoverride = getbool($cmdargs->{force}); # ignore the polling policy, ignore old nodeinfo files for update
-my $simulate = getbool($cmdargs->{simulate});		# for purge_files
-
-my $sleep	= $cmdargs->{sleep};
-my $ignorerunning = getbool($cmdargs->{ignore_running}); # to kill or not to kill, that is the question
-
-# model-related debug flag
-my $model		= getbool($cmdargs->{model});
-my $wantsystemcron = getbool($cmdargs->{system}); # for printCrontab
-
-# multiprocessing: commandline overrides config
-my $mthread	= (exists $cmdargs->{mthread}? $cmdargs->{mthread} : $C->{nmis_mthread}) || 0;
-my $maxThreads = (exists $cmdargs->{maxthreads}? $cmdargs->{maxthreads} : $C->{nmis_maxthreads}) || 1;
-my $mthreadDebug=$cmdargs->{mthreaddebug}; # cmdline only for this debugging flag
-
-# park the list of collect/update plugins globally
-my @active_plugins;
-
-# if no type given, just run the command line options
-if ( $type eq "" ) {
-	print "No runtime option type= on command line\n\n";
-	checkArgs();
-	exit(1);
 }
 
 print qq/
@@ -522,6 +522,8 @@ sub	runThreads
 						= $type eq "collect"
 						? Statistics::Lite::min( $intervals{$polname}->{snmp}, $intervals{$polname}->{wmi} )
 						: $intervals{$polname}->{update};
+
+				## fixme, if the node is polled every 60 seconds then it is always a candidate........
 
 				# but do make sure to try a newly added node NOW!
 				my $fudgefactor = ($C->{polling_interval_factor} || 0.9);
@@ -1280,7 +1282,7 @@ sub doServices
 {
 	my (%args) = @_;
 	my $name = $args{name};
-	
+
 	info("================================");
 	info("Starting services, node $name");
 
@@ -1508,6 +1510,7 @@ sub doCollect
 			runAlerts(sys=>$S) if defined $S->{mdl}{alerts};
 
 			# remember when the collect poll last completed successfully
+			$NI->{system}{collectPollDelta} = time() - $NI->{system}{lastCollectPoll};
 			$NI->{system}{lastCollectPoll} = time();
 		}
 		else
@@ -1568,7 +1571,7 @@ sub doCollect
 	}
 	my $polltime = $pollTimer->elapTime();
 	info("polltime for $name was $polltime");
-	
+
 	# get any reachdata populated along the way and get it into the RRD
 	my $RD = $S->reachdata;
 	foreach my $key (sort (keys %{$RD})) {
@@ -1576,12 +1579,17 @@ sub doCollect
 		# copy the data to the stuff about to be inserted.
 		$reachdata->{$key} = $RD->{$key};
 	}
-	
-	
+
+
 	$reachdata->{polltime} = { value =>  $polltime, option => "gauge,0:U" };
-	
+
+	# when did we start polling? what is the difference between polls,
+	# using time as a counter will give us the delta between polls.
+	$reachdata->{polldelta} = { value => $NI->{system}{collectPollDelta}, option => "gauge,0:U," };
+
 	my $debugReach = Dumper $reachdata;
 	dbg("DEBUG reachdata: $debugReach",2);
+
 	# parrot the previous reading's update time
 	my $prevval = "U";
 	if (my $rrdfilename = $S->getDBName(type => "health"))
@@ -4032,10 +4040,18 @@ sub getIntfData
 			{
 				logMsg("INFO ($S->{name}) entry ifAdminStatus for index=$index not found in interface table") if not exists $IF->{$index}{ifAdminStatus};
 
-				if (($ifAdminTable->{$index} == 1 and $IF->{$index}{ifAdminStatus} ne 'up')
-					or ($ifAdminTable->{$index} != 1 and $IF->{$index}{ifAdminStatus} eq 'up') )
+				if ( ($ifAdminTable->{$index} == 1 and $IF->{$index}{ifAdminStatus} ne 'up')
+					or ($ifAdminTable->{$index} != 1 and $IF->{$index}{ifAdminStatus} eq 'up')
+					)
 				{
-					### logMsg("INFO ($S->{name}) ifIndex=$index, Admin was $IF->{$index}{ifAdminStatus} now $ifAdminTable->{$index} (1=up) rebuild");
+					my $ifAdminStatusNow = $ifAdminTable->{$index} == 1 ? "up" : "down";
+					dbg("INFO ($S->{name}) ifIndex=$index, $IF->{$index}{ifDescr}, Admin was $IF->{$index}{ifAdminStatus} now $ifAdminStatusNow($ifAdminTable->{$index}) rebuild",1);
+					notify(sys=>$S,
+								 event=>"Interface ifAdminStatus Changed",
+								 element=>"$IF->{$index}{ifDescr}",
+								 details=>"Admin was $IF->{$index}{ifAdminStatus} now $ifAdminStatusNow",
+								 context => { type => "node" },
+							);
 					getIntfInfo(sys=>$S,index=>$index); # update this interface
 				}
 				# total number of interfaces up
@@ -7364,6 +7380,7 @@ sub runEscalate
 	my $pollTimer = NMIS::Timing->new;
 
 	my $NT = loadLocalNodeTable();
+	my $ST = loadServicesTable;
 
 	my $outage_time;
 	my $planned_outage;
@@ -7503,7 +7520,12 @@ sub runEscalate
 								}
 								$event_age = convertSecsHours(time - $thisevent->{startdate});
 
-								$message .= "Node:\t$thisevent->{node}\nUP Event Notification\nEvent Elapsed Time:\t$event_age\nEvent:\t$thisevent->{event}\nElement:\t$thisevent->{element}\nDetails:\t$thisevent->{details}\n\n";
+								# use the service description if one is present
+								# element == service name
+								my $custUpDesc = (ref($ST->{$thisevent->{element}}) eq "HASH"
+																	&& exists($ST->{$thisevent->{element}}->{Description}))?
+																	$ST->{$thisevent->{element}}->{Description} : "null";
+								$message .= "Node:\t$thisevent->{node}\nUP Event Notification\nEvent Elapsed Time:\t$event_age\nEvent:\t$thisevent->{event}\nElement:\t$thisevent->{element}\nDescription:\t$custUpDesc\nDetails:\t$thisevent->{details}\n\n";
 
 								if ( getbool($C->{mail_combine}) )
 								{
@@ -7701,7 +7723,9 @@ LABEL_ESC:
 
 		### 2013-08-07 keiths, taking too long when MANY interfaces e.g. > 200,000
 		if ( $thisevent->{event} =~ /interface/i
-				 and $thisevent->{event} !~ /proactive/i )
+				 and $thisevent->{event} !~ /proactive/i
+				 and $thisevent->{event} !~ /Interface ifAdminStatus Changed/i
+			)
 		{
 			### load the interface information and check the collect status.
 			my $S = Sys->new; # node object
@@ -7817,6 +7841,9 @@ LABEL_ESC:
 					$EST->{$esc}{Event_Element} = ($EST->{$esc}{Event_Element} eq '') ? '.*' : $EST->{$esc}{Event_Element};
 					$EST->{$esc}{Event_Node} =~ s;/;;g;
 					$EST->{$esc}{Event_Element} =~ s;/;\\/;g;
+					# to handle c:\\ as an element, the c:\\ gets converted to c:\ which is invalid so need to pad c:\\ to c:\\\\
+					$EST->{$esc}{Event_Element} =~ s;^(\w)\:\\$;$1\\:\\\\;g;
+
 					if ($klst eq $esc_short
 							and $thisevent->{node} =~ /$EST->{$esc}{Event_Node}/i
 							and $thisevent->{element} =~ /$EST->{$esc}{Event_Element}/i
@@ -7993,9 +8020,15 @@ LABEL_ESC:
 												$priority = &eventToSMTPPri($thisevent->{level}) ;
 											}
 
-											###2013-10-08 arturom, keiths, Added link to interface name if interface event.
 											$C->{nmis_host_protocol} = "http" if $C->{nmis_host_protocol} eq "";
-											$message .= "Node:\t$thisevent->{node}\nNotification at Level$thisevent->{escalate}\nEvent Elapsed Time:\t$event_age\nSeverity:\t$thisevent->{level}\nEvent:\t$thisevent->{event}\nElement:\t$thisevent->{element}\nDetails:\t$thisevent->{details}\nLink to Node: $C->{nmis_host_protocol}://$C->{nmis_host}$C->{network}?act=network_node_view&widget=false&node=$thisevent->{node}\n";
+
+											# add description from service if a/v
+											my $custDownDesc = (ref($ST->{$thisevent->{element}}) eq "HASH"
+																					&& exists($ST->{$thisevent->{element}}->{Description}))?
+																					$ST->{$thisevent->{element}}->{Description} : "null";
+
+											$message .= "Node:\t$thisevent->{node}\nNotification at Level$thisevent->{escalate}\nEvent Elapsed Time:\t$event_age\nSeverity:\t$thisevent->{level}\nEvent:\t$thisevent->{event}\nElement:\t$thisevent->{element}\nDescription:\t$custDownDesc\nDetails:\t$thisevent->{details}\nLink to Node: $C->{nmis_host_protocol}://$C->{nmis_host}$C->{network}?act=network_node_view&widget=false&node=$thisevent->{node}\n";
+
 											if ( $thisevent->{event} =~ /Interface/ ) {
 												my $ifIndex = undef;
 												my $S = Sys->new; # node object
@@ -8666,10 +8699,9 @@ sub runDaemons
 	my $pt = new Proc::ProcessTable();
 	foreach my $pentry (@{$pt->table})
 	{
-		# fpingd is identifyable only by cmdline,
-		# and only strict equality is ok or we might misinterpret wrappers like
-		# sudo ./bin/fpingd.pl, or ps ax|fgrep fpingd...
-		$fpingd_found = 1 if ($pentry->cmndline eq $C->{daemon_fping_filename});
+		# fpingd is identifyable only by cmdline, but on some platforms
+		# setting $0 adds uncontrollable space padding
+		$fpingd_found = 1 if ($pentry->cmndline =~ /^$C->{daemon_fping_filename}/);
 		$ipslad_found = 1 if ($pentry->fname eq $C->{daemon_ipsla_filename});
 		last if ($fpingd_found && $ipslad_found);
 	}
@@ -8917,7 +8949,7 @@ PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 
 ######################################################
 # Run (selective) Statistics and Service Status Collection often
-*/1 * * * * $usercol $C->{'<nmis_base>'}/bin/nmis.pl type=collect mthread=true 
+*/1 * * * * $usercol $C->{'<nmis_base>'}/bin/nmis.pl type=collect mthread=true
 */2 * * * * $usercol $C->{'<nmis_base>'}/bin/nmis.pl type=services mthread=true
 
 ######################################################
