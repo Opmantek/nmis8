@@ -2,31 +2,31 @@
 ## $Id: Graph-pkts_hc.nmis,v 8.1 2012/08/14 12:20:36 keiths Exp $
 #
 #  Copyright 1999-2011 Opmantek Limited (www.opmantek.com)
-#  
+#
 #  ALL CODE MODIFICATIONS MUST BE SENT TO CODE@OPMANTEK.COM
-#  
+#
 #  This file is part of Network Management Information System (“NMIS”).
-#  
+#
 #  NMIS is free software: you can redistribute it and/or modify
 #  it under the terms of the GNU General Public License as published by
 #  the Free Software Foundation, either version 3 of the License, or
 #  (at your option) any later version.
-#  
+#
 #  NMIS is distributed in the hope that it will be useful,
 #  but WITHOUT ANY WARRANTY; without even the implied warranty of
 #  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 #  GNU General Public License for more details.
-#  
+#
 #  You should have received a copy of the GNU General Public License
-#  along with NMIS (most likely in a file named LICENSE).  
+#  along with NMIS (most likely in a file named LICENSE).
 #  If not, see <http://www.gnu.org/licenses/>
-#  
+#
 #  For further information on NMIS or for a license other than GPL please see
-#  www.opmantek.com or email contact@opmantek.com 
-#  
+#  www.opmantek.com or email contact@opmantek.com
+#
 #  User group details:
 #  http://support.opmantek.com/users/
-#  
+#
 # *****************************************************************************
 
 %hash = (
@@ -74,43 +74,62 @@
 			'CDEF:ifInErrorsSplit=ifInErrors,-1,*',
 			'CDEF:MifOutPkts=MifOutUcastPkts,MifOutMcastPkts,+',
 
+
+#1st Row
 			'AREA:ifInUcastPktsSplit#00BFFF: ifInUcastPkts/sec',
 			'GPRINT:ifInUcastPkts:AVERAGE:Avg %1.2lf%s',
+			'GPRINT:ifInUcastPkts:MAX:Max %1.2lf%s\\t',
 			'STACK:ifInMcastPktsSplit#5500ff: ifInMcastPkts/sec',
 			'GPRINT:ifInMcastPkts:AVERAGE:Avg %1.2lf%s',
+			'GPRINT:ifInMcastPkts:MAX:Max %1.2lf%s\\n',
+#2nd Row
 			'STACK:ifInBcastPktsSplit#0000bb: ifInBcastPkts/sec',
-			'GPRINT:ifInBcastPkts:AVERAGE:Avg %1.2lf%s\n',
+			'GPRINT:ifInBcastPkts:AVERAGE:Avg %1.2lf%s',
+			'GPRINT:ifInBcastPkts:MAX:Max %1.2lf%s\\t',
 			'STACK:ifInErrorsSplit#ff0000: ifInErrors/sec',
 			'GPRINT:ifInErrors:AVERAGE:Avg %1.2lf%s',
-			'STACK:ifInDiscardsSplit#aa0000: ifInDiscards/sec',
-			'GPRINT:ifInDiscards:AVERAGE:Avg %1.2lf%s\n',
+			'GPRINT:ifInErrors:MAX:Max %1.2lf%s\\n',
 
+#3rd
+			'STACK:ifInDiscardsSplit#aa0000: ifInDiscards/sec',
+			'GPRINT:ifInDiscards:AVERAGE:Avg %1.2lf%s',
+			'GPRINT:ifInDiscards:MAX:Max %1.2lf%s\\n',
+#4th
 			'AREA:ifOutUcastPkts#00FF7F: ifOutUcastPkts/sec',
 			'GPRINT:ifOutUcastPkts:AVERAGE:Avg %1.2lf%s',
+			'GPRINT:ifOutUcastPkts:MAX:Max %1.2lf%s\\t',
 			'STACK:ifOutMcastPkts#00ff00: ifOutMcastPkts/sec',
 			'GPRINT:ifOutMcastPkts:AVERAGE:Avg %1.2lf%s',
+			'GPRINT:ifOutMcastPkts:MAX:Max %1.2lf%s\\n',
+#5th
 			'STACK:ifOutBcastPkts#00bb00: ifOutBcastPkts/sec',
-			'GPRINT:ifOutBcastPkts:AVERAGE:Avg %1.2lf%s\n',
+			'GPRINT:ifOutBcastPkts:AVERAGE:Avg %1.2lf%s',
+			'GPRINT:ifOutBcastPkts:MAX:Max %1.2lf%s\\t',
 			'STACK:ifOutErrors#ff0000: ifOutErrors/sec',
 			'GPRINT:ifOutErrors:AVERAGE:Avg %1.2lf%s',
+			'GPRINT:ifOutErrors:MAX:Max %1.2lf%s\\n',
+#6th
 			'STACK:ifOutDiscards#aa0000: ifOutDiscards/sec',
-			'GPRINT:ifOutDiscards:AVERAGE:Avg %1.2lf%s\n',
-
+			'GPRINT:ifOutDiscards:AVERAGE:Avg %1.2lf%s',
+			'GPRINT:ifOutDiscards:MAX:Max %1.2lf%s\\n',
+#7th
 			'LINE1:ifInPktsSplit#4169E1: ifInPkts/sec',
 			'GPRINT:ifInPkts:AVERAGE:Avg %1.2lf%s',
-			'GPRINT:MifInPkts:MAX:Max %1.2lf%s',
-			'GPRINT:sizeInPkt:AVERAGE:Avg In Packet Size %1.2lf\n',
+			'GPRINT:sizeInPkt:AVERAGE:Avg In Packet Size %1.2lf',
+			'GPRINT:MifInPkts:MAX:Max %1.2lf%s\\n',
+#8th
 			'LINE1:ifOutPkts#008000: ifOutPkts/sec',
 			'GPRINT:ifOutPkts:AVERAGE:Avg %1.2lf%s',
-			'GPRINT:MifOutPkts:MAX:Max %1.2lf%s',
-			'GPRINT:sizeOutPkt:AVERAGE:Avg Out Packet Size %1.2lf\n',
+			'GPRINT:sizeOutPkt:AVERAGE:Avg Out Packet Size %1.2lf',
+			'GPRINT:MifOutPkts:MAX:Max %1.2lf%s\\n',
+#9th
 			#'LINE1:ifPkts#ff0000: ifPkts/sec',
 			'GPRINT:ifPkts:AVERAGE:ifPkts Avg %1.2lf%s',
-			'GPRINT:sizePkt:AVERAGE:Avg Packet Size %1.2lf%s\n',
+			'GPRINT:sizePkt:AVERAGE:Avg Packet Size %1.2lf%s',
 			'GPRINT:inputBits:AVERAGE:Avg In bits/sec %1.2lf%s',
 			'GPRINT:outputBits:AVERAGE:Avg Out bits/sec %1.2lf%s',
 			'GPRINT:ifInOctets:AVERAGE:Avg In bytes/sec %1.2lf%s',
-			'GPRINT:ifOutOctets:AVERAGE:Avg Out bytes/sec %1.2lf%s\n'
+			'GPRINT:ifOutOctets:AVERAGE:Avg Out bytes/sec %1.2lf%s\\n'
 		],
 		'small' => [
 			'DEF:ifInOctets=$database:ifInOctets:AVERAGE',
