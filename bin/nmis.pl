@@ -3744,6 +3744,8 @@ sub updateNodeInfo
 		# has that node really been reset or has the uptime counter wrapped at 497 days and change?
 		# sysUpTime is in 0.01s timeticks and 32 bit wide, so 497.1 days is all it can hold
 		my $newuptime = $NI->{system}->{sysUpTimeSec};
+		# human readable sysUpTime
+		my $newuptimeHr = convUpTime($newuptime);
 		if ($newuptime && $sysUpTimeSec > $newuptime)
 		{
 			if ($sysUpTimeSec >= 496*86400) # ie. old uptime value within one day of the rollover
@@ -3752,10 +3754,10 @@ sub updateNodeInfo
 			}
 			else
 			{
-				info("NODE RESET: Old sysUpTime=$sysUpTimeSec New sysUpTime=$newuptime");
+				info("NODE RESET: Old sysUpTime=$sysUpTimeSec New sysUpTime=$newuptimeHr");
 				notify(sys=>$S, event=>"Node Reset",
 							 element=>"",
-							 details => "Old_sysUpTime=$sysUpTime New_sysUpTime=$newuptime",
+							 details => "Old_sysUpTime=$sysUpTime New_sysUpTime=$newuptimeHr",
 							 context => { type => "node" } );
 
 				# now stash this info in the node info object, to ensure we insert ONE set of U's into the rrds
