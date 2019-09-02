@@ -451,13 +451,13 @@ sub loadCustomers {
 		if ( not -f $nmiscustomers ) {
 			writeHashtoFile(file => $nmiscustomers, data => $CT);
 			$res .= "New customers imported into \"$nmiscustomers\", check the file and copy over existing NMIS Customers file\n";
-			$res .= "cp $nmiscustomers /usr/local/nmis8/conf/Nodes.nmis\n";
+			$res .= "cp $nmiscustomers /usr/local/nmis8/conf/Customers.nmis\n";
 		}
 		elsif ( -r $nmiscustomers and $overwrite ) {
 			mybackupFile(file => $nmiscustomers, backup => "$nmiscustomers.backup");
 			writeHashtoFile(file => $nmiscustomers, data => $CT);
 			$res .= "New customers imported into \"$nmiscustomers\", check the file and copy over existing NMIS Nodes file\n";
-			$res .= "cp $nmiscustomers /usr/local/nmis8/conf/Nodes.nmis\n";
+			$res .= "cp $nmiscustomers /usr/local/nmis8/conf/Customers.nmis\n";
 		}
 		else {
 			$res .= "ERROR: customers file \"$nmiscustomers\" already exists\n";
