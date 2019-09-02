@@ -79,7 +79,7 @@ ERROR: need some files to work with
 
 usage example:
 $0 \\
-	zenbatchdump=/usr/local/nmis8/admin/samples/zenbatchdump.txt \\
+	zenbatchdump=/usr/local/nmis8/admin/samples/zenbatchdump_sample.txt \\
 	nodes=/usr/local/nmis8/conf/Nodes.nmis.new \\
 	locations=/usr/local/nmis8/conf/Locations.nmis.new \\
 	customers=/usr/local/nmis8/conf/Customers.nmis.new \\

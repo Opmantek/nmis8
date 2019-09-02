@@ -1,0 +1,77 @@
+# zenbatchdump run on host 9a on date 2019-08-28 06:00:58.931658
+# with --root=
+
+#
+# ==== Begin distributed hub/collector information ===================
+#
+# Note:
+#   1. ...
+#
+#   2. ...
+#
+#   3. ...
+#
+#   4. ...
+#
+#   5. ...
+#
+# ...
+
+# ==== End distributed hub/collector information ===================
+
+
+
+'/Locations'  
+
+
+'/Locations/WR/Main Office'  description='Main Office', setAddress='Main Office'
+
+
+'/Locations/WR/Nth Street'  setAddress='Nth Street'
+
+
+'/Locations/WR/Zth Street'  setAddress='Zth Street'
+
+
+'/Systems'  
+
+
+'/Systems/aaaaaa'  
+
+
+'/Systems/bbbbbbbbbbbb'  
+
+
+'/Systems/DEF'  description='DEF'
+
+
+'/Systems/Admins'  
+
+
+'/Groups'  
+
+
+'/Groups/ABC'  description='ABC'
+
+
+'/Groups/ABC/XYZ POP'  
+
+
+'/Groups/ABC/XYZ POP/DEF'  description='DEF Channels'
+
+
+'/Devices'  ...
+
+'10.1.1.1' setHWProductKey=('.1.3.6.1.4.1.6321.1.2.2.5.3', 'Calix Networks'), setLastChange=DateTime('2019/07/29 04:58:4.122984 UTC'), setManageIp='10.1.1.1', setPerformanceMonitor='localhost', setPreMWProductionState=400, setPriority=3, setProdState=400, setTitle='A100', zCollectorPlugins=['zenoss.snmp.NewDeviceMap', 'zenoss.snmp.DeviceMap', 'zenoss.snmp.InterfaceMap', 'zenoss.snmp.RouteMap'], zSnmpCommunities=['public'], zSnmpVer='v2c'
+
+
+'10.1.1.2' setGroups=['/ABC/XYZ POP'], setHWProductKey=('.1.3.6.1.4.1.9.1.1605', 'ciscoSystems'), setHWSerialNumber='1234', setInterfaceIPAddresses={'AnEthernet1/4': [], 'AnEthernet1/5--Controlled': [], 'AnEthernet1/6': []}, setLastChange=DateTime('2019/08/27 18:21:2.151322 UTC'), setLocation='WR/Main Office', setManageIp='10.1.1.2', setModuleMACRanges={'1': None, '2': None}, setOSProductKey=('ABC.', 'DEF'), setPerformanceMonitor='localhost', setPreMWProductionState=500, setPriority=3, setProdState=500, setSystems=['/DEF'], setTitle='XYZ'
+
+'10.1.1.3' setHWProductKey=('.1.3.6.1.4.1.9.1.670', 'ciscoSystems'), setHWSerialNumber='2345', setInterfaceIPAddresses={'GigabitEthernet0/3': []}, setLastChange=DateTime('2019/08/28 05:55:31.251995 UTC'), setManageIp='10.10.1.58', setOSProductKey=('ABC', 'Cisco'), setPerformanceMonitor='localhost', setPreMWProductionState=300, setPriority=3, setProdState=300, setTitle='GHI'
+
+# Dumped:
+#            Locations: 3
+#               Groups: 2
+#              Systems: 2
+#        DeviceClasses: N
+#              Devices: 3
