@@ -83,7 +83,7 @@ $0 \\
 	nodes=/usr/local/nmis8/conf/Nodes.nmis.new \\
 	locations=/usr/local/nmis8/conf/Locations.nmis.new \\
 	customers=/usr/local/nmis8/conf/Customers.nmis.new \\
-	role=$node_role_default group=$node_group_default customer_is_imported_group=0|1 fixNames=0|1 setlocation=$all_locations|$set_location_setAddress|$set_location_setTitle verbose=0|1
+	role=$node_role_default group=$node_group_default customer_is_imported_group=0|1 fixNames=0|1 setlocation=$all_locations|$set_location_setAddress|$set_location_setTitle verbose=1|0
 
 EO_TEXT
 	exit 1;
