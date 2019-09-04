@@ -787,7 +787,7 @@ sub typeExport
 	my $NI = $S->ndinfo;
 	my $IF = $S->ifinfo;
 
-	my $NT = loadLocalNodeTable();
+	#my $NT = loadLocalNodeTable(); # already loaded globally
 
 	my %interfaceTable;
 	my $database;
@@ -813,8 +813,8 @@ sub typeExport
 													&& $Q->{resolution} =~ /^\d+$/
 													&& $Q->{resolution} != 0?
 													$Q->{resolution}: undef );
-
-	my ($statvalAVG,$headAVG,$meta) = getRRDasHash(sys=>$S,
+	
+	my ($statvalAVG,$headAVG,$metaAVG) = getRRDasHash(sys=>$S,
 																					 graphtype=>$Q->{graphtype},
 																					 index=>$Q->{intf},item=>$Q->{item},
 																					 mode=>"AVERAGE",
@@ -823,12 +823,16 @@ sub typeExport
 																					 resolution => $mayberesolution,
 																					 add_minmax => $Q->{add_minmax}?1:0);
 
-	bailout(message => "Failed to retrieve mode=AVERAGE RRD data: $meta->{error}\n") if ($meta->{error});
+	bailout(message => "Failed to retrieve mode=AVERAGE RRD data: $metaAVG->{error}\n") if ($metaAVG->{error});
 
 	# no data? complain, don't produce an empty csv
-	bailout(message => "mode=AVERAGE: No exportable data found!") if (!keys %$statvalAVG or !$meta->{rows_with_data});
+	bailout(message => "mode=AVERAGE: No exportable data found!") if (!keys %$statvalAVG or !$metaAVG->{rows_with_data});
 
-	my ($statvalMAX,$headMAX,$meta) = getRRDasHash(sys=>$S,
+	# we need step to accurately return correct number of records:
+	my $step = $metaAVG->{step};
+	undef $metaAVG;
+
+	my ($statvalMAX,$headMAX,$metaMAX) = getRRDasHash(sys=>$S,
 																					 graphtype=>$Q->{graphtype},
 																					 index=>$Q->{intf},item=>$Q->{item},
 																					 mode=>"MAX",
@@ -837,11 +841,16 @@ sub typeExport
 																					 resolution => $mayberesolution,
 																					 add_minmax => $Q->{add_minmax}?1:0);
 
-	bailout(message => "Failed to retrieve mode=MAX RRD data: $meta->{error}\n") if ($meta->{error});
+	bailout(message => "Failed to retrieve mode=MAX RRD data: $metaMAX->{error}\n") if ($metaMAX->{error});
 
 	# no data? complain, don't produce an empty csv
-	bailout(message => "mode=AVERAGE: No exportable data found!") if (!keys %$statvalMAX or !$meta->{rows_with_data});
+	bailout(message => "mode=MAX: No exportable data found!") if (!keys %$statvalMAX or !$metaMAX->{rows_with_data});
 
+	# we need step to accurately return correct number of records:
+	# step of each getRRDasHash() call must and should always the same:
+	bailout(message => "ERROR: mode=MAX step \"$metaMAX->{step}\" <> mode=AVERAGE step \"$step\"") if ($metaMAX->{step} != $step);
+	undef $metaMAX;
+	
 	# graphtypes for custom service graphs are fixed and not found in the model system
 	# note: format known here, in services.pl and nmis.pl
 	my $heading;
@@ -895,13 +904,21 @@ sub typeExport
 		print $csv->string,"\n";
 	}
 
+	# we need to accurately return correct number of records:
+	#my $startMod = $start - $start % $step;
+	my $endMod = $end - $end % $step;
+
 	# print any row that has at least one reading with known ds/header name
 	foreach my $rtime (sort keys %{ $merged_statval })
 	{
-		if ( List::Util::any { defined $merged_statval->{$rtime}->{$_} } (@$merged_head) )
+		# we need to accurately return correct number of records:
+		if ( $rtime <= $endMod )
 		{
-			$csv->combine( (map { $merged_statval->{$rtime}->{$_} } (@$merged_head)) );
-			print $csv->string,"\n";
+			if ( List::Util::any { defined $merged_statval->{$rtime}->{$_} } (@$merged_head) )
+			{
+				$csv->combine( (map { $merged_statval->{$rtime}->{$_} } (@$merged_head)) );
+				print $csv->string,"\n";
+			}
 		}
 	}
 
@@ -915,8 +932,8 @@ sub typeStats {
 	my $NI = $S->ndinfo;
 	my $IF = $S->ifinfo;
 
-	my $NT = loadLocalNodeTable();
-	my $C = loadConfTable();
+	#my $NT = loadLocalNodeTable(); # already loaded globally
+	#my $C = loadConfTable(); # already loaded globally
 
 	print header($headeropts);
 
