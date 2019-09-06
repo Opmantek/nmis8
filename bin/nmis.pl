@@ -4005,6 +4005,7 @@ sub getIntfData
 
 	my $V =  $S->view;
 	my $IF = $S->ifinfo; # interface info
+	my $IFDI = $S->ifDescrInfo;
 	my $RI = $S->reach;
 	my $SNMP = $S->snmp;
 	my $IFCACHE;
@@ -4040,21 +4041,38 @@ sub getIntfData
 			$ifOperTable = $SNMP->getindex('ifOperStatus');
 			for my $index (keys %{$ifAdminTable})
 			{
-				logMsg("INFO ($S->{name}) entry ifAdminStatus for index=$index not found in interface table") if not exists $IF->{$index}{ifAdminStatus};
-
 				if ( ($ifAdminTable->{$index} == 1 and $IF->{$index}{ifAdminStatus} ne 'up')
 					or ($ifAdminTable->{$index} != 1 and $IF->{$index}{ifAdminStatus} eq 'up')
 					)
 				{
 					my $ifAdminStatusNow = $ifAdminTable->{$index} == 1 ? "up" : "down";
-					dbg("INFO ($S->{name}) ifIndex=$index, $IF->{$index}{ifDescr}, Admin was $IF->{$index}{ifAdminStatus} now $ifAdminStatusNow($ifAdminTable->{$index}) rebuild",1);
-					notify(sys=>$S,
-								 event=>"Interface ifAdminStatus Changed",
-								 element=>"$IF->{$index}{ifDescr}",
-								 details=>"Admin was $IF->{$index}{ifAdminStatus} now $ifAdminStatusNow",
-								 context => { type => "node" },
-							);
+
 					getIntfInfo(sys=>$S,index=>$index); # update this interface
+
+					# is this an ifIndex change?
+					my $ifIndexChange = 0;
+					my $ifDescr = $IF->{$index}{ifDescr};
+					if ( $IFDI->{$ifDescr}{ifIndex} != $index ) {			
+						$ifIndexChange = 1;
+					}
+					
+					#what about new interfaces........
+					$IF->{$index}{ifAdminStatus} = "unknown" if not defined $IF->{$index}{ifAdminStatus};
+					my $element = $IF->{$index}{ifDescr} ? $IF->{$index}{ifDescr} : $index;
+
+					if ( $ifIndexChange ) {
+						dbg("INFO ($S->{name}) ifIndex=$index, $IF->{$index}{ifDescr}, ifIndex has changed from $IFDI->{$ifDescr}{ifIndex} to $index",1);
+					}
+					else {
+						dbg("INFO ($S->{name}) ifIndex=$index, $IF->{$index}{ifDescr}, Admin was $IF->{$index}{ifAdminStatus} now $ifAdminStatusNow($ifAdminTable->{$index}) rebuild",1);
+						notify(
+							sys=>$S,
+							event=>"Interface ifAdminStatus Changed",
+							element=>$element,
+							details=>"Admin was $IF->{$index}{ifAdminStatus} now $ifAdminStatusNow",
+							context => { type => "node" },
+						);						
+					}
 				}
 				# total number of interfaces up
 				$RI->{intfUp}++ if $ifOperTable->{$index} == 1
