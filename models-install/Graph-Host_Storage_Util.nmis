@@ -44,14 +44,17 @@
 			'--rigid',
 			'DEF:hrStorageSize=$database:hrStorageSize:MAX',
 			'DEF:hrStorageUsed=$database:hrStorageUsed:MAX',
+			'DEF:hrStorageUnits=$database:hrStorageUnits:MAX',
 			'CDEF:perUsedD=hrStorageUsed,hrStorageSize,/,100,*',
+			'CDEF:used=hrStorageUsed,hrStorageUnits,*',
+			'CDEF:size=hrStorageSize,hrStorageUnits,*',
 			'AREA:perUsedD#00FFFF: % Storage Used',
 			'GPRINT:perUsedD:LAST:Current %1.1lf%%',
 			'GPRINT:perUsedD:AVERAGE:Average %1.1lf%%',
 			'GPRINT:perUsedD:MAX:Maximum %1.1lf%%\\n',
-			'GPRINT:hrStorageSize:MAX:Storage Size %1.3lf %sbytes',
-			'GPRINT:hrStorageUsed:AVERAGE:Average Storage Used %1.3lf %Sbytes',
-			'GPRINT:hrStorageUsed:MAX:Maximum Storage Used %1.3lf %Sbytes\n' 
+			'GPRINT:size:MAX:Storage Size %1.3lf %sbytes',
+			'GPRINT:used:AVERAGE:Average Storage Used %1.3lf %Sbytes',
+			'GPRINT:used:MAX:Maximum Storage Used %1.3lf %Sbytes\n' 
 		],
 		'small' => [
 			'--upper-limit','100',

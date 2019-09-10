@@ -37,10 +37,116 @@
   },  
   'heading' => {
     'graphtype' => {
-			'Host_Storage' => 'Storage Usage',
-			'Host_Storage_Util' => 'Storage Utilisation',
-			'Host_Memory' => 'Real Memory Usage',
+      'Host_Storage' => 'Storage Usage',
+      'Host_Storage_Util' => 'Storage Utilisation',
+      'Host_Memory' => 'Real Memory Usage',
     }
+  },
+  'threshold' => {
+    'name' => {
+      'Real_Memory_Utilisation' => {
+        'item' => 'realMemUtil',
+        'event' => 'Proactive Memory Utilisation',
+	'title' => "Memory Utilisation",
+	'unit' => '%',
+
+        'select' => {
+          'default' => {
+            'value' => {
+              'fatal' => '95',
+              'critical' => '93',
+              'major' => '91',
+              'minor' => '88',
+              'warning' => '85',
+            }
+          }
+        }
+      },
+      'Disk_Utilisation' => {
+        'event' => 'Proactive Disk Usage',
+        'title' => "Disk Usage",
+        'unit' => "%",
+
+        'item' => 'hrStorageUtil',
+        'select' => {
+          #'10' => {
+          #  'control' => 'CVAR1=hrStorageSize;CVAR2=hrStorageType;$CVAR1 <= 209715200000 and $CVAR2 =~ /(Fixed|Network) Disk/',
+          #  'value' => {
+          #    'fatal' => '97',
+          #    'critical' => '95',
+          #    'major' => '95',
+          #    'minor' => '95',
+          #    'warning' => '95',
+          #  },
+          #},
+          #'20' => {
+          #  'control' => 'CVAR1=hrStorageSize;CVAR2=hrStorageType;$CVAR1 <= 1610612736000 and $CVAR1 >= 209715200000 and $CVAR2 =~ /(Fixed|Network) Disk/',
+          #  'value' => {
+          #    'fatal' => '99',
+          #    'critical' => '97',
+          #    'major' => '95',
+          #    'minor' => '93',
+          #    'warning' => '90',
+          #  },
+          #},
+          #'30' => {
+          #  'control' => 'CVAR1=hrStorageSize;CVAR2=hrStorageType;$CVAR1 <= 3221225472000 and $CVAR1 >= 1610612736000 and $CVAR2 =~ /(Fixed|Network) Disk/',
+          #  'value' => {
+          #    'fatal' => '99',
+          #    'critical' => '98',
+          #    'major' => '96',
+          #    'minor' => '93',
+          #    'warning' => '90',
+          #  },
+          #},
+          #'40' => {
+          #  'control' => 'CVAR1=hrStorageSize;CVAR2=hrStorageType;$CVAR1 >= 3221225472000 and $CVAR2 =~ /(Fixed|Network) Disk/',
+          #  'value' => {
+          #    'fatal' => '99.5',
+          #    'critical' => '99',
+          #    'major' => '98',
+          #    'minor' => '96',
+          #    'warning' => '93',
+          #  },
+          #},
+          'default' => {
+            'value' => {
+              'fatal' => '197',
+              'critical' => '195',
+              'major' => '190',
+              'minor' => '180',
+              'warning' => '175',
+              #'fatal' => '97',
+              #'critical' => '95',
+              #'major' => '90',
+              #'minor' => '80',
+              #'warning' => '75',
+            }
+          }
+        }
+      },
+    },
+  },
+  'stats' => {
+    'type' => {
+      'Host_Memory' => [
+        'DEF:physical_total=$database:physical_total:AVERAGE',
+        'DEF:available_used=$database:available_used:AVERAGE',
+        'DEF:physical_units=$database:physical_units:AVERAGE',
+
+        'CDEF:total_physical=physical_total,physical_units,*',
+        'CDEF:available=available_used,physical_units,*',
+        'CDEF:realMemUtil=available,total_physical,/,100,*',
+
+        'PRINT:realMemUtil:AVERAGE:realMemUtil=%1.2lf',
+      ],
+      'Host_Storage' => [
+        'DEF:hrStorageSize=$database:hrStorageSize:MAX',
+        'DEF:hrStorageUsed=$database:hrStorageUsed:MAX',
+        'CDEF:hrStorageUtil=hrStorageUsed,hrStorageSize,/,100,*',
+        'PRINT:hrStorageUtil:AVERAGE:hrStorageUtil=%1.2lf'
+      ],
+    },
   },
   'alerts' => {
   },
@@ -48,6 +154,7 @@
     'rrd' => {
       'Host_Memory' => {
         'graphtype' => 'Host_Memory',
+        'threshold' => 'Real_Memory_Utilisation',
       },
     },
   },
@@ -67,6 +174,7 @@
       'Host_Storage' => {
         'indexed' => 'true',
         'graphtype' => 'Host_Storage,Host_Storage_Util',
+        'threshold' => 'Disk_Utilisation',
         'snmp' => {
           'hrStorageUnits' => {
             'oid' => 'hrStorageAllocationUnits'
