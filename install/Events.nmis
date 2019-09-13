@@ -99,6 +99,15 @@
     'CancelingEvent' => 'N/A',
     'Description' => 'Indicating that the NMIS polling cycle is going too long.',
   },
+  'Interface ifAdminStatus Changed' => {
+    'Event' => 'Interface ifAdminStatus Changed',
+    'Notify' => 'true',
+    'Status' => 'true',
+    'Log' => 'true',
+    'Stateful' => 'false',
+    'CancelingEvent' => '',
+    'Description' => 'An interface has been administratively changed (enabled or disabled).',
+  },
   'Interface Down' => {
     'Event' => 'Interface Down',
     'Notify' => 'true',
