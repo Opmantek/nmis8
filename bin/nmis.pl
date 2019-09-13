@@ -3746,7 +3746,8 @@ sub updateNodeInfo
 		my $newuptime = $NI->{system}->{sysUpTimeSec};
 		# human readable sysUpTime
 		my $newuptimeHr = convUpTime($newuptime);
-		if ($newuptime && $sysUpTimeSec > $newuptime)
+		# getting alot of crazy Linux servers with out of whack clocks, adding 300 seconds to calculation
+		if ($newuptime && $sysUpTimeSec > $newuptime + 300)
 		{
 			if ($sysUpTimeSec >= 496*86400) # ie. old uptime value within one day of the rollover
 			{
