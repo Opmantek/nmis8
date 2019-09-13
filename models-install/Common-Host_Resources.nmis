@@ -69,6 +69,16 @@
 
         'item' => 'hrStorageUtil',
         'select' => {
+          '10' => {
+            'control' => 'CVAR=hrStorageType;$CVAR =~ /(Fixed|Network) Disk/',
+            'value' => {
+              'fatal' => '97',
+              'critical' => '95',
+              'major' => '95',
+              'minor' => '95',
+              'warning' => '95',
+            },
+          },
           #'10' => {
           #  'control' => 'CVAR1=hrStorageSize;CVAR2=hrStorageType;$CVAR1 <= 209715200000 and $CVAR2 =~ /(Fixed|Network) Disk/',
           #  'value' => {
@@ -215,7 +225,7 @@
         }
       },
       'Host_Storage' => {
-        'indexed' => 'hrStorageIndex',
+        'indexed' => 'hrStorageDescr',
         'headers' => 'hrStorageDescr,hrStorageTypeName,hrStorageSummary',
         #'headers' => 'hrStorageDescr,hrStorageSize,hrStorageUsage,hrStorageUtil,hrStorageSummary',
         'snmp' => {
