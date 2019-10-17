@@ -1270,7 +1270,7 @@ sub selectNodeModel
 			}
 		}
 	}
-	dbg("ERROR, No model found for Vendor $vendor, returning Model=Default");
+	dbg("INFO, No model found for Vendor $vendor, returning Model=Default");
 	return 'Default';
 }
 
@@ -1744,12 +1744,12 @@ sub parseString
 		{
 			# format of $str is assumed to be ($scalar =~ /regex/) ? "1" : "0"
 			my $check = $str;
-			$check =~ s{\$(\w+)}{if(defined${$1}){${$1};}else{"ERROR, no variable \$$1 ";}}egx;
+			$check =~ s{\$(\w+)}{if(defined${$1}){${$1};}else{"WARN, no variable \$$1 ";}}egx;
 
-			if ($check =~ /ERROR/)
+			if ($check =~ /WARN/)
 			{
 				dbg($check);
-				logMsg("ERROR ($self->{info}{system}{name}) syntax error or undefined variable at \"$str\", \"$check\"");
+				logMsg("WARN ($self->{info}{system}{name}) syntax error or undefined variable at \"$str\", \"$check\"");
 				return undef;
 			}
 			else
@@ -1762,11 +1762,11 @@ sub parseString
 		else
 		{
 			my $s = $str; # copy
-			$str =~ s{\$(\w+)}{if(defined${$1}){${$1};}else{"ERROR, no variable \$$1 ";}}egx;
+			$str =~ s{\$(\w+)}{if(defined${$1}){${$1};}else{"WARN, no variable \$$1 ";}}egx;
 
-			if ($str =~ /ERROR/)
+			if ($str =~ /WARN/)
 			{
-				logMsg("ERROR ($self->{info}{system}{name}) ($s) in expanding variables, \"$str\"");
+				logMsg("WARN ($self->{info}{system}{name}) ($s) in expanding variables, \"$str\"");
 				return undef;
 			}
 		}
