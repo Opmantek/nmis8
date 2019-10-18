@@ -635,6 +635,13 @@
         }
       }
     },
+    'Opengear Inc.' => {
+      'order' => {
+        '99' => {
+          'Default-HC' => '.'
+        }
+      }
+    },
   },
   'system' => {
     'nodeModel' => 'Default',
