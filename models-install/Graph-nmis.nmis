@@ -47,6 +47,7 @@
 			'DEF:collect=$database:collect:AVERAGE',
 			'DEF:procs=$database:nr_procs:AVERAGE',
 			'DEF:maxpar=$database:max_procs:AVERAGE',
+			'DEF:nodecount=$database:nodecount:AVERAGE',
 
 			'LINE2:total#006400: total runtime\t',
 			'GPRINT:total:AVERAGE:\tAvg %1.2lf seconds',
@@ -64,6 +65,9 @@
 			'GPRINT:maxpar:AVERAGE:Avg %6.1lf',
 			'GPRINT:maxpar:MAX:\tMax %6.1lf\l',
 
+			'LINE2:nodecount#00BFFF: Node Count/Poll\t',
+			'GPRINT:nodecount:AVERAGE:Avg %6.1lf',
+			'GPRINT:nodecount:MAX:\tMax %6.1lf\l',
 		]
 	}
 );

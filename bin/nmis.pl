@@ -874,8 +874,8 @@ sub	runThreads
 		$D->{total}{option} = 'gauge,0:U';
 
 		# OMK-4630 add nodecount to be saved, probably the following will work well
-		#$D->{nodecount}{value} = $nodecount;
-		#$D->{nodecount}{option} = 'gauge,0:U';
+		$D->{nodecount}{value} = $nodecount;
+		$D->{nodecount}{option} = 'gauge,0:U';
 
 		my $nr_processes = 1+ scalar %{&func::find_nmis_processes(config => $C)}; # current one isn't returned by find_nmis_processes
 		$D->{nr_procs} = { option => "gauge,0:U",
