@@ -806,6 +806,7 @@ sub getLevelLogEvent {
 	my $level = $args{level};
 
 	my $mdl_level;
+	# set the default policy to true
 	my $log = 'true';
 	my $syslog = 'true';
 	my $pol_event;
@@ -839,23 +840,18 @@ sub getLevelLogEvent {
 			dbg("no custom event level found for node=$NI->{system}{name}, event=$event, role=$role, model=$NI->{system}{nodeModel}, using '$mdl_level'");
 		}
 	}
-	elsif ( $event =~ /^Alert/i ) {
-		# Level set by custom!
-		### 2013-03-08 keiths, adding policy based logging for Alerts.
-		# We don't get the level but we can get the logging policy.
-		$pol_event = "Alert";
-		if ($log = $M->{event}{event}{lc $pol_event}{lc $role}{logging}) {
-			$syslog = $M->{event}{event}{lc $pol_event}{lc $role}{syslog} if ($M->{event}{event}{lc $pol_event}{lc $role}{syslog} ne "");
-		}
+	# Level set by custom!
+	### 2013-03-08 keiths, adding policy based logging for Alerts.
+	# We don't get the level but we can get the logging policy.
+	# changed handling Proactive and Alert events to only use policy if found, default is kept
+	elsif ( $event =~ /^Proactive|^Alert/i ) {
+		if ( $event =~ /^Alert/i ) { $pol_event = "alert"; }
+		elsif ( $event =~ /^Proactive/i ) { $pol_event = "proactive"; }
+
+		$log = $M->{event}{event}{lc $pol_event}{lc $role}{logging} if defined $M->{event}{event}{lc $pol_event}{lc $role}{logging};
+		$syslog = $M->{event}{event}{lc $pol_event}{lc $role}{syslog} if defined $M->{event}{event}{lc $pol_event}{lc $role}{syslog};
 	}
-	else {
-		### 2012-03-02 keiths, adding policy based logging for Proactive.
-		# We don't get the level but we can get the logging policy.
-		$pol_event = "Proactive";
-		if ($log = $M->{event}{event}{lc $pol_event}{lc $role}{logging}) {
-			$syslog = $M->{event}{event}{lc $pol_event}{lc $role}{syslog} if ($M->{event}{event}{lc $pol_event}{lc $role}{syslog} ne "");
-		}
-	}
+
 	# overwrite the level argument if it wasn't set AND if the models reported something useful
 	if ($mdl_level && !defined $level) {
 		$level = $mdl_level;
