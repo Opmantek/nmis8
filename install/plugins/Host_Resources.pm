@@ -64,6 +64,8 @@ sub collect_plugin
 			my $typeName = undef;
 
 			# is this the physical memory?
+			if ( defined $entry->{hrStorageDescr} ) {
+
 			if ( $entry->{hrStorageDescr} =~ /(Physical memory|RAM)/ ) {
 				$typeName = "Memory";
 				$type = "physical";
@@ -107,6 +109,12 @@ sub collect_plugin
 			else {
 				$typeName = $entry->{hrStorageType};
 				$type = "other";
+			}
+
+			else {
+				$typeName = "Unknown";
+				$type = "other";
+
 			}
 
 			if ( $typeName eq "Memory" ) {
