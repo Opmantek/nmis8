@@ -2552,9 +2552,11 @@ sub getIntfInfo
 					foreach my $addr (keys %{$ifAdEntTable})
 					{
 						if ($ifMaskTable->{$addr} eq "255.255.255.255"
-								&& $IF->{$ifAdEntTable->{$addr}}->{ifDescr} !~ /loopback/i)
-						{
-							info("SKIPPING HSRP Addr on $IF->{$ifAdEntTable->{$addr}}{ifDescr} :: ifIndex=$ifAdEntTable->{$addr}, addr=$addr  mask=$ifMaskTable->{$addr}");
+								and ( $IF->{$ifAdEntTable->{$addr}}->{ifDescr} !~ /loopback/i
+									and $IF->{$ifAdEntTable->{$addr}}->{ifType} !~ /softwareLoopback/i
+								) 
+						) {
+							info("SKIPPING HSRP Addr on $IF->{$ifAdEntTable->{$addr}}{ifDescr} $IF->{$ifAdEntTable->{$addr}}{ifType} :: ifIndex=$ifAdEntTable->{$addr}, addr=$addr  mask=$ifMaskTable->{$addr}");
 							next;
 						}
 						my $index = $ifAdEntTable->{$addr};
