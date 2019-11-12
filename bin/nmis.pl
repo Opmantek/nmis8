@@ -874,8 +874,8 @@ sub	runThreads
 		$D->{total}{option} = 'gauge,0:U';
 
 		# OMK-4630 add nodecount to be saved, probably the following will work well
-		#$D->{nodecount}{value} = $nodecount;
-		#$D->{nodecount}{option} = 'gauge,0:U';
+		$D->{nodecount}{value} = $nodecount;
+		$D->{nodecount}{option} = 'gauge,0:U';
 
 		my $nr_processes = 1+ scalar %{&func::find_nmis_processes(config => $C)}; # current one isn't returned by find_nmis_processes
 		$D->{nr_procs} = { option => "gauge,0:U",
@@ -2552,9 +2552,11 @@ sub getIntfInfo
 					foreach my $addr (keys %{$ifAdEntTable})
 					{
 						if ($ifMaskTable->{$addr} eq "255.255.255.255"
-								&& $IF->{$ifAdEntTable->{$addr}}->{ifDescr} !~ /loopback/i)
-						{
-							info("SKIPPING HSRP Addr on $IF->{$ifAdEntTable->{$addr}}{ifDescr} :: ifIndex=$ifAdEntTable->{$addr}, addr=$addr  mask=$ifMaskTable->{$addr}");
+								and ( $IF->{$ifAdEntTable->{$addr}}->{ifDescr} !~ /loopback/i
+									and $IF->{$ifAdEntTable->{$addr}}->{ifType} !~ /softwareLoopback/i
+								) 
+						) {
+							info("SKIPPING HSRP Addr on $IF->{$ifAdEntTable->{$addr}}{ifDescr} $IF->{$ifAdEntTable->{$addr}}{ifType} :: ifIndex=$ifAdEntTable->{$addr}, addr=$addr  mask=$ifMaskTable->{$addr}");
 							next;
 						}
 						my $index = $ifAdEntTable->{$addr};
