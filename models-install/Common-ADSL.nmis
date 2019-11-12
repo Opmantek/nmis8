@@ -30,6 +30,16 @@
 # *****************************************************************************
 
 %hash = (
+  'database' => {
+    'type' => {
+      'ADSL_Physical' => '/nodes/$node/interface/adsl-physical-$index.rrd',
+    }
+  },  
+  'heading' => {
+    'graphtype' => {
+      'adsl-physical' => 'ADSL Signal Strength',
+    }
+  },
   'systemHealth' => {
     'rrd' => {
       'ADSL_Physical' => {             
