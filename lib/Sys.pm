@@ -1749,7 +1749,7 @@ sub parseString
 			if ($check =~ /WARN/)
 			{
 				dbg($check);
-				logMsg("WARN ($self->{info}{system}{name}) syntax error or undefined variable at \"$str\", \"$check\"");
+				logMsg("WARN ($self->{info}{system}{name}) syntax error or undefined variable at \"$str\", \"$check\"") if getbool($C->{log_model_messages});
 				return undef;
 			}
 			else
@@ -1766,7 +1766,8 @@ sub parseString
 
 			if ($str =~ /WARN/)
 			{
-				logMsg("WARN ($self->{info}{system}{name}) ($s) in expanding variables, \"$str\"");
+				dbg("WARN ($self->{info}{system}{name}) ($s) in expanding variables, \"$str\"");
+				logMsg("WARN ($self->{info}{system}{name}) ($s) in expanding variables, \"$str\"") if getbool($C->{log_model_messages});
 				return undef;
 			}
 		}

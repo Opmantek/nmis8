@@ -908,7 +908,8 @@ sub getSummaryStats
 
 	# check if rrd option rules exist in Model for stats
 	if ($M->{stats}{type}{$type} eq "") {
-		logMsg("ERROR ($S->{name}) type=$type not found in section stats of model=$NI->{system}{nodeModel}");
+		dbg("WARN ($S->{name}) type=$type not found in section stats of model=$NI->{system}{nodeModel}");
+		logMsg("WARN ($S->{name}) type=$type not found in section stats of model=$NI->{system}{nodeModel}") if getbool($C->{log_model_messages});
 		return;
 	}
 
@@ -923,9 +924,11 @@ sub getSummaryStats
 		# fixme unclear how to find the model's rrd section for this thing?
 
 		my $severity = "INFO";
-		logMsg("$severity ($S->{name}) database=$db does not exist, snmp is "
+		my $message = "$severity ($S->{name}) database=$db does not exist, snmp is "
 					 .($status{snmp_enabled}?"enabled":"disabled").", wmi is "
-					 .($status{wmi_enabled}?"enabled":"disabled") );
+					 .($status{wmi_enabled}?"enabled":"disabled");
+		dbg($message);
+		logMsg($message) if getbool($C->{log_model_messages};
 		return;
 	}
 
@@ -960,7 +963,8 @@ sub getSummaryStats
 
 	($graphret,$xs,$ys) = RRDs::graph('/dev/null', @option);
 	if (($ERROR = RRDs::error)) {
-		logMsg("ERROR ($S->{name}) RRD graph error database=$db: $ERROR");
+		dbg("WARN ($S->{name}) RRD graph error database=$db: $ERROR");
+		logMsg("WARN ($S->{name}) RRD graph error database=$db: $ERROR") if getbool($C->{log_model_messages});
 	} else {
 		##logMsg("INFO result type=$type, node=$NI->{system}{name}, $NI->{system}{nodeType}, $NI->{system}{nodeModel}, @$graphret");
 		if ( scalar(@$graphret) ) {

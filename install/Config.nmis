@@ -18,7 +18,7 @@ my %hash = (
     'community_rss_url' => 'https://community.opmantek.com/rss/NMIS.xml',
   },
 
-	'directories' => {
+  'directories' => {
     '<nmis_base>' => '/usr/local/nmis8',
     '<nmis_admin>' => '<nmis_base>/admin',
     '<nmis_bin>' => '<nmis_base>/bin',
@@ -42,14 +42,14 @@ my %hash = (
 		'<nmis_backups>' => '<nmis_data>/backups',
   },
 
-	'globals' => {
+  'globals' => {
     'global_threshold' => 'true', # advanced thresholds enabled or not
     'threshold_poll_cycle' => 'true', # perform threshold computations at the end of poll cycle
-		'threshold_poll_node' => 'true', # or perform threshold computation with each node
+	'threshold_poll_node' => 'true', # or perform threshold computation with each node
     'threshold_rising_reset_dampening' => '0.95',
     'threshold_falling_reset_dampening' => '1.05',
     'global_collect_Description' => '(CNOC|Collection)',
-		'global_collect_ifDescr' => '',
+	'global_collect_ifDescr' => '',
     'global_nocollect_ifOperStatus' => '',
     'global_nocollect_ifDescr' => '',
     'global_nocollect_Description' => '',
@@ -59,14 +59,13 @@ my %hash = (
     'global_noevent_ifDescr' => '',
     'global_noevent_Description' => '',
     'global_noevent_ifType' => '',
-		'global_events_bandwidth' => 'true',
+	'global_events_bandwidth' => 'true',
     'uuid_namespace_type' => 'NameSpace_URL',
     'uuid_namespace_name' => 'www.domain.com',
-
-		'node_name_rule' => qr/^[a-zA-Z0-9_. -]+$/, # note: rule MUST exclude '/'
+	'node_name_rule' => qr/^[a-zA-Z0-9_. -]+$/, # note: rule MUST exclude '/'
   },
 
-	'system' => {
+  'system' => {
     'group_list' => 'NMIS8,DataCenter,Branches,Sales,Campus,HeadOffice,Open-AudIT',
 		"roletype_list" => "core,distribution,access,default",
 		"nettype_list" => "wan,lan,vpn,man,san,voice,default",
@@ -212,6 +211,7 @@ my %hash = (
 		'keep_event_history' => 'false',
 		'use_json' => 'true',
 		'use_json_pretty' => 'false',
+    'log_model_messages' => 'false',
   },
 
   'url' => {

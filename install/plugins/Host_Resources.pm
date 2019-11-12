@@ -129,15 +129,15 @@ sub collect_plugin
 													 && $entry->{hrStorageSize} =~ /^([+-]?)(?=\d|\.\d)\d*(\.\d*)?([Ee]([+-]?\d+))?$/ );
 
 			$entry->{hrStorageUtil} = sprintf("%.1f", $entry->{hrStorageUsed} / $entry->{hrStorageSize} * 100)
-					if ($sizeisnumber && $entry->{hrStorageSize} != 0);
+					if (defined $sizeisnumber && $sizeisnumber && $entry->{hrStorageSize} != 0);
 
 			$entry->{hrStorageTotal} = getDiskBytes($entry->{hrStorageUnits} * $entry->{hrStorageSize})
-					if ($sizeisnumber && $entry->{hrStorageUnits});
+					if (defined $sizeisnumber && $sizeisnumber && $entry->{hrStorageUnits});
 
 			my $usedisnumber = ($entry->{hrStorageUsed}
 													&& $entry->{hrStorageUsed} =~ /^([+-]?)(?=\d|\.\d)\d*(\.\d*)?([Ee]([+-]?\d+))?$/ );
 			$entry->{hrStorageUsage} = getDiskBytes($entry->{hrStorageUnits} * $entry->{hrStorageUsed})
-					if ($usedisnumber && $entry->{hrStorageUnits});
+					if (defined $usedisnumber && $usedisnumber && $entry->{hrStorageUnits});
 
 			$entry->{hrStorageTypeName} = $typeName;
 
