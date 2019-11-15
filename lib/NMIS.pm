@@ -924,7 +924,7 @@ sub getSummaryStats
 					 .($status{snmp_enabled}?"enabled":"disabled").", wmi is "
 					 .($status{wmi_enabled}?"enabled":"disabled");
 		dbg($message);
-		logMsg($message) if getbool($C->{log_model_messages};
+		logMsg($message) if getbool($C->{log_model_messages});
 		return;
 	}
 
