@@ -73724,4 +73724,8 @@
     'Enterprise' => 'Oplink Communications, Inc.',
     'OID' => '19547'
   },
+  '30803' => {
+    'Enterprise' => 'Vyatta, Inc.',
+    'OID' => '30803'
+  },
 );
