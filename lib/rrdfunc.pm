@@ -212,7 +212,17 @@ sub getRRDasHash
 	# bucket post-processing needed?
 	if ($bucketsize)
 	{
-		my $bucketstart = $meta{start} = $args{start}; # $begin can be one step interval later
+		# OMK-6567
+		my $bucketstart;
+		my @times = (%s)? (sort keys %s): ();
+		if (scalar @times > 0)
+		{
+			$bucketstart = $meta{start} = List::Util::max($args{start}, $times[0]); # $begin can be one step interval later
+		}
+		else
+		{
+			$bucketstart = $meta{start} = $args{start}; # $begin can be one step interval later
+		}
 		$meta{step} = $bucketsize * $step;
 
 		my $nrdatapoints = @$data;
