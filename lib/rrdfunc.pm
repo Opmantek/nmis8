@@ -214,7 +214,7 @@ sub getRRDasHash
 	{
 		# OMK-6567
 		my $bucketstart;
-		my @times = (%s)? (sort keys %s): ();
+		my @times = (sort keys %s);
 		if (scalar @times > 0)
 		{
 			$bucketstart = $meta{start} = List::Util::max($args{start}, $times[0]); # $begin can be one step interval later
