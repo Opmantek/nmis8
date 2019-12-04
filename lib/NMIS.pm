@@ -3417,7 +3417,7 @@ sub loadCBQoS
 # Adapted from NMIS::loadCBQoS at 20191114
 # Standardised to include Huawei and Teldat devices: Teldat has QOS and BRS
 # Load and organize the CBQoS meta-data
-# inputs: a sys object, qos_type (constants QOS_TYPE_QOS_STR or QOS_TYPE_BRS_STR), an index and a graphtype
+# inputs: a sys object, an index, a graphtype and qos_type (constants QOS_TYPE_QOS_STR or QOS_TYPE_BRS_STR, default QOS_TYPE_QOS_STR),
 # returns ref to sorted list of names, ref to hash of description/bandwidth/color/index/section
 # this function is not exported on purpose, to reduce namespace clashes.
 sub loadCBQoS_standardised
@@ -3427,7 +3427,7 @@ sub loadCBQoS_standardised
 	my $S = $args{sys};
 	my $index = $args{index};
 	my $graphtype = $args{graphtype};
-	my $qos_type = $args{qos_type};
+	my $qos_type = $args{qos_type} // QOS_TYPE_QOS_STR;
 
 	my $NI = $S->ndinfo;
 	my $CB = $S->cbinfo;
