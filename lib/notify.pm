@@ -43,6 +43,7 @@ use Net::SNPP;
 use Sys::Syslog 0.33;						# older versions have problems with custom ports and tcp
 use Sys::Hostname;							# for sys::syslog
 use File::Basename;
+use NMIS::UUID;
 use version 0.77;
 # use NMIS; # this makes circular use loops and causes lots of subroution redefined warnings
 use func;												# for logmsg and dbg
@@ -342,16 +343,28 @@ sub logJsonEvent {
 	elsif ( $event->{state} =~ /(up|closed)/ and defined $event->{enddate} ) {
 		$event->{time} = $event->{enddate};
 	}
-		
-	my $file ="$dir/$event->{startdate}-$fcount.json";
+
+	# lets get the JSON blob
+	my $json_event = encode_json( $event ); #, { pretty => 1 } );
+	
+	# includng a UUID in the filename to avoide conflict.
+	my $uuid = getUUID($event->{node});
+	# using event->time which will be startdate for open events and enddate for closing events.
+	my $file ="$dir/$event->{time}-$event->{node}-$uuid-$fcount.json";
+	# arguably the file count is redundant now, but who knows.
 	while ( -f $file ) {
 		++$fcount;
-		$file ="$dir/$event->{startdate}-$fcount.json";
+		$file ="$dir/$event->{time}-$event->{node}-$uuid-$fcount.json";
 	}
 	
-	my $json_event = encode_json( $event ); #, { pretty => 1 } );
-	open(JSON,">$file") or logMsg("ERROR, can not write to $file");
-	print JSON $json_event;
+	# bolster file error handling
+	open(JSON,">$file") or logMsg("ERROR, can not write to $file: $!");
+	if ( print JSON $json_event ) {
+		logMsg("INFO, $event->{node} $event->{event} $event->{element} saved to $file: $!");
+	}
+	else {
+		logMsg("ERROR, did not save $event->{node} $event->{event} $event->{element} to $file: $!");
+	}
 	close JSON;
 	setFileProt($file);
 }
