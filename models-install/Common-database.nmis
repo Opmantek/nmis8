@@ -115,6 +115,8 @@
       'VirtMachines' => '/nodes/$node/health/VirtMachines-$index.rrd',
 			'SignalStatus' => '/nodes/$node/health/signalstatus-$index.rrd',
       'QualityOfServiceStat' => '/nodes/$node/interface/hwqos-$index.rrd',
+      'TeldatQoSStat' => '/nodes/$node/interface/tdqos-$index.rrd',
+      'TeldatBRSStat' => '/nodes/$node/interface/tdbrs-$index.rrd',
       'jnxOperations' => '/nodes/$node/health/jnxOperations-$index.rrd',
       'jnxDestinationClassUsage' => '/nodes/$node/health/jnxDCUstats-$index.rrd',
       'jnxSourceClassUsage' => '/nodes/$node/health/jnxSCUstats-$index.rrd',
