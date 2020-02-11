@@ -52,6 +52,9 @@
       },
       'asset' => {
         'common-model' => 'asset'
+      },
+      'Huawei-Hqos' => {
+        'common-model' => 'Huawei-Hqos'
       }
     }
   },
@@ -79,7 +82,7 @@
   #  },
   #},
   'systemHealth' => {
-    'sections' => 'entityMib',
+    'sections' => 'entityMib,Huawei_ProfUserHQoS',
     #'rrd' => {
     #},
     #'sys' => {

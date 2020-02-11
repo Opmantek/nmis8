@@ -31,8 +31,8 @@
 
 %hash = (
 	'title' => {
-		'standard' => '$node - QoS Bites- $length from $datestamp_start to $datestamp_end',
-		'short' => '$node - QoS Bites - $length'
+		'standard' => '$node - QoS Bits- $length from $datestamp_start to $datestamp_end',
+		'short' => '$node - QoS Bits - $length'
 	},
 	'vlabel' => {
 		'standard' => 'AVG Bites',
