@@ -61,7 +61,7 @@
 
   'system' => 
 	{
-    'nodeModel' => 'net-snmp',
+    'nodeModel' => 'VyOS',
     'nodeVendor' => 'net-snmp',
     'nodeType' => 'router',
     
