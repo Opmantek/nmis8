@@ -1498,7 +1498,8 @@ sub doCollect
 			# get node data and store in rrd
 			getNodeData(sys=>$S);
 			# get intf data and store in rrd
-			getIntfData(sys=>$S) if defined $S->{info}{interface};
+			# only run if interfaces defined in model 
+			getIntfData(sys=>$S) if defined $S->{mdl}{interface};
 			getSystemHealthData(sys=>$S);
 			getEnvData(sys=>$S);
 			getCBQoS(sys=>$S);
