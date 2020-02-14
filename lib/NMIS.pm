@@ -2928,7 +2928,7 @@ sub createHrButtons
 		push @out, CGI::td({class=>'header litehead'},
 				CGI::a({class=>'wht',href=>"network.pl?conf=$confname&act=network_interface_view_act&node=$urlsafenode&refresh=$refresh&widget=$widget&server=$server"},"active intf"))
 				if defined $S->{mdl}{interface};
-		if (ref($NI->{interface}) eq "HASH" && %{$NI->{interface}})
+		if (defined $S->{mdl}{interface} && ref($NI->{interface}) eq "HASH" && %{$NI->{interface}})
 		{
 			push @out, CGI::td({class=>'header litehead'},
 				CGI::a({class=>'wht',href=>"network.pl?conf=$confname&act=network_port_view&node=$urlsafenode&refresh=$refresh&widget=$widget&server=$server"},"ports"));
