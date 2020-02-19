@@ -54,7 +54,6 @@ use CGI qw();												# very ugly but createhrbuttons needs it :(
 use NMIS::UUID;
 use Digest::MD5;								# for htmlGraph, nothing stronger is needed
 use NMIS::RRDdraw;							# for htmlGraph
-use NMIS::SQoS;
 
 #! Imports the LOCK_ *constants (eg. LOCK_UN, LOCK_EX)
 use Fcntl qw(:DEFAULT :flock);
