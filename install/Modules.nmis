@@ -43,7 +43,7 @@
 		'order' => '4',
 		'name' => 'opHA',
 		'base' => 'omk',
-		'file' => '/bin/opha-cli.pl',
+		'file' => '/public/omk/css/opHA_b_internal_packed.css',
 		'link' => '/omk/opHA',
 		'description' => 'Manage large and geographically dispersed environments without performance loss with opHA.  Delivers high scale and high availability including geographical distribution of the system and handling of overlapping IP address ranges.',
 		'tagline' => 'Scale your solution horizontally and add high availability to ensure business continuity.'
