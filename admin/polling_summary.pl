@@ -52,6 +52,8 @@ my $LNT = loadLocalNodeTable();
 
 my $totalPoll = 0;
 my $goodPoll = 0;
+my $noSnmp = 0;
+my $demoted = 0;
 my $latePoll5m = 0;
 my $latePoll15m = 0;
 my $latePoll1h = 0;
@@ -60,7 +62,9 @@ my $latePoll12h = 0;
 my @polltimes;
 my $PP = loadTable(dir=>'conf',name=>"Polling-Policy");
 
-printf "%-16s %-8s %-10s %-6s %-4s %-6s %-7s %-16s\n", "node", "status", "policy", "delta", "snmp", "poll", "update", "pollmessage";
+# define the output heading and the print format
+my @heading = ("node", "status", "nodestatus", "policy", "delta", "snmp", "poll", "update", "pollmessage");
+printf "%-16s %-8s %-12s %-10s %-6s %-4s %-6s %-7s %-16s\n", @heading;
 
 foreach my $node (sort keys %{$LNT}) {
 	if ( getbool($LNT->{$node}{active}) ) {
@@ -86,22 +90,34 @@ foreach my $node (sort keys %{$LNT}) {
 		
 		my $message = "";
 		my $pollstatus = "ontime";
-		my $lastPollAgo = time() - $NI->{system}{lastCollectPoll};
+		my $lastPollAgo = time() - $NI->{system}{lastCollectPoll} if $NI->{system}{lastCollectPoll};
 		my $delta = $NI->{system}{collectPollDelta};
-
+		if (not $delta and $lastPollAgo) {
+			$delta = $lastPollAgo;
+		}
+		elsif ( not $delta ) {
+			$delta = "---";
+		}
 		
-		if (not $delta) {
-            $delta = $lastPollAgo;
-        }
-        
 
-		if ( defined $NI->{system}->{demote_grace} and $NI->{system}->{demote_grace} > 0 ) {
+		my %status = PreciseNodeStatus(system => $S);
+
+		my $nodestatus = "reachable";
+		if ( not $status{'overall'} ) { $nodestatus = "unreachable" }
+		elsif ( $status{'overall'} == -1 ) { $nodestatus = "degraded" }
+
+		if ( $LNT->{$node}{collect} eq "false" 
+			or  $LNT->{$node}{collect_snmp} eq "false" 
+
+		) {
+			$message = "no snmp collect";
+			$pollstatus = "no_snmp";
+			++$noSnmp;
+		}
+		elsif ( defined $NI->{system}->{demote_grace} and $NI->{system}->{demote_grace} > 0 ) {
 			$message = "snmp polling demoted";
 			$pollstatus = "demoted";
-		}
-		elsif ( $LNT->{$node}{collect} eq "false" ) {
-			$message = "no collect";
-			$pollstatus = "no_snmp";
+			++$demoted;
 		}
 		elsif ( $delta > $snmp * 1.1 * 144 ) {
 			$message = "144x late poll";
@@ -136,9 +152,9 @@ foreach my $node (sort keys %{$LNT}) {
 			$polltime = $stats->{polltime}->{mean};
 			$updatetime = $stats->{updatetime}->{mean};			
 		}
-		printf "%-16s %-8s %-10s %-6s %-4s %-6s %-7s %-16s\n", $node, $pollstatus, $polling_policy, $delta, $snmp, $polltime, $updatetime, $message;
+		printf "%-16s %-8s %-12s %-10s %-6s %-4s %-6s %-7s %-16s\n", $node, $pollstatus, $nodestatus, $polling_policy, $delta, $snmp, $polltime, $updatetime, $message;
 	}
 }
 
-print "totalPoll=$totalPoll ontime=$goodPoll 1x_late=$latePoll5m 3x_late=$latePoll15m 12x_late=$latePoll1h 144x_late=$latePoll12h\n";
+print "totalPoll=$totalPoll ontime=$goodPoll no_snmp=$noSnmp demoted=$demoted 1x_late=$latePoll5m 3x_late=$latePoll15m 12x_late=$latePoll1h 144x_late=$latePoll12h\n";
 
