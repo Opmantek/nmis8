@@ -88,12 +88,22 @@ foreach my $node (sort keys %{$LNT}) {
 		my $pollstatus = "ontime";
 		my $lastPollAgo = time() - $NI->{system}{lastCollectPoll};
 		my $delta = $NI->{system}{collectPollDelta};
+
 		
 		if (not $delta) {
             $delta = $lastPollAgo;
         }
         
-		if ( $delta > $snmp * 1.1 * 144 ) {
+
+		if ( defined $NI->{system}->{demote_grace} and $NI->{system}->{demote_grace} > 0 ) {
+			$message = "snmp polling demoted";
+			$pollstatus = "demoted";
+		}
+		elsif ( $LNT->{$node}{collect} eq "false" ) {
+			$message = "no collect";
+			$pollstatus = "no_snmp";
+		}
+		elsif ( $delta > $snmp * 1.1 * 144 ) {
 			$message = "144x late poll";
 			$pollstatus = "late";
 			++$latePoll12h;
