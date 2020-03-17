@@ -45,23 +45,23 @@
 			'DEF:signedInWebUsers=$database:signedInWebUsers:AVERAGE',
 
 			'LINE2:iveConcurrentUsers#0000ff: IVE Current Users',
-			'GPRINT:iveConcurrentUsers:LAST:Current %1.0lf',
 			'GPRINT:iveConcurrentUsers:AVERAGE:Average %1.0lf',
+			'GPRINT:iveConcurrentUsers:LAST:Current %1.0lf',
 			'GPRINT:iveConcurrentUsers:MAX:Maximum %1.0lf\\n',
 
 			'LINE2:clusterConcurUsers#00ff00: Average Cluster Users',
-			'GPRINT:clusterConcurUsers:LAST:Current %1.0lf',
 			'GPRINT:clusterConcurUsers:AVERAGE:Average %1.0lf',
+			'GPRINT:clusterConcurUsers:LAST:Current %1.0lf',
 			'GPRINT:clusterConcurUsers:MAX:Maximum %1.0lf\\n',
 
 			'LINE2:signedInWebUsers#ff8800: Signed In Web Users',
-			'GPRINT:signedInWebUsers:LAST:Current %1.0lf',
 			'GPRINT:signedInWebUsers:AVERAGE:Average %1.0lf',
+			'GPRINT:signedInWebUsers:LAST:Current %1.0lf',
 			'GPRINT:signedInWebUsers:MAX:Maximum %1.0lf\\n',
 
 			'LINE2:signedInMailUsers#ffdd00: Signed In Mail Users',
-			'GPRINT:signedInMailUsers:LAST:Current %1.0lf',
 			'GPRINT:signedInMailUsers:AVERAGE:Average %1.0lf',
+			'GPRINT:signedInMailUsers:LAST:Current %1.0lf',
 			'GPRINT:signedInMailUsers:MAX:Maximum %1.0lf\\n',
 		]
 	}
