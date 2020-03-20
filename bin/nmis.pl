@@ -723,7 +723,7 @@ sub	runThreads
 					dbg("child process $goner terminated with status $status after "
 							.sprintf("%.2f", Time::HiRes::time - $children{$goner})."s", 2);
 					delete $children{$goner};
-        }
+        		}
 			}
 
 			# once the next nmis collect has started up (normally after 60s)
@@ -8393,20 +8393,6 @@ sub sendMSG
 					);
 				} # end syslog
 			}
-		}
-		# now the pagers
-		elsif ( $method eq "pager" ) {
-			foreach $target (keys %{$msgTable->{$method}}) {
-				foreach $serial (keys %{$msgTable->{$method}{$target}}) {
-					next if $C->{snpp_server} eq '';
-					dbg(" SendSNPP to $target");
-					sendSNPP(
-						server => $C->{snpp_server},
-						pagerno => $target,
-						message => $$msgTable{$method}{$target}{$serial}{message}
-					);
-				}
-			} # end pager
 		}
 		# now the extensible stuff.......
 		else {

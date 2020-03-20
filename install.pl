@@ -253,7 +253,7 @@ libcrypt-ssleay-perl apache2 fping nmap snmp snmpd snmptrapd libnet-snmp-perl
 libcrypt-passwdmd5-perl libjson-xs-perl libnet-dns-perl
 libio-socket-ssl-perl libwww-perl libnet-smtp-ssl-perl libnet-smtps-perl
 libcrypt-unixcrypt-perl libcrypt-rijndael-perl libuuid-tiny-perl libproc-processtable-perl libdigest-sha-perl
-libnet-ldap-perl libnet-snpp-perl libdbi-perl
+libnet-ldap-perl libdbi-perl
 libsoap-lite-perl libauthen-simple-radius-perl libauthen-tacacsplus-perl
 libauthen-sasl-perl rrdtool librrds-perl libtest-deep-perl dialog libcrypt-des-perl libdigest-hmac-perl libclone-perl
 libexcel-writer-xlsx-perl libmojolicious-perl libdatetime-perl
@@ -268,7 +268,7 @@ net-snmp-utils net-snmp-perl perl-IO-Socket-SSL perl-Net-SSLeay
 perl-JSON-XS httpd fping nmap make groff perl-CPAN crontabs dejavu*
 perl-libwww-perl perl-Net-DNS perl-Digest-SHA
 perl-DBI perl-Net-SMTPS perl-Net-SMTP-SSL perl-CGI net-snmp-perl perl-Proc-ProcessTable perl-Authen-SASL
-perl-Crypt-PasswdMD5 perl-Crypt-Rijndael perl-Net-SNPP perl-Net-SNMP perl-GD rrdtool
+perl-Crypt-PasswdMD5 perl-Crypt-Rijndael perl-Net-SNMP perl-GD rrdtool
 rrdtool-perl perl-Test-Deep dialog
 perl-Excel-Writer-XLSX perl-Net-IP perl-DateTime
 perl-Digest-HMAC perl-Crypt-DES perl-Clone perl-ExtUtils-CBuilder
@@ -478,7 +478,7 @@ dependencies manually before NMIS can operate properly.\n\nHit <Enter> to contin
 			# similar for epel
 			elsif ($pkg eq "perl-Net-SNMP" or $pkg eq "glib" or $pkg eq "glib-devel"
 						 or $pkg eq "perl-Crypt-Rijndael" or $pkg eq "perl-JSON-XS"
-						 or $pkg eq "perl-Net-SMTPS" or $pkg eq "perl-Net-SNPP"
+						 or $pkg eq "perl-Net-SMTPS" 
 						 or $pkg eq "perl-Proc-ProcessTable")
 			{
 					$installcmd = "yum -y --enablerepo=epel install $pkg";
