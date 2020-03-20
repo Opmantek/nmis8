@@ -291,7 +291,6 @@ ciscoFasthub100 OBJECT IDENTIFIER ::= { ciscoProducts 226 }		-- Cisco Fast Hub 1
 ciscoPIXFirewall OBJECT IDENTIFIER ::= { ciscoProducts 227 }		-- Cisco PIX Firewall
 ciscoMGX8850 OBJECT IDENTIFIER ::= { ciscoProducts 228 }		-- Cisco Multiservice Gigabit Switch with 32 half height slots 
 ciscoMGX8830 OBJECT IDENTIFIER ::= { ciscoProducts 229 }		-- Cisco Multiservice Switch with 16 half-height slots
--- ciscoMGX8820 OBJECT IDENTIFIER ::= { ciscoProducts 229 }
 catalyst8510msr OBJECT IDENTIFIER ::= { ciscoProducts 230 }		-- Catalyst ATM 8510 Multiservice Switching Router 
 catalyst8515msr OBJECT IDENTIFIER ::= { ciscoProducts 231 }		-- Catalyst ATM 8515 Multiservice Switching Router
 ciscoIGX8410 OBJECT IDENTIFIER ::= { ciscoProducts 232 }		-- Cisco IGX8400 (Integrated Gigabit eXchange) series wide-area switch with 8 slots 
