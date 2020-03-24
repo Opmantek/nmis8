@@ -139,6 +139,8 @@ if (defined $ENV{PERL_LOCAL_LIB_ROOT})
 	}
 }
 
+delete $ENV{"PERL_CPANM_OPT"};
+
 if ($noninteractive)
 {
 	$ENV{"PERL_MM_USE_DEFAULT"}=1;
@@ -636,7 +638,7 @@ and then restart the installer.\n\n";
 			# HTTP::Daemon is a dependency of WWW::Mechanize
 			if ( grep( /^WWW::Mechanize$/, @missingones) or grep( /^HTTP::Daemon$/, @missingones) )
 			{
-				system("cpanm install HTTP::Daemon --sudo $prompt --notest");	# can't use execprint as cpan is interactive: but is cpanm interactive?
+				system("cpanm HTTP::Daemon --sudo $prompt --notest");	# can't use execprint as cpan is interactive: but is cpanm interactive?
 			}
 			# default test-timeout is 30 mins: install will return exit code 1 on test timeout
 			system("cpanm --sudo $prompt ".join(" ",@missingones));  # can't use execprint as cpan is interactive but is cpanm interactive?
