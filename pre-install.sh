@@ -2,6 +2,15 @@
 # check that the actual installer can work, ie. all required perl modules present.
 # if not, complain and offer to help.
 
+# $EUID is not defined in posix sh
+# shellcheck disable=SC2039
+if [ "${EUID:-$(id -u)}" != 0 ]; then
+	echo
+	echo "This installer must be run with root privileges, terminating now!";
+	echo
+	exit 1;
+fi;
+
 # note: this assumes that the current dir is the unpacked directory! (true in the .run environment)
 if type perl >/dev/null 2>&1; then
 		if perl -c ./install.pl 2>/dev/null; then
@@ -35,12 +44,14 @@ for i in "$@"; do
 done
 
 # let's not even ask if -y mode is on
-[ -n "$UNATTENDED" ] && DOIT=1 && EXTRA="-y" && DEBIAN_FRONTEND="noninteractive" && echo "Unattended Mode - default answer Y"
+[ -n "${UNATTENDED:-}" ] && DOIT=1 && EXTRA="-y" && DEBIAN_FRONTEND="noninteractive" && PERL_MM_USE_DEFAULT=1 && echo "Unattended Mode - default answer Y"
 export DEBIAN_FRONTEND
 # let's accept enter as yes
-if [ -z "$UNATTENDED" ] && read -p "Enter y to continue, anything else to abort: "  X && [ -z "$X" -o "$X" = 'y' -o "$X" = 'Y' ]; then
+if [ -z "${UNATTENDED:-}" ] && read -p "Enter y to continue, anything else to abort: "  X && [ -z "$X" -o "$X" = 'y' -o "$X" = 'Y' ]; then
 		DOIT=1;
+		PERL_MM_USE_DEFAULT=0;
 fi
+export PERL_MM_USE_DEFAULT;
 
 if [ "$DOIT" = 1 ]; then
 		if type yum >/dev/null 2>&1; then
@@ -51,11 +62,11 @@ if [ "$DOIT" = 1 ]; then
 																 --enable rhel-7-server-supplementary-rpms
 				fi
 				echo "Starting yum install"
-				yum $EXTRA install perl-core
+				yum ${EXTRA:-} install perl-core
 
 		elif type apt-get >/dev/null 2>&1; then
 				echo "Starting apt-get install"
-				apt-get $EXTRA install perl
+				apt-get ${EXTRA:-} install perl
 		fi
 
 		# time to try once more
