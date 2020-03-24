@@ -313,7 +313,7 @@ sub loadmib($@) {
 	    $buf =~ s/OBJECT-TYPE/OBJECT IDENTIFIER/;
 	    $buf =~ s/MODULE-IDENTITY/OBJECT IDENTIFIER/;
 	    $buf =~ s/ IMPORTS .*\;//;
-	    $buf =~ s/ SEQUENCE {.*}//;
+	    $buf =~ s/ SEQUENCE \{.*}//;
 	    $buf =~ s/ ([\w\-]+) ::= TEXTUAL-CONVENTION .* SYNTAX INTEGER \{/ $1 ::= INTEGER \{/;
 	    $buf =~ s/ [\w\-]+ ::= TEXTUAL-CONVENTION .* SYNTAX//;
 	    $buf =~ s/ SYNTAX INTEGER \{/ ::= INTEGER \{/;
