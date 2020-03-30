@@ -125,6 +125,16 @@
           }
         }
       },
+      'tempValue' => {
+        'control' => '$sysObjectName !~ /ciscoIGESM/',
+        'graphtype' => 'temp-value',
+        'indexed' => 'true',
+        'snmp' => {
+          'tempValue' => {
+            'oid' => 'ciscoEnvMonTemperatureStatusValue',
+          }
+        }
+      },
     },
     'sys' => {
       'fanStatus' => {
@@ -201,6 +211,20 @@
           'TemperatureStatusDescr' => {
             'oid' => 'ciscoEnvMonTemperatureStatusDescr',
             'title' => 'Temperature Status Descr'
+          }
+        }
+      },
+      'tempValue' => {
+        'headers' => 'TemperatureStatusDescr',
+        'indexed' => 'ciscoEnvMonTemperatureStatusDescr',
+        'snmp' => {
+          'TemperatureValue' => {
+            'oid' => 'ciscoEnvMonTemperatureStatusValue',
+            'title' => 'Temperature Value'
+          },
+          'TemperatureStatusDescr' => {
+            'oid' => 'ciscoEnvMonTemperatureStatusDescr',
+            'title' => 'Temperature Descr'
           }
         }
       },

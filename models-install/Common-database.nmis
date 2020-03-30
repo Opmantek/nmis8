@@ -100,6 +100,7 @@
       'cpu_cpm' => '/nodes/$node/health/cpu-cpm-$index.rrd',
       'diskIOTable' => '/nodes/$node/health/diskiotable-$index.rrd',
       'tempStatus' => '/nodes/$node/health/tempstatus-$index.rrd',
+      'tempValue' => '/nodes/$node/health/tempvalue-$index.rrd',
       'ds3Errors' => '/nodes/$node/health/ds3errors-$index.rrd',
       'SONETErrors' => '/nodes/$node/health/soneterrors-$index.rrd',
       'gsm_status_2g' => '/nodes/$node/health/gsm_status_2g.rrd',
