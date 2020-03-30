@@ -139,6 +139,17 @@ if (defined $ENV{PERL_LOCAL_LIB_ROOT})
 	}
 }
 
+delete $ENV{"PERL_CPANM_OPT"};
+
+if ($noninteractive)
+{
+	$ENV{"PERL_MM_USE_DEFAULT"}=1;
+}
+else
+{
+	$ENV{"PERL_MM_USE_DEFAULT"}=0;
+}
+
 # there are some slight but annoying differences
 my ($osflavour,$osmajor,$osminor,$ospatch,$osiscentos);
 if (-f "/etc/redhat-release")
@@ -247,7 +258,7 @@ else
 my $can_use_web;
 if ($osflavour)
 {
-	my @debpackages = (qw(autoconf automake gcc make libcairo2 libcairo2-dev libglib2.0-dev
+	my @debpackages = (qw(autoconf automake gcc make libcairo2 libcairo2-dev libglib2.0-dev cpanminus
 libpango1.0-dev libxml2 libxml2-dev libnet-ssleay-perl
 libcrypt-ssleay-perl apache2 fping nmap snmp snmpd snmptrapd libnet-snmp-perl
 libcrypt-passwdmd5-perl libjson-xs-perl libnet-dns-perl
@@ -265,7 +276,7 @@ libnet-ip-perl libscalar-list-utils-perl libtest-requires-perl libtest-fatal-per
 pango pango-devel glib glib-devel libxml2 libxml2-devel gd gd-devel
 libXpm-devel libXpm openssl openssl-devel net-snmp net-snmp-libs
 net-snmp-utils net-snmp-perl perl-IO-Socket-SSL perl-Net-SSLeay
-perl-JSON-XS httpd fping nmap make groff perl-CPAN crontabs dejavu*
+perl-JSON-XS httpd fping nmap make groff perl-CPAN perl-App-cpanminus crontabs dejavu*
 perl-libwww-perl perl-Net-DNS perl-Digest-SHA
 perl-DBI perl-Net-SMTPS perl-Net-SMTP-SSL perl-CGI net-snmp-perl perl-Proc-ProcessTable perl-Authen-SASL
 perl-Crypt-PasswdMD5 perl-Crypt-Rijndael perl-Net-SNMP perl-GD rrdtool
@@ -567,12 +578,12 @@ printBanner("Checking Perl Module Dependencies...");
 my ($isok,@missingones) = &check_installed_modules;
 if (!$isok)
 {
-	print "The installer can use CPAN to install the missing Perl packages
+	print "The installer can use CPANM to install the missing Perl packages
 that NMIS depends on, if your system has Internet access.\n\n";
 
-	if (!$can_use_web or !input_yn("OK to use CPAN to install missing modules?"))
+	if (!$can_use_web or !input_yn("OK to use CPANM to install missing modules?"))
 	{
-		echolog("Cannot install missing CPAN modules.");
+		echolog("Cannot install missing CPANM modules.");
 		print "NMIS will not work properly until the following Perl modules are installed (from CPAN):\n\n".join(" ",@missingones)
 				."\n\nWe recommend that you stop the installer now, resolve the dependencies,
 and then restart the installer.\n\n";
@@ -584,28 +595,80 @@ and then restart the installer.\n\n";
 	}
 	else
 	{
-		echolog("Installing modules with CPAN");
+		# installed cpanm for installing cpan modules
+		# as it is far more robust at handling failed tests which hang on cpan installs
+		my $cpanm = "cpanm";
 
-		# prime cpan if necessary: non-interactive, follow prereqs,
-		if (!-e $ENV{"HOME"}."/.cpan") # might be symlink
+		if ($debug)
 		{
-			echolog("Performing initial CPAN configuration");
+			my $type_which_cpanm = type_which($cpanm);
+			echolog("type_which_cpanm: $type_which_cpanm\n");
+		}
+
+		# fix cpanm path if not set
+		if (system("type $cpanm >/dev/null") != 0)
+		{
+			$cpanm = type_which($cpanm);
+		}
+		if (defined $cpanm)
+		{
+			echolog("CPANM installation complete, proceeding with module installation using cpanm");
+			echolog("cpanm: $cpanm");
+
+			# PERL_CPANM_OPT
+			#		If set, adds a set of default options to every cpanm command. These options come first, and so are overridden by command-line options.
+			#		I have deliberately not "unset" PERL_CPANM_OPT to allow one to customize cpanm behaviour other than where we have a hardcoded option
+			#
+			# --prompt option looks really useful to investigate and decide on failed tests, but we must honor $noniteractive
+			#
+			#		Prompts when a test fails so that you can skip, force install, retry or look in the shell to see what's going wrong.
+			#		It also prompts when one of the dependency failed if you want to proceed the installation.
+			#		Defaults to false, and you can say --no-prompt to override if it's set in the default options in PERL_CPANM_OPT.
+			my $prompt;
 			if ($noninteractive)
 			{
-				# no inputs, all defaults
-				execPrint('cpan');
-
-				# adjust options unsuitable for noninteractive work
-				open(F,"|cpan") or die "cannot fork cpan: $!\n";
-				print F "o conf prerequisites_policy follow\no conf commit\n";
-				close F;
+				$prompt = "";
 			}
 			else
 			{
-				# there doesn't seem an easy way to prime the cpan shell with args,
-				# then let interact with the user via stdin/stdout... and not all versions
-				# of cpan seem to start it automatically
-				print "\n
+				$prompt = "--prompt";
+			}
+
+			# if $noninteractive we pre-install HTTP::Daemon with --notest for this module that often hangs on testing on ubuntu, redhat and centos
+			# HTTP::Daemon is a dependency of WWW::Mechanize
+			if ( grep( /^WWW::Mechanize$/, @missingones) or grep( /^HTTP::Daemon$/, @missingones) )
+			{
+				system("cpanm HTTP::Daemon --sudo $prompt --notest");	# can't use execprint as cpan is interactive: but is cpanm interactive?
+			}
+			# default test-timeout is 30 mins: install will return exit code 1 on test timeout
+			system("cpanm --sudo $prompt ".join(" ",@missingones));  # can't use execprint as cpan is interactive but is cpanm interactive?
+		}
+		else
+		{
+			echolog("CPANM installation failed");
+			# we fallback to cpan code used prior to cpanm
+			echolog("Installing modules with CPAN");
+
+			# prime cpan if necessary: non-interactive, follow prereqs,
+			if (!-e $ENV{"HOME"}."/.cpan") # might be symlink
+			{
+				echolog("Performing initial CPAN configuration");
+				if ($noninteractive)
+				{
+					# no inputs, all defaults
+					execPrint('cpan');
+
+					# adjust options unsuitable for noninteractive work
+					open(F,"|cpan") or die "cannot fork cpan: $!\n";
+					print F "o conf prerequisites_policy follow\no conf commit\n";
+					close F;
+				}
+				else
+				{
+					# there doesn't seem an easy way to prime the cpan shell with args,
+					# then let interact with the user via stdin/stdout... and not all versions
+					# of cpan seem to start it automatically
+					print "\n
 If the CPAN configuration doesn't start automatically, then please
 enter 'o conf init' on the CPAN prompt.
 
@@ -614,13 +677,13 @@ or the like, please choose 'sudo' or 'manual' - NOT 'local::lib'!
 
 To return to the installer when done,
 please exit the CPAN\nshell with 'exit'.\n";
-				&input_ok;
-				system("cpan");
+					&input_ok;
+					system("cpan");
+				}
+				echolog("CPAN configuration complete, proceeding with module installation");
 			}
-			echolog("CPAN configuration complete, proceeding with module installation");
+			system("cpan ".join(" ",@missingones));  # can't use execprint as cpan is interactive
 		}
-
-		system("cpan ".join(" ",@missingones));  # can't use execprint as cpan is interactive
 	}
 }
 
@@ -2059,4 +2122,17 @@ sub safemkdir
 	}
 	umask($prevmask);
 	return 1;
+}
+
+# trivial type/which implementation, saves us file::which or forking off a shell
+# args: program name
+# returns: full path or undef
+sub type_which
+{
+	my ($needle) = @_;
+	for my $maybe (split(/:/, $ENV{PATH}))
+	{
+		return "$maybe/$needle" if (-x "$maybe/$needle");
+	}
+	return undef;
 }

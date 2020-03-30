@@ -340,7 +340,8 @@ sub	runThreads
 	dbg("all relevant tables loaded");
 
 	my $debug = $C->{debug};
-
+	my $sort_nodes = $C->{sort_due_nodes} // 0;
+	
 	# used for plotting major events on world map in 'Current Events' display
 	$C->{netDNS} = 0;
 	if ( getbool($C->{DNSLoc}) ) {
@@ -422,7 +423,8 @@ sub	runThreads
 	my $otherprocesses = func::find_nmis_processes(type => $type, config => $C)
 			if ($type eq "update" or $type eq "collect"); # relevant only for these
 	my %problematic;
-
+    my %pollorder;
+	
 	if ($type eq "update" )
 	{
 		@todo_nodes = grep(getbool($NT->{$_}->{active}), @candnodes);
@@ -487,12 +489,14 @@ sub	runThreads
 					rename($curdir,$backupdir) or logMsg("WARN failed to mv rrd files for $maybe: $!");
 				}
 				push @todo_nodes, $maybe;
+				$pollorder{$maybe} = $ninfo->{system}->{last_poll_attempt};
 				$whichflavours{$maybe}->{wmi} = $whichflavours{$maybe}->{snmp} = 1; # and ignore the last-xyz markers
 			}
 			elsif ($forceoverride)
 			{
 				dbg("force is enabled, Node $maybe will be polled at $starttime");
 				push @todo_nodes, $maybe;
+				$pollorder{$maybe} = $ninfo->{system}->{last_poll_attempt};
 				$whichflavours{$maybe}->{wmi} = $whichflavours{$maybe}->{snmp} = 1; # and ignore the last-xyz markers
 			}
 
@@ -545,6 +549,7 @@ sub	runThreads
 				if ( $nexttry <= $starttime )
 				{
 					push @todo_nodes, $maybe;
+					$pollorder{$maybe} = $ninfo->{system}->{last_poll_attempt};
 					$whichflavours{$maybe}->{wmi} = $whichflavours{$maybe}->{snmp} = 1
 							if ( $type eq "collect" );
 				}
@@ -560,6 +565,7 @@ sub	runThreads
 			{
 				dbg("Node $maybe has neither last_poll_snmp nor last_poll_wmi, due for poll at $starttime");
 				push @todo_nodes, $maybe;
+				$pollorder{$maybe} = $ninfo->{system}->{last_poll_attempt};
 				$whichflavours{$maybe}->{wmi} = $whichflavours{$maybe}->{snmp} = 1;
 			}
 			else
@@ -587,6 +593,7 @@ sub	runThreads
 							. ", next snmp: ".($lastsnmp ? (($starttime - $nextsnmp)."s ago"):"n/a")
 							.", next wmi: ".($lastwmi? (($starttime - $nextwmi)."s ago"):"n/a"));
 					push @todo_nodes, $maybe;
+					$pollorder{$maybe} = $ninfo->{system}->{last_poll_attempt};
 
 					# but if we've decided on polling, then DO try flavours that have not worked in the past!
 					# nextwmi <= now also covers the case of undefined lastwmi...
@@ -604,6 +611,12 @@ sub	runThreads
 		}
 	}
 
+	if ($sort_nodes and %pollorder) {
+		dbg("Nodes candnodes for $type: ". Dumper(%pollorder));
+		@todo_nodes = sort {$pollorder{$a} <=> $pollorder{$b}} (keys %pollorder);
+		logMsg("Ordering nodes for $type by last_poll_attempt desc");	
+	}
+	
 	# anything to do?
 	if (!@todo_nodes)
 	{
@@ -626,6 +639,7 @@ sub	runThreads
 	my $todoCount = @todo_nodes;
 	logMsg("INFO starting $todoCount nodes for $type");
 	logMsg("INFO Selected nodes for $type: ".join(" ", sort @todo_nodes));
+
 	$mthread = 0 if (@todo_nodes <= 1); # multiprocessing makes no sense with just one todo node
 
 	# now perform process safety operations
