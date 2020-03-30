@@ -505,8 +505,7 @@ sub	runThreads
 				&& (!$ninfo->{system}->{nodeModel} or $ninfo->{system}->{nodeModel} eq "Model" ) )
 			{
 				# this property gets updated on every attempt
-				my $lasttry = $ninfo->{system}->{ $type eq "collect" ?
-																							"last_poll_attempt" : "last_update_attempt" };
+				my $lasttry = $ninfo->{system}->{ $type eq "collect" ? "last_poll_attempt" : "last_update_attempt" };
 
 				my $graceperiod_start = $ninfo->{system}->{demote_grace};
 				# none set? then set one
@@ -624,6 +623,8 @@ sub	runThreads
 		dbg("Skipping these extra nodes this time: ".join(", ", @skipped));
 	}
 
+	my $todoCount = @todo_nodes;
+	logMsg("INFO starting $todoCount nodes for $type");
 	logMsg("INFO Selected nodes for $type: ".join(" ", sort @todo_nodes));
 	$mthread = 0 if (@todo_nodes <= 1); # multiprocessing makes no sense with just one todo node
 
@@ -937,7 +938,7 @@ sub	runThreads
 		logMsg("Poll Time: After $type Plugins ". $pollTimer->elapTime()) if ( defined $C->{log_polling_time} and getbool($C->{log_polling_time}));
 	}
 
-	logMsg("INFO end of $type process");
+	logMsg("INFO end of $type $nodecount of $todoCount nodes processed.");
 
 	if ($C->{info} or $debug or $mthreadDebug) {
 		my $endTime = sprintf("%.2f", Time::HiRes::time() - $starttime);
@@ -1006,6 +1007,9 @@ sub doUpdate
 
 	dbg("================================");
 	dbg("Starting update, node $name");
+	if ( defined $C->{log_polling_time} and getbool($C->{log_polling_time})) {
+		logMsg("Poll Time: Starting update $name");
+	}
 
 	# Check for existing update LOCK
 	if ( existsPollLock(type => "update", conf => $C->{conf}, node => $name) )
@@ -1206,7 +1210,6 @@ sub doUpdate
 	releasePollLock(handle => $lockHandle, type => "update", conf => $C->{conf}, node => $name);
 
 	if ( defined $C->{log_polling_time} and getbool($C->{log_polling_time})) {
-
 		logMsg("Poll Time: $name, $NI->{system}{nodeModel}, $updatetime");
 	}
 
@@ -1333,6 +1336,10 @@ sub doCollect
 	info("================================");
 	info("Starting collect, node $name, want SNMP: ".($wantsnmp?"yes":"no")
 			 .", want WMI: ".($wantwmi?"yes":"no"));
+
+	if ( defined $C->{log_polling_time} and getbool($C->{log_polling_time})) {
+		logMsg("Poll Time: Starting collect $name");
+	}
 
 	# Check for both update and collect locks, but complain only for collect lock
 	# with polling frequently, an existing update lock is very very likely
@@ -1519,6 +1526,12 @@ sub doCollect
 			my $msg = "updateNodeInfo for $name failed: ".join(", ", map { "$_=".$S->status->{$_} } (qw(error snmp_error wmi_error)));
 			logMsg("ERROR $msg");
 			info("Error: $msg");
+			# something wrong with SNMP, don't poll straight away, wait polling period.
+			$NI->{system}{collectPollDelta} = time() - $NI->{system}{lastCollectPoll};
+			$NI->{system}{lastCollectPoll} = time();
+			$NI->{system}{last_poll_snmp} = time() if $wantsnmp;
+			$NI->{system}{last_poll_wmi} = time() if $wantwmi; 
+
 		}
 	} else {
 		logMsg("WARNING: Skipping data collection for '$name'. Config: collect=$status{collect} collect_snmp=$status{snmp} collect_wmi=$status{wmi}");
