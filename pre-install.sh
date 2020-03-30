@@ -18,7 +18,7 @@ if type perl >/dev/null 2>&1; then
 		fi
 fi
 
-cat >&2 <<EOF
+cat <<EOF
 
 Error: no Perl or Perl core modules installed!
 
@@ -46,8 +46,9 @@ done
 # let's not even ask if -y mode is on
 [ -n "${UNATTENDED:-}" ] && DOIT=1 && EXTRA="-y" && DEBIAN_FRONTEND="noninteractive" && PERL_MM_USE_DEFAULT=1 && echo "Unattended Mode - default answer Y"
 export DEBIAN_FRONTEND
+# IMPORTANT: read sends prompt message to stderr, so we must redirect stderr to stdout when using read
 # let's accept enter as yes
-if [ -z "${UNATTENDED:-}" ] && read -p "Enter y to continue, anything else to abort: "  X && [ -z "$X" -o "$X" = 'y' -o "$X" = 'Y' ]; then
+if [ -z "${UNATTENDED:-}" ] && { read -p "Enter y to continue, anything else to abort: "  X 2>&1; } && [ -z "$X" -o "$X" = 'y' -o "$X" = 'Y' ]; then
 		DOIT=1;
 		PERL_MM_USE_DEFAULT=0;
 fi
