@@ -9305,7 +9305,7 @@ sub doSummaryBuild
 							if (exists $M->{threshold}{name}{$tp})
 							{
 								# fixme: errors are ignored...
-								my $goodies = getThresholdLevel(sys=>$S,thrname=>$tp,stats=>$sts,index=>$i);
+								my $goodies = getThresholdLevel(sys=>$S,type=>$type,thrname=>$tp,stats=>$sts,index=>$i);
 								$stshlth{$NI->{system}{nodeType}}{$nd}{$nm}{$i}{level} = $goodies->{level};
 							}
 							# save values
@@ -9330,7 +9330,7 @@ sub doSummaryBuild
 						if (exists $M->{threshold}{name}{$tp})
 						{
 							# fixme errors are ignored
-							my $goodies = getThresholdLevel(sys=>$S,thrname=>$tp,stats=>$sts,index=>'');
+							my $goodies = getThresholdLevel(sys=>$S,type=>$type,thrname=>$tp,stats=>$sts,index=>'');
 							$stshlth{$NI->{system}{nodeType}}{$nd}{"${tp}_level"} = $goodies->{level};
 						}
 						foreach my $nm (keys %{$M->{summary}{statstype}{$tp}{sumname}})
@@ -9735,6 +9735,7 @@ sub runThrHld
 		}
 
 		my $goodies = getThresholdLevel(sys=>$S,
+																		type=>$type,
 																		thrname=>$nm,
 																		stats=>$stats,
 																		index=>$index,
@@ -9799,6 +9800,7 @@ sub getThresholdLevel
 	my $NI = $S->ndinfo;
 	my $M  = $S->mdl;
 
+	my $type = $args{type};
 	my $thrname = $args{thrname};
 	my $stats = $args{stats}; # value of items
 	my $index = $args{index};
@@ -9822,7 +9824,7 @@ sub getThresholdLevel
 	foreach my $thr (sort {$a <=> $b} keys %{$T})
 	{
 		next if $thr eq 'default'; # skip now the default values
-		if (($S->parseString(string=>"($T->{$thr}{control})?1:0",index=>$index,item=>$item)))
+		if (($S->parseString(string=>"($T->{$thr}{control})?1:0",type=>$type,index=>$index,item=>$item)))
 		{
 			$val = $T->{$thr}{value};
 			$level_select = $thr;

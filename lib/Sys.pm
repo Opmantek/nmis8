@@ -1586,7 +1586,13 @@ sub parseString
 	my ($str,$indx,$itm,$sect,$type,$extras) =
 			@args{"string","index","item","sect","type","extras"};
 
-	dbg("parseString:: string to parse '$str'",3);
+	if ( not defined $sect and defined $type ) {
+		$sect = $type;
+		dbg("section not found but a type found, substiting now: sect=$sect type=$type");
+	}
+	dbg("parseString:: string to parse '$str'",2);
+	dbg("other args received: index=$indx item=$itm sect=$sect type=$type extras=$extras",2);
+
 	my $C = loadConfTable();
 
 	{
