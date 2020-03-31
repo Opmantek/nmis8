@@ -168,6 +168,7 @@
       'fan-status' => 'Fan Status',
       'psu-status' => 'PSU Status',
       'temp-status' => 'Temp Status',
+      'temp-value' => 'Temp Value',
       'checkpoint' => "Checkpoint Stats",
       'apSys' => 'ACME System Stats',
       'apSession' => 'ACME Sessions',

@@ -111,7 +111,7 @@
       'Huawei_ProfUserHQoS' => {
         'indexed' => 'true',
         'graphtype' => 'huawei-hqos-bytes,huawei-hqos-pkts',
-	'control' => 'CVAR=Description;$CVAR =~ /qospoll/',
+	#'control' => 'CVAR=Description;$CVAR =~ /qospoll/',  ## update this to select specific interface qeues only
         'snmp' => {
           'DroppedBytes' => {
          	  'snmpObjectName' => 'hwhqosProfileUserQueueStatisticsDropBytes',
