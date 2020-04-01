@@ -74,8 +74,12 @@ sub printNodePollDetails {
 		if ( $snmp =~ /(\d+)m/ ) {
 			$snmp = $1 * 60;
 		}
+		elsif ( $snmp =~ /(\d+)h/ ) {
+			$snmp = $1 * 3600;
+		}
 		else {
 			$snmp = "ERROR";
+			print STDERR "ERROR polling_policy=$polling_policy snmp=$PP->{$polling_policy}{snmp}\n";
 		}				
 	}
 	
@@ -200,8 +204,12 @@ sub printPollingSummary {
 				if ( $snmp =~ /(\d+)m/ ) {
 					$snmp = $1 * 60;
 				}
+				elsif ( $snmp =~ /(\d+)h/ ) {
+					$snmp = $1 * 3600;
+				}
 				else {
 					$snmp = "ERROR";
+					print STDERR "ERROR polling_policy=$polling_policy snmp=$PP->{$polling_policy}{snmp}\n";
 				}				
 			}
 
@@ -259,6 +267,7 @@ sub printPollingSummary {
 				$message = "snmp polling demoted";
 				$pollstatus = "demoted";
 				++$demoted;
+				--$totalPoll;
 			}
 			elsif ( $NI->{system}{nodeModel} eq "Model" and $collect_snmp ) {
 				$message = "snmp never successful";
