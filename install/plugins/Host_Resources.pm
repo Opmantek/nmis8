@@ -66,55 +66,54 @@ sub collect_plugin
 			# is this the physical memory?
 			if ( defined $entry->{hrStorageDescr} ) {
 
-			if ( $entry->{hrStorageDescr} =~ /(Physical memory|RAM)/ ) {
-				$typeName = "Memory";
-				$type = "physical";
+				if ( $entry->{hrStorageDescr} =~ /(Physical memory|RAM)/ ) {
+					$typeName = "Memory";
+					$type = "physical";
+				}
+				elsif ( $entry->{hrStorageDescr} =~ /(Cached memory|RAM \(Cache\))/ ) {
+					$typeName = "Memory";
+					$type = "cached";
+				}
+				elsif ( $entry->{hrStorageDescr} =~ /(Memory buffers|RAM \(Buffers\))/ ) {
+					$typeName = "Memory";
+					$type = "buffers";
+				}
+				elsif ( $entry->{hrStorageDescr} =~ /Virtual memory/ ) {
+					$typeName = "Memory";
+					$type = "virtual";
+				}
+				elsif ( $entry->{hrStorageDescr} =~ /Swap space/ ) {
+					$typeName = "Memory";
+					$type = "swap";
+				}
+				elsif ( $entry->{hrStorageType} =~ /FixedDisk/ ) {
+					$typeName = "Fixed Disk";
+					$type = "disk";
+				}
+				elsif ( $entry->{hrStorageType} =~ /NetworkDisk/ ) {
+					$typeName = "Network Disk";
+					$type = "disk";
+				}
+				elsif ( $entry->{hrStorageType} =~ /RemovableDisk/ ) {
+					$typeName = "Removable Disk";
+					$type = "disk";
+				}
+				elsif ( $entry->{hrStorageType} =~ /Disk/ ) {
+					$typeName = "Other Disk";
+					$type = "disk";
+				}
+				elsif ( $entry->{hrStorageType} =~ /FlashMemory/ ) {
+					$typeName = "Flash Memory";
+					$type = "disk";
+				}
+				else {
+					$typeName = $entry->{hrStorageType};
+					$type = "other";
+				}
 			}
-			elsif ( $entry->{hrStorageDescr} =~ /(Cached memory|RAM \(Cache\))/ ) {
-				$typeName = "Memory";
-				$type = "cached";
-			}
-			elsif ( $entry->{hrStorageDescr} =~ /(Memory buffers|RAM \(Buffers\))/ ) {
-				$typeName = "Memory";
-				$type = "buffers";
-			}
-			elsif ( $entry->{hrStorageDescr} =~ /Virtual memory/ ) {
-				$typeName = "Memory";
-				$type = "virtual";
-			}
-			elsif ( $entry->{hrStorageDescr} =~ /Swap space/ ) {
-				$typeName = "Memory";
-				$type = "swap";
-			}
-			elsif ( $entry->{hrStorageType} =~ /FixedDisk/ ) {
-				$typeName = "Fixed Disk";
-				$type = "disk";
-			}
-			elsif ( $entry->{hrStorageType} =~ /NetworkDisk/ ) {
-				$typeName = "Network Disk";
-				$type = "disk";
-			}
-			elsif ( $entry->{hrStorageType} =~ /RemovableDisk/ ) {
-				$typeName = "Removable Disk";
-				$type = "disk";
-			}
-			elsif ( $entry->{hrStorageType} =~ /Disk/ ) {
-				$typeName = "Other Disk";
-				$type = "disk";
-			}
-			elsif ( $entry->{hrStorageType} =~ /FlashMemory/ ) {
-				$typeName = "Flash Memory";
-				$type = "disk";
-			}
-			else {
-				$typeName = $entry->{hrStorageType};
-				$type = "other";
-			}
-
 			else {
 				$typeName = "Unknown";
 				$type = "other";
-
 			}
 
 			if ( $typeName eq "Memory" ) {
