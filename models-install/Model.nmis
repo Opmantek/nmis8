@@ -645,6 +645,16 @@
         }
       }
     },
+    'CacheFlow Inc.' => {
+      'order' => {
+        '10' => {
+          'BlueCoat' => 'Blue Coat SG-VA Series'
+        },
+        '99' => {
+          'BlueCoat' => '.'
+        }
+      }
+    },
   },
   'system' => {
     'nodeModel' => 'Default',
