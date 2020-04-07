@@ -8421,6 +8421,22 @@ sub sendMSG
 				} # end syslog
 			}
 		}
+		# begin SNPP
+		# now the pagers
+		elsif ( $method eq "pager" ) {
+			foreach $target (keys %{$msgTable->{$method}}) {
+				foreach $serial (keys %{$msgTable->{$method}{$target}}) {
+					next if $C->{snpp_server} eq '';
+					dbg(" SendSNPP to $target");
+					sendSNPP(
+							server => $C->{snpp_server},
+							pagerno => $target,
+							message => $$msgTable{$method}{$target}{$serial}{message}
+					);
+				}
+			} # end pager
+		}
+		# end SNPP
 		# now the extensible stuff.......
 		else {
 
