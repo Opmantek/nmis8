@@ -1,6 +1,26 @@
 %hash = (
   'stats' => {
     'type' => {
+      'A10_CPU' => [
+        'DEF:avgCpuUsage=$database:avgCpuUsage:AVERAGE',
+        'PRINT:avgCpuUsage:AVERAGE:avgCpuUsage=%1.0lf'
+      ],
+      'A10_Memory' => [
+        'DEF:MemoryUsagePerc=$database:MemoryUsagePerc:AVERAGE',
+        'PRINT:MemoryUsagePerc:AVERAGE:MemoryUsagePerc=%1.0lf'
+      ],
+      'A10_Temperature' => [
+        'DEF:systemTemp=$database:systemTemp:AVERAGE',
+        'PRINT:systemTemp:AVERAGE:systemTemp=%1.0lf'
+      ],
+      'F5_CPU' => [
+        'DEF:f5PROC=$database:CpuRatio5min:AVERAGE',
+        'PRINT:f5PROC:AVERAGE:f5PROC=%1.0lf'
+      ],
+      'F5_Temperature' => [
+        'DEF:f5TEMP=$database:f5Temp:AVERAGE',
+        'PRINT:f5TEMP:AVERAGE:f5TEMP=%1.0lf'
+      ],
       'LogicalDisk' => [
         'DEF:AvgDiskReadQLen=$database:AvgDiskReadQLen:AVERAGE',
         'DEF:AvgDiskWriteQLen=$database:AvgDiskWriteQLen:AVERAGE',
@@ -109,6 +129,14 @@
       'env_temp' => [
         'DEF:currentTemp=$database:currentTemp:AVERAGE',
         'PRINT:currentTemp:AVERAGE:currentTemp=%1.2lf'
+      ],
+      'f5_Connection' => [
+        'DEF:ClientCurConns=$database:ClientCurConns:AVERAGE',
+        'PRINT:ClientCurConns:AVERAGE:ClientCurConns=%1.0lf'
+      ],
+      'f5_Memory' => [
+        'DEF:MemoryUsagePerc=$database:MemoryUsagePerc:AVERAGE',
+        'PRINT:MemoryUsagePerc:AVERAGE:MemoryUsagePerc=%1.0lf'
       ],
       'health' => [
         'DEF:reach=$database:reachability:AVERAGE',
@@ -318,34 +346,6 @@
         'PRINT:ssCpuRawKernelP:AVERAGE:ssCpuRawKernel=%1.2lf',
         'PRINT:ssCpuRawInterruptP:AVERAGE:ssCpuRawInterrupt=%1.2lf',
         'PRINT:ssCpuRawSoftIRQP:AVERAGE:ssCpuRawSoftIRQ=%1.2lf'
-      ],
-      'F5_Temperature' => [
-        'DEF:f5TEMP=$database:f5Temp:AVERAGE',
-        'PRINT:f5TEMP:AVERAGE:f5TEMP=%1.0lf',
-      ],
-      'F5_CPU' => [
-        'DEF:f5PROC=$database:CpuRatio5min:AVERAGE',
-        'PRINT:f5PROC:AVERAGE:f5PROC=%1.0lf',
-      ],
-      'A10_Memory' => [
-        'DEF:MemoryUsagePerc=$database:MemoryUsagePerc:AVERAGE',
-        'PRINT:MemoryUsagePerc:AVERAGE:MemoryUsagePerc=%1.0lf',
-      ],
-      'A10_CPU' => [
-        'DEF:avgCpuUsage=$database:avgCpuUsage:AVERAGE',
-        'PRINT:avgCpuUsage:AVERAGE:avgCpuUsage=%1.0lf',
-      ],
-      'A10_Temperature' => [
-        'DEF:systemTemp=$database:systemTemp:AVERAGE',
-        'PRINT:systemTemp:AVERAGE:systemTemp=%1.0lf',
-      ],
-     'f5_Memory' => [
-        'DEF:MemoryUsagePerc=$database:MemoryUsagePerc:AVERAGE',
-        'PRINT:MemoryUsagePerc:AVERAGE:MemoryUsagePerc=%1.0lf',
-      ],
-    'f5_Connection' => [
-        'DEF:ClientCurConns=$database:ClientCurConns:AVERAGE',
-        'PRINT:ClientCurConns:AVERAGE:ClientCurConns=%1.0lf',
       ]
     }
   }
