@@ -7894,20 +7894,21 @@ LABEL_ESC:
 			foreach my $klst( @keylist ) {
 				foreach my $esc (keys %{$EST}) {
 					my $esc_short = lc "$EST->{$esc}{Group}_$EST->{$esc}{Role}_$EST->{$esc}{Type}_$EST->{$esc}{Event}";
-
 					$EST->{$esc}{Event_Node} = ($EST->{$esc}{Event_Node} eq '') ? '.*' : $EST->{$esc}{Event_Node};
 					$EST->{$esc}{Event_Element} = ($EST->{$esc}{Event_Element} eq '') ? '.*' : $EST->{$esc}{Event_Element};
 					$EST->{$esc}{Event_Node} =~ s;/;;g;
-					$EST->{$esc}{Event_Element} =~ s;/;\\/;g;
+					
+					my $event_element = $EST->{$esc}{Event_Element};
+					$event_element =~ s;/;\\/;g;
 					# to handle c:\\ as an element, the c:\\ gets converted to c:\ which is invalid so need to pad c:\\ to c:\\\\
-					$EST->{$esc}{Event_Element} =~ s;^(\w)\:\\$;$1\\:\\\\;g;
+					$event_element  =~ s;^(\w)\:\\$;$1\\:\\\\;g;
 
 					if ($klst eq $esc_short
 							and $thisevent->{node} =~ /$EST->{$esc}{Event_Node}/i
-							and $thisevent->{element} =~ /$EST->{$esc}{Event_Element}/i
+							and $thisevent->{element} =~ /$event_element/i
 							) {
 						$keyhash{$esc} = $klst;
-						dbg("match found for escalation key=$esc");
+						dbg("match found for escalation key=$esc node=".$thisevent->{node} ." element=".$thisevent->{element});
 					}
 					else {
 						#dbg("no match found for escalation key=$esc, esc_short=$esc_short");
