@@ -3895,7 +3895,7 @@ sub processAlerts
 		my $tresult = $alert->{test_result}? $alert->{level} : "Normal";
 		my $statusResult = $tresult eq "Normal"? "ok" : "error";
 
-		my $details = "$alert->{type} evaluated with $alert->{value} $alert->{unit} as $tresult";
+		my $details = "$alert->{details} $alert->{type} evaluated with $alert->{value} $alert->{unit} as $tresult";
 		if( $alert->{test_result} )
 		{
 			notify(sys=>$S,
@@ -6353,6 +6353,7 @@ sub runAlerts
 	my %args = @_;
 	my $S = $args{sys};
 	my $NI = $S->ndinfo;
+	my $IF = $S->ifinfo;
 	my $M = $S->mdl;
 	my $CA = $S->alerts;
 
@@ -6379,7 +6380,12 @@ sub runAlerts
 					if ( $CA->{$sect}{$alrt}{type} =~ /^(test$|threshold)/ )
 					{
 							my ($test, $value, $alert, $test_value, $test_result);
-
+							my $details = "";
+							
+							if ( $CA->{$sect}{$alrt}{event} =~ /interface/i and $IF->{$index}{Description} ne "" )
+							{
+								$details .= $IF->{$index}{Description} . ", ";
+							}
 							# do this for test and value
 							for my $thingie (['test',\$test_result],['value',\$test_value])
 							{
@@ -6486,6 +6492,7 @@ sub runAlerts
 							$alert->{section} = $sect;
 							$alert->{alert} = $alrt; # the key, good enough
 							$alert->{index} = $index;
+							$alert->{details} = $details if ($details);
 
 							push( @{$S->{alerts}}, $alert );
 					}
