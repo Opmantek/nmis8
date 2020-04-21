@@ -9003,12 +9003,16 @@ PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 ######################################################
 # Run (selective) Statistics and Service Status Collection often
 */1 * * * * $usercol $C->{'<nmis_base>'}/bin/nmis.pl type=collect mthread=true
-*/2 * * * * $usercol $C->{'<nmis_base>'}/bin/nmis.pl type=services mthread=true
+*/1 * * * * $usercol $C->{'<nmis_base>'}/bin/nmis.pl type=services mthread=true
 
 ######################################################
-# Run Summary Update every 5 minutes
-*/5 * * * * $usercol $C->{'<nmis_base>'}/bin/nmis.pl type=summary
+# Run Summary Update every 2 minutes
+*/2 * * * * $usercol $C->{'<nmis_base>'}/bin/nmis.pl type=summary
 
+######################################################
+# Run Escalate Update every 2 minutes (odd times)
+# disabled by default, used if daemon_fping_run_escalation and escalate_poll_cycle both set to false
+#1-59/2 * * * * $usercol $C->{'<nmis_base>'}/bin/nmis.pl type=escalate
 
 ######################################################
 # Run the update once a day
