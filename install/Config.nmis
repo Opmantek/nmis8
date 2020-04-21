@@ -44,6 +44,7 @@ my %hash = (
 
   'globals' => {
     'global_threshold' => 'true', # advanced thresholds enabled or not
+    'escalate_poll_cycle' => 'true', # perform escalate at the end of poll cycle
     'threshold_poll_cycle' => 'true', # perform threshold computations at the end of poll cycle
 	'threshold_poll_node' => 'true', # or perform threshold computation with each node
     'threshold_rising_reset_dampening' => '0.95',

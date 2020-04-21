@@ -873,7 +873,7 @@ sub	runThreads
 		}
 
 		# only runEscalate if this is multiple nodes.
-		if ( $nodecount > 1 ) {
+		if ( $nodecount > 1 and ( defined $C->{escalate_poll_cycle} and getbool($C->{escalate_poll_cycle}) ) {
 			dbg("Starting runEscalate");
 			runEscalate();
 		}
