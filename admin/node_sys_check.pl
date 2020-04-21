@@ -106,10 +106,11 @@ sub checkNode {
 				mtxrWlStat
 				WirelessAccessPoint
 				WirelessRegistration
+				Host_Storage
 		);
 		
 		my %nodeevents = loadAllEvents(node => $node);
-		
+
 		# pattern for looking for events which exist.
 		foreach my $eventkey (keys %nodeevents) {
 			my $thisevent = $nodeevents{$eventkey};
@@ -247,7 +248,7 @@ sub checkNode {
    #      "bgpPeer" : "bgpPeerStats,bgpPeer"
    #   },
       
-			      	print "INFO: $node working on @systemHealthSections\n" if $debug;
+			    print "INFO: $node working on @systemHealthSections\n" if $debug;
 				# clean up systemHealth Sections, BGP Peers initially
 				foreach my $section (@systemHealthSections) {
 				      	print "  looking for $section with index $indx in graphtype\n" if $debug;

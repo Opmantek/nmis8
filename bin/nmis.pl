@@ -873,7 +873,7 @@ sub	runThreads
 		}
 
 		# only runEscalate if this is multiple nodes.
-		if ( $nodecount > 1 and ( defined $C->{escalate_poll_cycle} and getbool($C->{escalate_poll_cycle}) ) {
+		if ( $nodecount > 1 and ( not getbool($C->{escalate_poll_cycle},"invert") ) ) {
 			dbg("Starting runEscalate");
 			runEscalate();
 		}
@@ -1548,7 +1548,7 @@ sub doCollect
 
 		}
 	} else {
-		logMsg("WARNING: Skipping data collection for '$name'. Config: collect=$status{collect} collect_snmp=$status{snmp} collect_wmi=$status{wmi}");
+		logMsg("INFO Skipping data collection for '$name'. Config: collect=$status{collect} collect_snmp=$status{snmp} collect_wmi=$status{wmi}");
 	}
 
 	# Need to poll services under all circumstances, i.e. if no ping, or node down or set to no collect
