@@ -3895,7 +3895,7 @@ sub processAlerts
 		my $tresult = $alert->{test_result}? $alert->{level} : "Normal";
 		my $statusResult = $tresult eq "Normal"? "ok" : "error";
 
-		my $details = "$alert->{details} $alert->{type} evaluated with $alert->{value} $alert->{unit} as $tresult";
+		my $details = "$alert->{details}, $alert->{type} evaluated with $alert->{value} $alert->{unit} as $tresult";
 		if( $alert->{test_result} )
 		{
 			notify(sys=>$S,
@@ -6384,7 +6384,7 @@ sub runAlerts
 							
 							if ( $CA->{$sect}{$alrt}{event} =~ /interface/i and $IF->{$index}{Description} ne "" )
 							{
-								$details .= $IF->{$index}{Description} . ", ";
+								$details = $IF->{$index}{Description};
 							}
 							# do this for test and value
 							for my $thingie (['test',\$test_result],['value',\$test_value])
