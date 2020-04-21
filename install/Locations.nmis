@@ -510,4 +510,11 @@
     'Latitude' => '38.971389',
     'Longitude' => '-77.388611',
   },
+  'New York' => {
+    'Country' => 'United States',
+    'Location' => 'New York',
+    'City' => 'New York',
+    'Latitude' => '40.7128',
+    'Longitude' => '-74.0060',
+  },
 );
