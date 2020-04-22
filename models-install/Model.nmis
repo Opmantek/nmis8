@@ -651,6 +651,13 @@
         }
       }
     },
+    'Vyatta, Inc.' => {
+      'order' => {
+        '10' => {
+          'VyOS' => '.'
+        }
+      }
+    },
   },
   'system' => {
     'nodeModel' => 'Default',
