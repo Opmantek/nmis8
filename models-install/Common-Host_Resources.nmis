@@ -47,9 +47,8 @@
       'Real_Memory_Utilisation' => {
         'item' => 'realMemUtil',
         'event' => 'Proactive Memory Utilisation',
-	'title' => "Memory Utilisation",
-	'unit' => '%',
-
+        'title' => "Memory Utilisation",
+        'unit' => '%',
         'select' => {
           'default' => {
             'value' => {
@@ -69,8 +68,29 @@
 
         'item' => 'hrStorageUtil',
         'select' => {
+         # '10' => {
+            #'control' => 'CVAR=hrStorageTypeName;$CVAR =~ /(Fixed|Network) Disk/',
+            #'value' => {
+            #  'fatal' => '97',
+            #  'critical' => '95',
+            #  'major' => '95',
+            #  'minor' => '95',
+            #  'warning' => '50',
+            #},
+         # },
+          '1' => {
+            'control' => 'CVAR1=hrStorageTypeName;CVAR2=hrStorageDescr;$CVAR1 =~ /([Mm]emory)/ or $CVAR2 =~ /(\/rom)/',
+            'comment' => 'Disable things for /run and memory',
+            'value' => {
+              'fatal' => '1004',
+              'critical' => '1003',
+              'major' => '1002',
+              'minor' => '1001',
+              'warning' => '1000',
+            },
+          },
           '10' => {
-            'control' => 'CVAR=hrStorageType;$CVAR =~ /(Fixed|Network) Disk/',
+            'control' => 'CVAR1=hrStorageSize;CVAR2=hrStorageAllocationUnits;CVAR3=hrStorageTypeName;$CVAR1 * $CVAR2 <= 209715200000 and $CVAR3 =~ /(Fixed|Network) Disk/',
             'value' => {
               'fatal' => '97',
               'critical' => '95',
@@ -79,46 +99,36 @@
               'warning' => '95',
             },
           },
-          #'10' => {
-          #  'control' => 'CVAR1=hrStorageSize;CVAR2=hrStorageType;$CVAR1 <= 209715200000 and $CVAR2 =~ /(Fixed|Network) Disk/',
-          #  'value' => {
-          #    'fatal' => '97',
-          #    'critical' => '95',
-          #    'major' => '95',
-          #    'minor' => '95',
-          #    'warning' => '95',
-          #  },
-          #},
-          #'20' => {
-          #  'control' => 'CVAR1=hrStorageSize;CVAR2=hrStorageType;$CVAR1 <= 1610612736000 and $CVAR1 >= 209715200000 and $CVAR2 =~ /(Fixed|Network) Disk/',
-          #  'value' => {
-          #    'fatal' => '99',
-          #    'critical' => '97',
-          #    'major' => '95',
-          #    'minor' => '93',
-          #    'warning' => '90',
-          #  },
-          #},
-          #'30' => {
-          #  'control' => 'CVAR1=hrStorageSize;CVAR2=hrStorageType;$CVAR1 <= 3221225472000 and $CVAR1 >= 1610612736000 and $CVAR2 =~ /(Fixed|Network) Disk/',
-          #  'value' => {
-          #    'fatal' => '99',
-          #    'critical' => '98',
-          #    'major' => '96',
-          #    'minor' => '93',
-          #    'warning' => '90',
-          #  },
-          #},
-          #'40' => {
-          #  'control' => 'CVAR1=hrStorageSize;CVAR2=hrStorageType;$CVAR1 >= 3221225472000 and $CVAR2 =~ /(Fixed|Network) Disk/',
-          #  'value' => {
-          #    'fatal' => '99.5',
-          #    'critical' => '99',
-          #    'major' => '98',
-          #    'minor' => '96',
-          #    'warning' => '93',
-          #  },
-          #},
+          '20' => {
+            'control' => 'CVAR1=hrStorageSize;CVAR2=hrStorageAllocationUnits;CVAR3=hrStorageTypeName;$CVAR1 * $CVAR2 >= 209715200000 and $CVAR3 =~ /(Fixed|Network) Disk/',
+            'value' => {
+              'fatal' => '99',
+              'critical' => '97',
+              'major' => '95',
+              'minor' => '93',
+              'warning' => '90',
+            },
+          },
+          '30' => {
+            'control' => 'CVAR1=hrStorageSize;CVAR2=hrStorageAllocationUnits;CVAR3=hrStorageTypeName;$CVAR1 * $CVAR2 >= 1610612736000 and $CVAR3 =~ /(Fixed|Network) Disk/',
+            'value' => {
+              'fatal' => '99',
+              'critical' => '98',
+              'major' => '96',
+              'minor' => '93',
+              'warning' => '90',
+            },
+          },
+          '40' => {
+            'control' => 'CVAR1=hrStorageSize;CVAR2=hrStorageAllocationUnits;CVAR3=hrStorageTypeName;$CVAR1 * $CVAR2 >= 3221225472000 and $CVAR3 =~ /(Fixed|Network) Disk/',
+            'value' => {
+              'fatal' => '99.5',
+              'critical' => '99',
+              'major' => '98',
+              'minor' => '96',
+              'warning' => '93',
+            },
+          },
           'default' => {
             'value' => {
               'fatal' => '197',

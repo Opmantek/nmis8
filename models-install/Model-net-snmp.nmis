@@ -536,7 +536,7 @@
       'hrdisk' => {
         'indexed' => 'true',
         'graphtype' => 'hrdisk',
-        'threshold' => 'hrdisk',
+        #'threshold' => 'hrdisk',
       },
     },
   },  
