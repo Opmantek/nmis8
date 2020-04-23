@@ -3895,7 +3895,11 @@ sub processAlerts
 		my $tresult = $alert->{test_result}? $alert->{level} : "Normal";
 		my $statusResult = $tresult eq "Normal"? "ok" : "error";
 
-		my $details = "$alert->{details}, $alert->{type} evaluated with $alert->{value} $alert->{unit} as $tresult";
+		my $details = "$alert->{type} evaluated with $alert->{value} $alert->{unit} as $tresult";
+		if ( $alert->{details} ) {
+			$details = "$alert->{details}, $alert->{type} evaluated with $alert->{value} $alert->{unit} as $tresult";
+		}
+
 		if( $alert->{test_result} )
 		{
 			notify(sys=>$S,
@@ -6387,6 +6391,7 @@ sub runAlerts
 								$details = $IF->{$index}{Description};
 							}
 							# do this for test and value
+							# this evaluates the test and the value and saves the results into the reference to $test_result or $test_value  so $$target is a referecene to these test thingies
 							for my $thingie (['test',\$test_result],['value',\$test_value])
 							{
 									my ($key, $target) = @$thingie;
@@ -6432,8 +6437,16 @@ sub runAlerts
 									$test_value = sprintf("%.2f",$test_value);
 							}
 
-							my $level=$CA->{$sect}{$alrt}{level};
-
+							# if the test_result is true, then the level is set to the alert level, otherwise it is normal.
+							my $level = "Normal";
+							if ( $test_result ) {
+								$level = $CA->{$sect}{$alrt}{level};	
+							}
+							else {
+								# the eval will evaluate false a undef, so lets just give it a boolean
+								$test_result = 0;
+							}
+							
 							# check the thresholds, in appropriate order
 							# report normal if below level for warning (for threshold-rising, or above for threshold-falling)
 							# debug-warn and ignore a level definition for 'Normal' - overdefined and buggy!
@@ -6475,8 +6488,9 @@ sub runAlerts
 									$level = $matches[-1]; # we want the highest severity/worst matching one
 									$test_result = 1;
 								}
-								info("alert result: test_value=$test_value test_result=$test_result level=$level",2);
+								
 							}
+							dbg("alert result: test_value=$test_value test_result=$test_result level=$level");
 
 							# and now save the result, for both tests and thresholds (source of level is the only difference)
 							$alert->{type} = $CA->{$sect}{$alrt}{type}; # threshold or test or whatever
