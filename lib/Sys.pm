@@ -1629,6 +1629,7 @@ sub parseString
 					{
 						logMsg("ERROR: $thing not a known property in section $sect, index $indx!")
 								if (!exists $self->{info}->{$sect}->{$indx}->{$thing});
+
 						# let's set the global CVAR or CVARn to whatever value from the node info section
 						${"CVAR$number"} = $self->{info}->{$sect}->{$indx}->{$thing};
 					}
@@ -1655,7 +1656,18 @@ sub parseString
 			$location = $self->{info}{system}{location};
 
 			# if I am wanting a storage thingy, then lets populate the variables I need.
-			if ( $indx ne '' and $str =~ /(hrStorageDescr|hrStorageSize|hrStorageUnits|hrDiskSize|hrDiskUsed|hrStorageType)/ ) {
+			if ( defined $self->{info}->{Host_Storage} and $indx ne '' and $str =~ /(hrStorageDescr|hrStorageSize|hrStorageUnits|hrDiskSize|hrDiskUsed|hrStorageType|hrStorageTypeName)/ ) {
+				$hrStorageDescr = $self->{info}{Host_Storage}{$indx}{hrStorageDescr};
+				$hrStorageType = $self->{info}{Host_Storage}{$indx}{hrStorageType};
+				$hrStorageTypeName = $self->{info}{Host_Storage}{$indx}{hrStorageTypeName};
+				$hrStorageUnits = $self->{info}{Host_Storage}{$indx}{hrStorageUnits};
+				$hrStorageSize = $self->{info}{Host_Storage}{$indx}{hrStorageSize};
+				$hrStorageUsed = $self->{info}{Host_Storage}{$indx}{hrStorageUsed};
+				$hrDiskSize = $hrStorageSize * $hrStorageUnits;
+				$hrDiskUsed = $hrStorageUsed * $hrStorageUnits;
+				$hrDiskFree = $hrDiskSize - $hrDiskUsed;
+			}
+			elsif ( $indx ne '' and $str =~ /(hrStorageDescr|hrStorageSize|hrStorageUnits|hrDiskSize|hrDiskUsed|hrStorageType)/ ) {
 				$hrStorageDescr = $self->{info}{storage}{$indx}{hrStorageDescr};
 				$hrStorageType = $self->{info}{storage}{$indx}{hrStorageType};
 				$hrStorageUnits = $self->{info}{storage}{$indx}{hrStorageUnits};
