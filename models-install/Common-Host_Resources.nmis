@@ -33,6 +33,7 @@
       'Host_Processor' => '/nodes/$node/health/hrProcessorLoad-$index.rrd',
       'Host_Storage' => '/nodes/$node/health/hrStorage-$index.rrd',
       'Host_Memory' => '/nodes/$node/health/hrMemory.rrd',
+      'Host_Health' => '/nodes/$node/health/hrHealth.rrd',
     }
   },  
   'heading' => {
@@ -47,9 +48,8 @@
       'Real_Memory_Utilisation' => {
         'item' => 'realMemUtil',
         'event' => 'Proactive Memory Utilisation',
-	'title' => "Memory Utilisation",
-	'unit' => '%',
-
+        'title' => "Memory Utilisation",
+        'unit' => '%',
         'select' => {
           'default' => {
             'value' => {
@@ -66,11 +66,21 @@
         'event' => 'Proactive Disk Usage',
         'title' => "Disk Usage",
         'unit' => "%",
-
         'item' => 'hrStorageUtil',
         'select' => {
+          '1' => {
+            'control' => 'CVAR1=hrStorageTypeName;CVAR2=hrStorageDescr;$CVAR1 =~ /([Mm]emory)/ or $CVAR2 =~ /(\/rom)/',
+            'comment' => 'Disable things for /run and memory',
+            'value' => {
+              'fatal' => '1004',
+              'critical' => '1003',
+              'major' => '1002',
+              'minor' => '1001',
+              'warning' => '1000',
+            },
+          },
           '10' => {
-            'control' => 'CVAR=hrStorageType;$CVAR =~ /(Fixed|Network) Disk/',
+            'control' => 'CVAR1=hrStorageSize;CVAR2=hrStorageAllocationUnits;CVAR3=hrStorageTypeName;$CVAR1 * $CVAR2 <= 209715200000 and $CVAR3 =~ /(Fixed|Network) Disk/',
             'value' => {
               'fatal' => '97',
               'critical' => '95',
@@ -79,46 +89,36 @@
               'warning' => '95',
             },
           },
-          #'10' => {
-          #  'control' => 'CVAR1=hrStorageSize;CVAR2=hrStorageType;$CVAR1 <= 209715200000 and $CVAR2 =~ /(Fixed|Network) Disk/',
-          #  'value' => {
-          #    'fatal' => '97',
-          #    'critical' => '95',
-          #    'major' => '95',
-          #    'minor' => '95',
-          #    'warning' => '95',
-          #  },
-          #},
-          #'20' => {
-          #  'control' => 'CVAR1=hrStorageSize;CVAR2=hrStorageType;$CVAR1 <= 1610612736000 and $CVAR1 >= 209715200000 and $CVAR2 =~ /(Fixed|Network) Disk/',
-          #  'value' => {
-          #    'fatal' => '99',
-          #    'critical' => '97',
-          #    'major' => '95',
-          #    'minor' => '93',
-          #    'warning' => '90',
-          #  },
-          #},
-          #'30' => {
-          #  'control' => 'CVAR1=hrStorageSize;CVAR2=hrStorageType;$CVAR1 <= 3221225472000 and $CVAR1 >= 1610612736000 and $CVAR2 =~ /(Fixed|Network) Disk/',
-          #  'value' => {
-          #    'fatal' => '99',
-          #    'critical' => '98',
-          #    'major' => '96',
-          #    'minor' => '93',
-          #    'warning' => '90',
-          #  },
-          #},
-          #'40' => {
-          #  'control' => 'CVAR1=hrStorageSize;CVAR2=hrStorageType;$CVAR1 >= 3221225472000 and $CVAR2 =~ /(Fixed|Network) Disk/',
-          #  'value' => {
-          #    'fatal' => '99.5',
-          #    'critical' => '99',
-          #    'major' => '98',
-          #    'minor' => '96',
-          #    'warning' => '93',
-          #  },
-          #},
+          '20' => {
+            'control' => 'CVAR1=hrStorageSize;CVAR2=hrStorageAllocationUnits;CVAR3=hrStorageTypeName;$CVAR1 * $CVAR2 >= 209715200000 and $CVAR3 =~ /(Fixed|Network) Disk/',
+            'value' => {
+              'fatal' => '99',
+              'critical' => '97',
+              'major' => '95',
+              'minor' => '93',
+              'warning' => '90',
+            },
+          },
+          '30' => {
+            'control' => 'CVAR1=hrStorageSize;CVAR2=hrStorageAllocationUnits;CVAR3=hrStorageTypeName;$CVAR1 * $CVAR2 >= 1610612736000 and $CVAR3 =~ /(Fixed|Network) Disk/',
+            'value' => {
+              'fatal' => '99',
+              'critical' => '98',
+              'major' => '96',
+              'minor' => '93',
+              'warning' => '90',
+            },
+          },
+          '40' => {
+            'control' => 'CVAR1=hrStorageSize;CVAR2=hrStorageAllocationUnits;CVAR3=hrStorageTypeName;$CVAR1 * $CVAR2 >= 3221225472000 and $CVAR3 =~ /(Fixed|Network) Disk/',
+            'value' => {
+              'fatal' => '99.5',
+              'critical' => '99',
+              'major' => '98',
+              'minor' => '96',
+              'warning' => '93',
+            },
+          },
           'default' => {
             'value' => {
               'fatal' => '197',
@@ -139,6 +139,12 @@
   },
   'stats' => {
     'type' => {
+      'Host_Health' => [
+        'DEF:hrSystemProcesses=$database:hrSystemProcesses:AVERAGE',
+        'DEF:hrSystemNumUsers=$database:hrSystemNumUsers:AVERAGE',
+        'PRINT:hrSystemProcesses:AVERAGE:hrSystemProcesses=%1.2lf',
+        'PRINT:hrSystemNumUsers:AVERAGE:hrSystemNumUsers=%1.2lf',
+      ],
       'Host_Memory' => [
         'DEF:physical_total=$database:physical_total:AVERAGE',
         'DEF:available_used=$database:available_used:AVERAGE',
@@ -158,13 +164,111 @@
       ],
     },
   },
+  # Keeping the critical alerts here for now.
   'alerts' => {
+    'Host_Storage' => {
+      #'HighDiskUsage' => {
+      #  'type' => 'threshold-rising',
+      #  'threshold' => {
+      #    'Warning' => '75',
+      #    'Minor' => '80',
+      #    'Major' => '90',
+      #    'Critical' => '94',
+      #    'Fatal' => '94.5',
+      #  },
+      #  'test' => '',
+      #  'value' => 'CVAR1=hrStorageSize;CVAR2=hrStorageUsed;$CVAR2 / $CVAR1 * 100',
+      #  'element' => 'hrStorageDescr',
+      #  'title' => "Disk Usage",
+      #  'unit' => '%',
+      #  'event' => 'High Disk Usage',
+      #  'level' => '',
+      #  'control' => 'CVAR=hrStorageType;$CVAR =~ /Fixed Disk/',
+      #},
+      'CriticalDiskUsage' => {
+        'element' => 'hrStorageDescr',
+        'event' => 'Critical Disk Usage',
+        'level' => 'Critical',
+        'test' => 'CVAR1=hrStorageSize;CVAR2=hrStorageUsed;$CVAR2 / $CVAR1 * 100 > 90',
+        'type' => 'test',
+        'title' => 'Critical Disk Usage',
+        'unit' => '%',
+        'value' => 'CVAR1=hrStorageSize;CVAR2=hrStorageUsed;$CVAR2 / $CVAR1 * 100',
+        'control' => 'CVAR=hrStorageType;$CVAR =~ /Fixed Disk/',
+      },
+      #'HighMemoryUsage' => {
+      #  'type' => 'threshold-rising',
+      #  # to disable particular levels, set their value to the same as the desired one
+      #  'threshold' => {
+      #    'Warning' => '99.4',
+      #    'Minor' => '99.4',
+      #    'Major' => '99.4',
+      #    'Critical' => '99.6',
+      #    'Fatal' => '100',
+      #  },
+      #  'test' => '',
+      #  'value' => 'CVAR1=hrStorageSize;CVAR2=hrStorageUsed;$CVAR2 / $CVAR1 * 100',
+      #  'element' => 'hrStorageDescr',
+      #  'unit' => '%',
+      #  'title' => "Memory Usage",
+      #  'event' => 'High Memory Usage',
+      #  'level' => '',
+      #  'control' => 'CVAR=hrStorageDescr;$CVAR =~ /^(Virtual )?Memory/',
+      #},
+      #'HighSwapUsage' => {
+      #  'type' => 'threshold-rising',
+      #  'threshold' => {
+      #    'Warning' => '15',
+      #    'Minor' => '20',
+      #    'Major' => '30',
+      #    'Critical' => '50',
+      #    'Fatal' => '75',
+      #  },
+      #  'test' => '',
+      #  'value' => 'CVAR1=hrStorageSize;CVAR2=hrStorageUsed;$CVAR2 / $CVAR1 * 100',
+      #  'element' => 'hrStorageDescr',
+      #  'unit' => '%',
+      #  'event' => 'High Swap Usage',
+      #  'title' => "Swap Usage",
+      #  'level' => '',
+      #  'control' => 'CVAR=hrStorageDescr;$CVAR =~ /Swap/',
+      #},
+      'CriticalSwapUsage' => {
+        'type' => 'threshold-rising',
+        # to disable particular levels, set their value to the same as the desired one
+        'threshold' => {
+          'Warning' => '50',
+          'Minor' => '50',
+          'Major' => '50',
+          'Critical' => '50',
+          'Fatal' => '75',
+        },
+        'test' => '',
+        'value' => 'CVAR1=hrStorageSize;CVAR2=hrStorageUsed;$CVAR2 / $CVAR1 * 100',
+        'element' => 'hrStorageDescr',
+        'unit' => '%',
+        'event' => 'Critical Swap Usage',
+        'level' => '',
+        'control' => 'CVAR=hrStorageDescr;$CVAR =~ /Swap/',
+      },
+    },
   },
   'system' => {
     'rrd' => {
       'Host_Memory' => {
         'graphtype' => 'Host_Memory',
         'threshold' => 'Real_Memory_Utilisation',
+      },
+      'Host_Health' => {
+        'graphtype' => 'hrsystem',
+        'snmp' => {
+          'hrSystemProcesses' => {
+            'oid' => 'hrSystemProcesses'
+          },
+          'hrSystemNumUsers' => {
+            'oid' => 'hrSystemNumUsers'
+          }
+        }
       },
     },
   },

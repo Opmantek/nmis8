@@ -873,7 +873,7 @@ sub	runThreads
 		}
 
 		# only runEscalate if this is multiple nodes.
-		if ( $nodecount > 1 ) {
+		if ( $nodecount > 1 and ( not getbool($C->{escalate_poll_cycle},"invert") ) ) {
 			dbg("Starting runEscalate");
 			runEscalate();
 		}
@@ -1548,7 +1548,7 @@ sub doCollect
 
 		}
 	} else {
-		logMsg("WARNING: Skipping data collection for '$name'. Config: collect=$status{collect} collect_snmp=$status{snmp} collect_wmi=$status{wmi}");
+		logMsg("INFO Skipping data collection for '$name'. Config: collect=$status{collect} collect_snmp=$status{snmp} collect_wmi=$status{wmi}");
 	}
 
 	# Need to poll services under all circumstances, i.e. if no ping, or node down or set to no collect
@@ -3896,6 +3896,10 @@ sub processAlerts
 		my $statusResult = $tresult eq "Normal"? "ok" : "error";
 
 		my $details = "$alert->{type} evaluated with $alert->{value} $alert->{unit} as $tresult";
+		if ( $alert->{details} ) {
+			$details = "$alert->{details}, $alert->{type} evaluated with $alert->{value} $alert->{unit} as $tresult";
+		}
+
 		if( $alert->{test_result} )
 		{
 			notify(sys=>$S,
@@ -6353,6 +6357,7 @@ sub runAlerts
 	my %args = @_;
 	my $S = $args{sys};
 	my $NI = $S->ndinfo;
+	my $IF = $S->ifinfo;
 	my $M = $S->mdl;
 	my $CA = $S->alerts;
 
@@ -6379,8 +6384,14 @@ sub runAlerts
 					if ( $CA->{$sect}{$alrt}{type} =~ /^(test$|threshold)/ )
 					{
 							my ($test, $value, $alert, $test_value, $test_result);
-
+							my $details = "";
+							
+							if ( $CA->{$sect}{$alrt}{event} =~ /interface/i and $IF->{$index}{Description} ne "" )
+							{
+								$details = $IF->{$index}{Description};
+							}
 							# do this for test and value
+							# this evaluates the test and the value and saves the results into the reference to $test_result or $test_value  so $$target is a referecene to these test thingies
 							for my $thingie (['test',\$test_result],['value',\$test_value])
 							{
 									my ($key, $target) = @$thingie;
@@ -6426,8 +6437,16 @@ sub runAlerts
 									$test_value = sprintf("%.2f",$test_value);
 							}
 
-							my $level=$CA->{$sect}{$alrt}{level};
-
+							# if the test_result is true, then the level is set to the alert level, otherwise it is normal.
+							my $level = "Normal";
+							if ( $test_result ) {
+								$level = $CA->{$sect}{$alrt}{level};	
+							}
+							else {
+								# the eval will evaluate false a undef, so lets just give it a boolean
+								$test_result = 0;
+							}
+							
 							# check the thresholds, in appropriate order
 							# report normal if below level for warning (for threshold-rising, or above for threshold-falling)
 							# debug-warn and ignore a level definition for 'Normal' - overdefined and buggy!
@@ -6469,8 +6488,9 @@ sub runAlerts
 									$level = $matches[-1]; # we want the highest severity/worst matching one
 									$test_result = 1;
 								}
-								info("alert result: test_value=$test_value test_result=$test_result level=$level",2);
+								
 							}
+							dbg("alert result: test_value=$test_value test_result=$test_result level=$level");
 
 							# and now save the result, for both tests and thresholds (source of level is the only difference)
 							$alert->{type} = $CA->{$sect}{$alrt}{type}; # threshold or test or whatever
@@ -6486,6 +6506,7 @@ sub runAlerts
 							$alert->{section} = $sect;
 							$alert->{alert} = $alrt; # the key, good enough
 							$alert->{index} = $index;
+							$alert->{details} = $details if ($details);
 
 							push( @{$S->{alerts}}, $alert );
 					}
@@ -7887,20 +7908,21 @@ LABEL_ESC:
 			foreach my $klst( @keylist ) {
 				foreach my $esc (keys %{$EST}) {
 					my $esc_short = lc "$EST->{$esc}{Group}_$EST->{$esc}{Role}_$EST->{$esc}{Type}_$EST->{$esc}{Event}";
-
 					$EST->{$esc}{Event_Node} = ($EST->{$esc}{Event_Node} eq '') ? '.*' : $EST->{$esc}{Event_Node};
 					$EST->{$esc}{Event_Element} = ($EST->{$esc}{Event_Element} eq '') ? '.*' : $EST->{$esc}{Event_Element};
 					$EST->{$esc}{Event_Node} =~ s;/;;g;
-					$EST->{$esc}{Event_Element} =~ s;/;\\/;g;
+					
+					my $event_element = $EST->{$esc}{Event_Element};
+					$event_element =~ s;/;\\/;g;
 					# to handle c:\\ as an element, the c:\\ gets converted to c:\ which is invalid so need to pad c:\\ to c:\\\\
-					$EST->{$esc}{Event_Element} =~ s;^(\w)\:\\$;$1\\:\\\\;g;
+					$event_element  =~ s;^(\w)\:\\$;$1\\:\\\\;g;
 
 					if ($klst eq $esc_short
 							and $thisevent->{node} =~ /$EST->{$esc}{Event_Node}/i
-							and $thisevent->{element} =~ /$EST->{$esc}{Event_Element}/i
+							and $thisevent->{element} =~ /$event_element/i
 							) {
 						$keyhash{$esc} = $klst;
-						dbg("match found for escalation key=$esc");
+						dbg("match found for escalation key=$esc node=".$thisevent->{node} ." element=".$thisevent->{element});
 					}
 					else {
 						#dbg("no match found for escalation key=$esc, esc_short=$esc_short");
@@ -8421,6 +8443,22 @@ sub sendMSG
 				} # end syslog
 			}
 		}
+		# begin SNPP
+		# now the pagers
+		elsif ( $method eq "pager" ) {
+			foreach $target (keys %{$msgTable->{$method}}) {
+				foreach $serial (keys %{$msgTable->{$method}{$target}}) {
+					next if $C->{snpp_server} eq '';
+					dbg(" SendSNPP to $target");
+					sendSNPP(
+							server => $C->{snpp_server},
+							pagerno => $target,
+							message => $$msgTable{$method}{$target}{$serial}{message}
+					);
+				}
+			} # end pager
+		}
+		# end SNPP
 		# now the extensible stuff.......
 		else {
 
@@ -8987,12 +9025,16 @@ PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 ######################################################
 # Run (selective) Statistics and Service Status Collection often
 */1 * * * * $usercol $C->{'<nmis_base>'}/bin/nmis.pl type=collect mthread=true
-*/2 * * * * $usercol $C->{'<nmis_base>'}/bin/nmis.pl type=services mthread=true
+*/1 * * * * $usercol $C->{'<nmis_base>'}/bin/nmis.pl type=services mthread=true
 
 ######################################################
-# Run Summary Update every 5 minutes
-*/5 * * * * $usercol $C->{'<nmis_base>'}/bin/nmis.pl type=summary
+# Run Summary Update every 2 minutes
+*/2 * * * * $usercol $C->{'<nmis_base>'}/bin/nmis.pl type=summary
 
+######################################################
+# Run Escalate Update every 2 minutes (odd times)
+# disabled by default, used if daemon_fping_run_escalation and escalate_poll_cycle both set to false
+#1-59/2 * * * * $usercol $C->{'<nmis_base>'}/bin/nmis.pl type=escalate
 
 ######################################################
 # Run the update once a day

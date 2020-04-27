@@ -56,32 +56,40 @@
 
 			'CDEF:physical_free=total_physical,physical,-',
 
-			'AREA:available#00FFFF: Real Used',
-			'GPRINT:available:LAST:Current Used %1.3lf %sb',
-			'GPRINT:available:AVERAGE:Avg Used %1.3lf %Sb',
-			'GPRINT:available:MAX:Max Used %1.3lf %Sb\\n',
 
-			'STACK:cached#aaaaaa: Cached Memory',
-			'GPRINT:cached:LAST:Current Used %1.3lf %sb',
-			'GPRINT:cached:AVERAGE:Avg Used %1.3lf %Sb',
-			'GPRINT:cached:MAX:Max Used %1.3lf %Sb\\n',
+			'CDEF:physicalFreeUtil=physical_free,total_physical,/,100,*',
+			'CDEF:availableUtil=available,total_physical,/,100,*',
+			'CDEF:physicalUtil=physical,total_physical,/,100,*',
+			'CDEF:cachedUtil=cached,total_physical,/,100,*',
+			'CDEF:buffersUtil=buffers,total_physical,/,100,*',
 
-			'STACK:buffers#cccccc: Buffer Memory',
-			'GPRINT:buffers:LAST:Current Used %1.3lf %sb',
-			'GPRINT:buffers:AVERAGE:Avg Used %1.3lf %Sb',
-			'GPRINT:buffers:MAX:Max Used %1.3lf %Sb\\n',
 
-			'STACK:physical_free#eeeeee: Physical Free',
-			'GPRINT:physical_free:LAST:Current Used %1.3lf %sb',
-			'GPRINT:physical_free:AVERAGE:Avg Used %1.3lf %Sb',
-			'GPRINT:physical_free:MAX:Max Used %1.3lf %Sb\\n',
+			'AREA:available#00FFFF: Real Used\\t',
+			'GPRINT:availableUtil:AVERAGE:Avg Util %1.3lf %%\\t',
+			'GPRINT:available:AVERAGE:Avg %1.3lf %sb\\t',
+			'GPRINT:available:MAX:Max %1.3lf %Sb\\n',
 
-			'LINE1:physical#000000: Physical Used',
-			'GPRINT:physical:LAST:Current Used %1.3lf %sb',
-			'GPRINT:physical:AVERAGE:Avg Used %1.3lf %Sb',
-			'GPRINT:physical:MAX:Max Used %1.3lf %Sb\\n',
+			'STACK:cached#aaaaaa: Cached Memory\\t',
+			'GPRINT:cachedUtil:AVERAGE:Avg Util %1.3lf %%\\t',
+			'GPRINT:cached:AVERAGE:Avg %1.3lf %sb\\t',
+			'GPRINT:cached:MAX:Max %1.3lf %Sb\\n',
 
-			'LINE1:total_physical#FF0000: Total Memory',
+			'STACK:buffers#cccccc: Buffer Memory\\t',
+			'GPRINT:buffersUtil:AVERAGE:Avg Util %1.3lf %%\\t',
+			'GPRINT:buffers:AVERAGE:Avg %1.3lf %sb\\t',
+			'GPRINT:buffers:MAX:Max %1.3lf %Sb\\n',
+
+			'STACK:physical_free#eeeeee: Physical Free\\t',
+			'GPRINT:physicalFreeUtil:AVERAGE:Current %1.3lf %%\\t',
+			'GPRINT:physical_free:AVERAGE:Avg %1.3lf %sb\\t',
+			'GPRINT:physical_free:MAX:Max %1.3lf %Sb\\n',
+
+			'LINE1:physical#000000: Physical Used\\t',
+			'GPRINT:physicalUtil:AVERAGE:Avg Util %1.3lf %%\\t',
+			'GPRINT:physical:AVERAGE:Avg %1.3lf %sb\\t',
+			'GPRINT:physical:MAX:Max %1.3lf %Sb\\n',
+
+			'LINE1:total_physical#FF0000: Total Memory\\t',
 			'GPRINT:total_physical:AVERAGE:%1.3lf %sb\\n',
 		],
 		'small' => [
@@ -100,20 +108,26 @@
 
 			'CDEF:physical_free=total_physical,physical,-',
 
+			'CDEF:physicalFreeUtil=physical_free,total_physical,/,100,*',
+			'CDEF:availableUtil=available,total_physical,/,100,*',
+			'CDEF:physicalUtil=physical,total_physical,/,100,*',
+			'CDEF:cachedUtil=cached,total_physical,/,100,*',
+			'CDEF:buffersUtil=buffers,total_physical,/,100,*',
+
 			'AREA:available#00FFFF: Real Used',
-			'GPRINT:available:AVERAGE:Avg Used %1.3lf %sb',
+			'GPRINT:availableUtil:AVERAGE:Avg Used %1.3lf %%',
 
 			'STACK:cached#aaaaaa: Cached Memory',
-			'GPRINT:cached:AVERAGE:Avg Used %1.3lf %sb\\n',
+			'GPRINT:cachedUtil:AVERAGE:Avg Used %1.3lf %%\\n',
 
 			'STACK:buffers#cccccc: Buffer Memory',
-			'GPRINT:buffers:AVERAGE:Avg Used %1.3lf %sb',
+			'GPRINT:buffersUtil:AVERAGE:Avg Used %1.3lf %%',
 
 			'STACK:physical_free#eeeeee: Physical Free',
-			'GPRINT:physical_free:AVERAGE:Avg Used %1.3lf %sb\\n',
+			'GPRINT:physicalFreeUtil:AVERAGE:Avg Used %1.3lf %%\\n',
 
 			'LINE1:physical#000000: Physical Used',
-			'GPRINT:physical:AVERAGE:Avg Used %1.3lf %sb',
+			'GPRINT:physicalUtil:AVERAGE:Avg Used %1.3lf %%',
 
 			'LINE1:total_physical#FF0000: Total Memory',
 			'GPRINT:total_physical:AVERAGE:%1.3lf %sb\\n',

@@ -640,6 +640,11 @@ and then restart the installer.\n\n";
 			{
 				system("cpanm HTTP::Daemon --sudo $prompt --notest");	# can't use execprint as cpan is interactive: but is cpanm interactive?
 			}
+			# Net::SNPP fails tests
+			if ( grep( /^Net::SNPP$/, @missingones) )
+			{
+				system("cpanm Net::SNPP --sudo $prompt --notest");	# can't use execprint as cpan is interactive: but is cpanm interactive?
+			}
 			# default test-timeout is 30 mins: install will return exit code 1 on test timeout
 			system("cpanm --sudo $prompt ".join(" ",@missingones));  # can't use execprint as cpan is interactive but is cpanm interactive?
 		}

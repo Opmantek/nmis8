@@ -94,7 +94,8 @@
         'snmp' => {
           'cbgpPeerAcceptPrefs' => {
             'oid' => '1.3.6.1.4.1.9.9.187.1.2.4.1.1',
-            'option' => 'counter,0:U',
+            # despite the advertised type, this is a GUAGE
+            'option' => 'gauge,0:U',
             'sysObjectName' => 'cbgpPeerAcceptedPrefixes'
           },
           'cbgpPeerDeniedPrefs' => {

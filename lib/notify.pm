@@ -39,6 +39,7 @@ use vars qw(@ISA @EXPORT @EXPORT_OK %EXPORT_TAGS);
 
 use Exporter;
 use Net::SMTPS;
+use Net::SNPP;
 use Sys::Syslog 0.33;						# older versions have problems with custom ports and tcp
 use Sys::Hostname;							# for sys::syslog
 use File::Basename;
@@ -52,6 +53,7 @@ use JSON::XS;
 
 @EXPORT = qw(
 		sendEmail
+		sendSNPP
 		sendSyslog
 		eventToSyslog
 		logJsonEvent
@@ -193,6 +195,22 @@ sub setSMTPPriority {
 	else {
 		return "ERROR";
 	}
+}
+
+## KS - 31 Mar 02, implemented James Norris's code for SNPP
+# use like sendSNPP(server => $NMIS::config{snpp_server}, pagerno => $contact_table{$contact}{Pager}, message => "Send a page baby");
+sub sendSNPP {
+		my %arg = @_;
+		my $debug = $arg{debug};
+		if ( defined $arg{server} and defined $arg{pagerno} and defined $arg{message} ) { 
+				my $snpp = Net::SNPP->new($arg{server});
+				$snpp->send( Pager   => $arg{pagerno},
+							 Message => $arg{message},
+						   ) || warn "sendSNPP, SNPP Error: ", $snpp->message, "\n";
+				$snpp->quit;
+		} else {
+				print STDERR "sendSNPP, ERROR required info is not defined: host=$arg{server} pagerno=$arg{pagerno} message=$arg{message}\n";
+		}
 }
 
 # args: debug, server_string (comma-sep list of host:proto:port), facility, 
