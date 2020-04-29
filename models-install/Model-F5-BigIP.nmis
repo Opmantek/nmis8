@@ -60,15 +60,57 @@
   },
 
  'systemHealth' => {
-    'sections' => 'F5_Temperature,F5_CPU',
+    'sections' => 'F5_Temperature,F5_CPU,VirtualServTable',
     'sys' => {
+      'VirtualServTable' => {
+        'headers' => 'ltmVirtualServName,ltmVirtualServAddr,ltmVirtualServPort,ltmVirtualServIpProto,ltmVirtualServConnLimit',
+        'indexed' => 'ltmVirtualServName',
+        'index_oid' => '1.3.6.1.4.1.3375.2.2.10.1.2.1.1',
+        'index_regex' => '\.([\d+\.]+)$',
+        #control 'VirtualServEnabled -> true' ##TODO - only display Enabled virtual servers
+        'snmp' => {
+          'ltmVirtualServName' => {
+              'oid' => '1.3.6.1.4.1.3375.2.2.10.1.2.1.1',
+              'sysObjectName' => 'ltmVirtualServName',
+              'title' => 'Server Name',
+              },
+          'ltmVirtualServAddr' => {
+              'oid' => '1.3.6.1.4.1.3375.2.2.10.1.2.1.3',
+              'sysObjectName' => 'ltmVirtualServAddr',
+              'title' => 'IP Address',
+              },
+          'ltmVirtualServPort' => {
+              'oid' => '1.3.6.1.4.1.3375.2.2.10.1.2.1.4',
+              'sysObjectName' => 'ltmVirtualServPort',
+              'title' => 'Port',
+              },            
+          'ltmVirtualServIpProto' => {
+              'oid' => '1.3.6.1.4.1.3375.2.2.10.1.2.1.7',
+              'sysObjectName' => 'ltmVirtualServIpProto',
+              'title' => 'IP Proto',
+              'replace' => {
+                    '6' => 'TCP',
+                    '1' => 'ICMP',
+                    '4' => 'IP',
+                    '0' => 'IPv6',
+                    '17' => 'UDP',
+                      },
+                  },
+                
+            'ltmVirtualServConnLimit' => {
+                'oid' => '1.3.6.1.4.1.3375.2.2.10.1.2.1.10',
+                'sysObjectName' => 'ltmVirtualServConnLimit',
+                'title' => 'ConnLimit',
+                },
+            },
+        },
       'F5_Temperature' => {
         'headers' => 'f5TempName,f5Temperature,sysBladeTempSlot',
         'indexed' => 'f5TempName',
-	'index_regex' => '\.(\d+\.\d+)$',
+	      'index_regex' => '\.(\d+\.\d+)$',
         #'index_oid' => '1.3.6.1.4.1.3375.2.1.3.2.4.2.1.1',
         'index_oid' => '1.3.6.1.4.1.3375.2.1.3.2.4.2.1.3',
-	'control' => 'CVAR=f5TempName;$CVAR =~ /Blade air/i',
+	      'control' => 'CVAR=f5TempName;$CVAR =~ /Blade air/i',
         'snmp' => {
           #'sysBladeTempIndex' => {
           #'oid' =>'1.3.6.1.4.1.3375.2.1.3.2.4.2.1.1',
