@@ -465,6 +465,9 @@ sub user_verify {
 		} elsif ( $auth eq "tacacs" ) {
 			$exit = $self->_tacacs_verify($u,$p);
 
+		} elsif ( $auth eq "crowd" ) {
+			$exit = $self->_crowd_verify($u,$p);
+
 		} elsif ( $auth eq "system" ) {
 			$exit = $self->_system_verify($u,$p);
 
@@ -510,7 +513,7 @@ sub _file_verify {
 	my $self = shift;
 	my($pwfile,$u,$p,$encmode) = @_;
 
-	logAuth("DEBUG: _file_verify($pwfile,$u,$p,$encmode)") if $self->{debug};
+	logAuth("DEBUG: _file_verify($pwfile,$u,$encmode)") if $self->{debug};
 
 	my $allowplaintext = ($encmode eq "plaintext");
 	# the other encmode parameters are ignored.
@@ -811,7 +814,7 @@ sub _ms_ldap_verify
 	}
 
 	$status2 = $ldap2->bind("$dn",password=>"$p");
-	logAuth("DEBUG LDAP bind dn $d password $p status ".$status->code()) if $extra_ldap_debug;
+	logAuth("DEBUG LDAP bind dn $d status ".$status->code()) if $extra_ldap_debug;
 	if ($status2->code eq 0) {
 		# permitted
 		$ldap->unbind();
@@ -1317,6 +1320,64 @@ sub _tacacs_verify {
 		$tacacs->close();
 	}
 	return 0;
+}
+
+sub _crowd_verify {
+	my $self = shift;
+	my($user, $pswd) = @_;
+
+	eval { require Mojo::UserAgent; require Mojo::URL; };
+	if ($@)
+	{
+		logAuth("ERROR Crowd authentication method requires Mojo::UserAgent and Mojo::URL but modules not available: $@!");
+		return 0;
+	}
+
+	if (!$self->{config}->{auth_crowd_server})
+	{
+		logAuth("ERROR, no crowd server URL specified in configuration!");
+		return 0;
+	}
+	elsif (!$self->{config}->{auth_crowd_user} || !$self->{config}->{auth_crowd_password})
+	{
+		logAuth("ERROR, no crowd user/password specified in configuration");
+		return 0;
+	}
+
+	# plain url with method and possibly port, but without crowd auth info
+	my $url = Mojo::URL->new($self->{config}->{auth_crowd_server}
+													 ."/crowd/rest/usermanagement/1/authentication");
+	
+	# add crowd user info to the url
+	my $auth_crowd_user = $self->{config}->{auth_crowd_user};
+	my $auth_crowd_password = $self->{config}->{auth_crowd_password};
+	$url->userinfo("$auth_crowd_user:$auth_crowd_password");
+
+	# add the username query
+	$url->query(username => $user);
+
+	my $ua = Mojo::UserAgent->new;
+	logAuth("DEBUG created Mojo::UserAgent") if $self->{debug};
+	my $tx = $ua->post(
+		$url => {'Content-Type' => 'application/json',
+		'Accept' => 'application/json'} => json => {value => $pswd}
+	);
+	logAuth("Mojo::UserAgent Transaction Response:\n".Dumper($tx->res)) if $self->{debug};
+
+	# 200 is good and contains user info, 400 is not good, that's all it really tells us
+	# https://developer.atlassian.com/display/CROWDDEV/JSON+Requests+and+Responses
+	if(my $tx_err = $tx->error) {
+		logAuth("_crowd_verify Load Error");
+		logAuth("$tx_err->{code} CROWD response: $tx_err->{message}");
+		return 0
+	}
+	my $reply = $tx->res->json;
+
+	if( defined($reply->{name}) && $reply->{name} eq "$user" )
+	{
+		return 1;
+	}
+
 }
 
 #####################################################################

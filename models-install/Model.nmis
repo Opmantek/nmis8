@@ -651,6 +651,16 @@
         }
       }
     },
+    'CacheFlow Inc.' => {
+      'order' => {
+        '10' => {
+          'BlueCoat' => 'Blue Coat SG-VA Series'
+        },
+        '99' => {
+          'BlueCoat' => '.'
+        }
+      }
+    },
     'Vyatta, Inc.' => {
       'order' => {
         '10' => {
