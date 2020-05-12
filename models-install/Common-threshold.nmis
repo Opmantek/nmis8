@@ -292,10 +292,10 @@
           }
         },
         'title' => 'Temperature',
-        'unit' => '°C'
+        'unit' => 'C'
       },
       'f5ProacCPU' => {
-        'event' => 'F5 Proactive CPU',
+        'event' => 'Proactive CPU',
         'item' => 'f5PROC',
         'select' => {
           'default' => {
@@ -366,7 +366,7 @@
           }
         },
         'title' => 'F5 Temperature',
-        'unit' => '°C'
+        'unit' => 'C'
       },
       'f5_connection' => {
         'event' => 'Proactive F5 Current Conns',
@@ -637,7 +637,7 @@
           }
         },
         'title' => 'Temperature',
-        'unit' => '°C'
+        'unit' => 'C'
       },
       'mem-proc' => {
         'event' => 'Proactive Memory Free',
@@ -884,6 +884,24 @@
         'title' => 'Response Time',
         'unit' => 'ms'
       },
+      'mikrotikCpu-th' => {
+        'event' => 'Proactive CPU',
+        'item' => 'mikrotikCpu',
+        'select' => {
+          'default' => {
+            'value' => {
+              'critical' => '70',
+              'fatal' => '80',
+              'major' => '60',
+              'minor' => '40',
+              'warning' => '30'
+            }
+          }
+        },
+        'title' => 'Idle CPU',
+        'unit' => '%'
+      },
+
       'ssCpuRawIdle' => {
         'event' => 'Proactive CPU Idle',
         'item' => 'ssCpuRawIdle',

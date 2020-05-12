@@ -116,6 +116,12 @@
         'DEF:cpuUtil=$database:cpuUtil:AVERAGE',
         'PRINT:cpuUtil:AVERAGE:cpuUtil=%1.2lf'
       ],
+      'mikrotikCpu' => [
+        'DEF:mikrotikCpu=$database:mikrotikCpu:AVERAGE',
+        'DEF:mikrotikCpu=$database:mikrotikCpu:AVERAGE',
+        'PRINT:mikrotikCpu:AVERAGE:mikrotikCpu=%1.2lf',
+        'PRINT:mikrotikCpu:AVERAGE:cpuLoad=%1.2lf',
+      ],
       'diskIOTable' => [
         'DEF:diskIONReadX=$database:diskIONReadX:AVERAGE',
         'DEF:diskIONWrittenX=$database:diskIONWrittenX:AVERAGE',
