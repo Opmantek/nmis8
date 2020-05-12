@@ -3,7 +3,8 @@
     'type' => {
       'A10_CPU' => [
         'DEF:avgCpuUsage=$database:avgCpuUsage:AVERAGE',
-        'PRINT:avgCpuUsage:AVERAGE:avgCpuUsage=%1.0lf'
+        'PRINT:avgCpuUsage:AVERAGE:avgCpuUsage=%1.0lf',
+        'PRINT:avgCpuUsage:AVERAGE:cpuLoad=%1.2lf'
       ],
       'A10_Memory' => [
         'DEF:MemoryUsagePerc=$database:MemoryUsagePerc:AVERAGE',
@@ -15,7 +16,8 @@
       ],
       'F5_CPU' => [
         'DEF:f5PROC=$database:CpuRatio5min:AVERAGE',
-        'PRINT:f5PROC:AVERAGE:f5PROC=%1.0lf'
+        'PRINT:f5PROC:AVERAGE:f5PROC=%1.0lf',
+        'PRINT:f5PROC:AVERAGE:cpuLoad=%1.2lf',
       ],
       'F5_Temperature' => [
         'DEF:f5TEMP=$database:f5Temp:AVERAGE',
@@ -99,22 +101,26 @@
         'DEF:MemFree=$database:MemPoolFree:AVERAGE',
         'CDEF:memTotal=MemUsed,MemFree,+',
         'CDEF:memUtil=MemUsed,memTotal,/,100,*',
-        'PRINT:memUtil:AVERAGE:memUtil=%1.2lf'
+        'PRINT:memUtil:AVERAGE:memUtil=%1.2lf',
+        'PRINT:memUtil:AVERAGE:memoryUtil=%1.2lf',
       ],
       'ciscoMemoryPool' => [
         'DEF:MemUsed=$database:MemPoolUsed:AVERAGE',
         'DEF:MemFree=$database:MemPoolFree:AVERAGE',
         'CDEF:memTotal=MemUsed,MemFree,+',
         'CDEF:memUtil=MemUsed,memTotal,/,100,*',
-        'PRINT:memUtil:AVERAGE:memUtil=%1.2lf'
+        'PRINT:memUtil:AVERAGE:memUtil=%1.2lf',
+        'PRINT:memUtil:AVERAGE:memoryUtil=%1.2lf',
       ],
       'cpu-cpm' => [
         'DEF:cpmCPUTotal5min=$database:cpmCPUTotal5min:AVERAGE',
-        'PRINT:cpmCPUTotal5min:AVERAGE:cpmCPUTotal5min=%1.2lf'
+        'PRINT:cpmCPUTotal5min:AVERAGE:cpmCPUTotal5min=%1.2lf',
+        'PRINT:cpmCPUTotal5min:AVERAGE:cpuLoad=%1.2lf'
       ],
       'cpuUtil' => [
         'DEF:cpuUtil=$database:cpuUtil:AVERAGE',
-        'PRINT:cpuUtil:AVERAGE:cpuUtil=%1.2lf'
+        'PRINT:cpuUtil:AVERAGE:cpuUtil=%1.2lf',
+        'PRINT:cpuUtil:AVERAGE:cpuLoad=%1.2lf',
       ],
       'mikrotikCpu' => [
         'DEF:mikrotikCpu=$database:mikrotikCpu:AVERAGE',
@@ -186,7 +192,14 @@
       ],
       'hrsmpcpu' => [
         'DEF:hrCpuLoad=$database:hrCpuLoad:MAX',
-        'PRINT:hrCpuLoad:AVERAGE:hrCpuLoad=%1.2lf'
+        'PRINT:hrCpuLoad:AVERAGE:hrCpuLoad=%1.2lf',
+        'PRINT:hrCpuLoad:AVERAGE:cpuLoad=%1.2lf'
+      ],
+      'hrmem' => [
+        'DEF:hrMemUsed=$database:hrMemUsed:MAX',
+        'DEF:hrMemSize=$database:hrMemSize:MAX',
+        'CDEF:memoryUtil=hrMemUsed,hrMemSize,/,100,*',
+        'PRINT:memoryUtil:AVERAGE:memoryUtil=%1.2lf',
       ],
       'interface' => [
         'DEF:input=$database:ifInOctets:AVERAGE',
@@ -208,11 +221,13 @@
         'DEF:memTotal=$database:memTotal:AVERAGE',
         'DEF:memUsed=$database:memUsed:AVERAGE',
         'CDEF:memUtil=memUsed,memTotal,/,100,*',
-        'PRINT:memUtil:AVERAGE:memUtil=%1.2lf'
+        'PRINT:memUtil:AVERAGE:memUtil=%1.2lf',
+        'PRINT:memUtil:AVERAGE:memoryUtil=%1.2lf',
       ],
       'memUtil' => [
         'DEF:memUtil=$database:memUtil:AVERAGE',
-        'PRINT:memUtil:AVERAGE:memUtil=%1.2lf'
+        'PRINT:memUtil:AVERAGE:memUtil=%1.2lf',
+        'PRINT:memUtil:AVERAGE:memoryUtil=%1.2lf',
       ],
       'modem' => [
         'DEF:TotalModems=$database:InstalledModem:AVERAGE',
