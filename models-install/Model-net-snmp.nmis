@@ -169,6 +169,17 @@
       },
     },
     'rrd' => {
+      'nodehealth' => {
+        'graphtype' => 'hrsystem',
+        'snmp' => {
+          'hrSystemProcesses' => {
+            'oid' => 'hrSystemProcesses'
+          },
+          'hrSystemNumUsers' => {
+            'oid' => 'hrSystemNumUsers'
+          }
+        }
+      },
       'tcp' => {
         'graphtype' => 'tcp-conn,tcp-segs',
         'snmp' => {

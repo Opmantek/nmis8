@@ -62,6 +62,23 @@
           }
         }
       },
+      'Swap_Memory_Utilisation' => {
+        'item' => 'swapMemUtil',
+        'event' => 'Proactive Swap Memory Utilisation',
+        'title' => "Swap Memory Utilisation",
+        'unit' => '%',
+        'select' => {
+          'default' => {
+            'value' => {
+              'Warning' => '15',
+              'Minor' => '20',
+              'Major' => '30',
+              'Critical' => '50',
+              'Fatal' => '75',
+            }
+          }
+        }
+      },
       'Disk_Utilisation' => {
         'event' => 'Proactive Disk Usage',
         'title' => "Disk Usage",
@@ -149,12 +166,16 @@
         'DEF:physical_total=$database:physical_total:AVERAGE',
         'DEF:available_used=$database:available_used:AVERAGE',
         'DEF:physical_units=$database:physical_units:AVERAGE',
+        'DEF:swap_total=$database:swap_total:AVERAGE',
+        'DEF:swap_used=$database:swap_used:AVERAGE',
 
         'CDEF:total_physical=physical_total,physical_units,*',
         'CDEF:available=available_used,physical_units,*',
         'CDEF:realMemUtil=available,total_physical,/,100,*',
+        'CDEF:swapMemUtil=swap_used,swap_total,/,100,*',
 
         'PRINT:realMemUtil:AVERAGE:realMemUtil=%1.2lf',
+        'PRINT:swapMemUtil:AVERAGE:swapMemUtil=%1.2lf',
       ],
       'Host_Storage' => [
         'DEF:hrStorageSize=$database:hrStorageSize:MAX',
@@ -257,7 +278,7 @@
     'rrd' => {
       'Host_Memory' => {
         'graphtype' => 'Host_Memory',
-        'threshold' => 'Real_Memory_Utilisation',
+        'threshold' => 'Real_Memory_Utilisation,Swap_Memory_Utilisation',
       },
       'Host_Health' => {
         'graphtype' => 'hrsystem',

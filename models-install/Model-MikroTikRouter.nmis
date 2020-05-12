@@ -337,6 +337,7 @@
     'nodeType' => 'router',
     'rrd' => {
       'mikrotikCpu' => {
+        'threshold' => 'mikrotikCpu-th',
         #'indexed' => 'true',
         'graphtype' => 'mikrotikCpu',
         'snmp' => {
