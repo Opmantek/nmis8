@@ -366,7 +366,11 @@
         'PRINT:ssCpuRawKernelP:AVERAGE:ssCpuRawKernel=%1.2lf',
         'PRINT:ssCpuRawInterruptP:AVERAGE:ssCpuRawInterrupt=%1.2lf',
         'PRINT:ssCpuRawSoftIRQP:AVERAGE:ssCpuRawSoftIRQ=%1.2lf'
-      ]
+      ],
+      'RouteNumber' => [
+        'DEF:RouteNumber=$database:RouteNumber:AVERAGE',
+        'PRINT:RouteNumber:AVERAGE:RouteNumber=%1.2lf'
+      ],
     }
   }
 );

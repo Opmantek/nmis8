@@ -94,7 +94,7 @@
     'rrd' => {
       'nodehealth' => {
         'threshold' => 'cpu,mem-proc',
-        'graphtype' => 'buffer,cpu,mem-io,mem-proc,mem-router,routenumber',
+        'graphtype' => 'buffer,cpu,mem-io,mem-proc,mem-router',
         'snmp' => {
           'MemoryUsedPROC' => {
             'oid' => 'ciscoMemoryPoolUsed.1'
@@ -128,6 +128,14 @@
 	        'RouteNumber' => {
 	          'oid' => 'ipCidrRouteNumber'
 	        }
+        },
+      },
+      'RouteNumber' => {
+        'graphtype' => 'routenumber',
+        'snmp' => {
+          'RouteNumber' => {
+            'oid' => 'ipCidrRouteNumber'
+          },
         },
       },
       'modem' => {
