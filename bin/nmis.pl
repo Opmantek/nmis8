@@ -428,6 +428,9 @@ sub	runThreads
 	if ($type eq "update" )
 	{
 		@todo_nodes = grep(getbool($NT->{$_}->{active}), @candnodes);
+		my $totalcount = @candnodes;
+		my $activecount = @todo_nodes;
+		logMsg("Total node count $totalcount, active node count $activecount");
 	}
 	# only consider nodes for services if they have some services to poll
 	elsif ($type eq "services")
