@@ -38,7 +38,7 @@ our $VERSION = "1.1.0";
 our $rrdtool_lib;
 our @EXPORT_OK = qw($rrdtool_lib);
 
-for my $knownloc (qw(/usr/local/rrdtool/lib/perl /usr/rrdtool/lib/perl))
+for my $knownloc (qw(/usr/local/rrdtool/lib/perl /usr/rrdtool/lib/perl /opt/rrdtool/lib/perl))
 {
 	# but do NOT add any lib dirs that are already in INC, because use lib 
 	# adds to the FRONT of  INC, which makes it impossible to find a 
