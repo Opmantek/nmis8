@@ -125,9 +125,10 @@
           'bufferElFree' => {
             'oid' => 'bufferElFree'
           },
-	        'RouteNumber' => {
-	          'oid' => 'ipCidrRouteNumber'
-	        }
+          'RouteNumber' => {
+            'comment' => 'this will be deprecated from nodehealth',
+            'oid' => 'ipCidrRouteNumber'
+          }
         },
       },
       'RouteNumber' => {
