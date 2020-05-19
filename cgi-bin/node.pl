@@ -401,7 +401,7 @@ sub typeGraph
 																												 -default=>"$index",
 																												 -labels=>{ map{($_ => $NI->{storage}{$_}{hrStorageDescr})} sort @disks },
 																												 -onChange=>'JavaScript:this.form.submit()');
-													 } elsif ($GTT->{$graphtype} eq "env_temp") {
+													 } elsif ($GTT->{$graphtype} eq "env_temp" and !getbool($C->{env_temp_legacy_support}) ) {
 														 my @sensors = $S->getTypeInstances(graphtype => "env_temp");
 														 return 	"Sensor ",popup_menu(-name=>'intf', -override=>'1',-size=>'1', tabindex=>"5",
 																													 -values=>['',sort @sensors],
