@@ -70,11 +70,11 @@
         'select' => {
           'default' => {
             'value' => {
-              'Warning' => '15',
-              'Minor' => '20',
-              'Major' => '30',
-              'Critical' => '50',
-              'Fatal' => '75',
+              'fatal' => '75',
+              'critical' => '50',
+              'major' => '30',
+              'minor' => '20',
+              'warning' => '15',
             }
           }
         }

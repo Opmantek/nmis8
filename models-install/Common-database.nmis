@@ -178,7 +178,10 @@
       'upscur' => '/nodes/$node/misc/apc-ups-cur.rrd',
       'upsload' => '/nodes/$node/misc/apc-ups-load.rrd',
       'upspwr' => '/nodes/$node/misc/apc-ups-pwr.rrd',
-      'upsvolt' => '/nodes/$node/misc/apc-ups-volt.rrd'
+      'upsvolt' => '/nodes/$node/misc/apc-ups-volt.rrd',
+      'RouteNumber' => '/nodes/$node/health/routenumber.rrd',
+      'entTempSensor' => '/nodes/$node/health/enttempsensor-$index.rrd',
+      'entPhySensor' => '/nodes/$node/health/entphysensor-$index.rrd'
     }
   }
 );

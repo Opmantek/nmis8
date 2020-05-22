@@ -191,7 +191,9 @@
       'upsvoltin' => 'UPS Voltage',
       'upsvoltout' => 'UPS Voltage',
       'util' => 'Interface $ifDescr Utilisation Including Availability',
-      'vmwVmState' => 'Virtual Machine Status'
+      'vmwVmState' => 'Virtual Machine Status',
+      'entPhySensor' => 'Physical Sensor',
+      'entTempSensor' => 'Temperature Sensor'
     }
   }
 );
