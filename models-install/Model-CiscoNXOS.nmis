@@ -60,7 +60,16 @@
       },
       'cbqos' => {
         'common-model' => 'Cisco-cbqos'
-      }      
+      },
+      'Cisco-cpu' => {
+        'common-model' => 'Cisco-cpu'
+      },
+      'Cisco-memory' => {
+        'common-model' => 'Cisco-memory'
+      },
+      'lldp' => {
+        'common-model' => 'lldp'
+      }, 
   	}
   },
   'alerts' => {
@@ -271,7 +280,7 @@
   	'nodegraph' => 'health,response,cpu,ip,mem-proc,routenumber,topo'
   },
   'systemHealth' => {
-    'sections' => 'Cisco_CBQoS,cdp,entityMib,env-temp,vtpVlan',
+    'sections' => 'cpu_cpm,cempMemPool,Cisco_CBQoS,cdp,lldp,lldpLocal,entityMib,env-temp,vtpVlan',
     'sys' => {
       'env-temp' => {
         'indexed' => 'entSensorStatus',
