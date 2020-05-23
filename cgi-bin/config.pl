@@ -441,8 +441,9 @@ sub doEditConfig
 				next if $Q->{$deletable} ne "nuke";
 				my $deletablename = $deletable;
 				$deletablename =~ s/^delete_group_//;
+				$deletablename =~ s/^delete_${concept}_//;
 				my $unesc = uri_unescape($deletablename);
-
+	
 				@existing = grep($_ ne $unesc, @existing);
 			}
 		}
