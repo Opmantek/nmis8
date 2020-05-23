@@ -40,9 +40,36 @@ use NMIS;
 use Sys;
 use snmp 1.1.0;									# for snmp-related access
 use Data::Dumper;
+use NMIS::Timing;
 
-my $debug = 0;
-my $verbose = 0;
+if ( $ARGV[0] eq "" ) {
+	usage();
+	exit 1;
+}
+
+my $t = NMIS::Timing->new();
+
+print $t->elapTime(). " Begin\n";
+
+# Variables for command line munging
+my %arg = getArguements(@ARGV);
+
+if ( not defined $arg{node} ) {
+	print "ERROR: need a node to check\n";
+	usage();
+	exit 1;
+}
+
+my $node = $arg{node};
+
+# Set debugging level.
+my $debug = setDebug($arg{debug});
+my $verbose = getbool($arg{verbose});
+
+# load configuration table
+my $C = loadConfTable(conf=>$arg{conf},debug=>$debug);
+
+print $t->elapTime(). " What Existing Modelling Applies to $node\n" if $verbose;
 
 # load configuration table
 my $C = loadConfTable(conf=>undef,debug=>$debug);
@@ -56,6 +83,7 @@ my $maxlevel = 10;
 my $bad_file;
 my $bad_dir;
 my $file_count;
+my $mib_count;
 my $extension = "nmis";
 
 my $indent = 0;
@@ -69,21 +97,21 @@ my $modLevel;
 my @topSections;
 my @oidList;
 
-# get this from ARG later.
-my $node = "meatball";
+# needs feature to match enterprise, e.g. only do standard mibs and my vendor mibs.
 
-print "What Existing Modelling Applies to $node\n" if $debug;
 
 my @discoverList;
 my $discoveryResults;
 my %nodeSummary;
 my $mibs = loadMibs($C);
 
-print "Load all the NMIS models.\n" if $debug;
+print $t->elapTime(). " Load all the NMIS models.\n" if $verbose;
 processDir(dir => $C->{'<nmis_models>'});
-print "Done with Models.  Processed $file_count NMIS Model files.\n" if $debug;
+print $t->elapTime(). " Done with Models.  Processed $file_count NMIS Model files.\n" if $verbose;
 
+print $t->elapTime(). " Processing MIBS on node $node.\n" if $verbose;
 processNode($node);
+print $t->elapTime(). " Done with node.  Tried $mib_count SNMP MIBS.\n" if $verbose;
 
 print Dumper $discoveryResults if $debug;
 
@@ -100,7 +128,7 @@ sub processNode {
 		die "Node $node is not active, will die now.\n";
 	}
 	else {
-		print "\nWorking on SNMP Discovery for $node\n" if $debug;
+		print $t->elapTime(). " Working on SNMP Discovery for $node\n" if $verbose;
 	}
 
 	my %doneIt;
@@ -124,13 +152,13 @@ sub processNode {
 
 	if (!$snmp->open(config => \%nodeconfig ))
 	{
-		logMsg("Could not open SNMP session to node $node: ".$snmp->error);
+		print "ERROR: Could not open SNMP session to node $node: ".$snmp->error;
 	}
 	else
 	{
 		if (!$snmp->testsession)
 		{
-			logMsg("Could not retrieve SNMP vars from node $node: ".$snmp->error);
+			logMsg"ERROR: Could not retrieve SNMP vars from node $node: ".$snmp->error;
 		}
 		else
 		{
@@ -140,18 +168,19 @@ sub processNode {
 				
 				if ( $thing->{type} eq "systemHealth" and not defined $doneIt{$thing->{index_oid}}) {
 					++$count;
-					print "  $count System Health Discovery on $node of MIB in $thing->{file}::$thing->{path}\n" if $verbose;
+					print $t->elapTime(). " $count System Health Discovery on $node of MIB in $thing->{file}::$thing->{path}\n" if $verbose;
+					++$mib_count;
 					my $result = $snmp->gettable($thing->{index_oid},$max_repetitions);
 					$doneIt{$thing->{index_oid}} = 1;
 					if ( defined $result ) {
 						$works = "YES";
-						print "    MIB SUPPORTED: $thing->{indexed} $thing->{index_oid}\n" if $verbose;
+						print $t->elapTime(). " MIB SUPPORTED: $thing->{indexed} $thing->{index_oid}\n" if $verbose;
 						print Dumper $thing if $debug;
 						print Dumper $result if $debug;
 					}
 					else {
 						$works = "NO";
-						print "    MIB NOT SUPPORTED: $thing->{indexed} $thing->{index_oid}\n" if $verbose;
+						print $t->elapTime(). " MIB NOT SUPPORTED: $thing->{indexed} $thing->{index_oid}\n" if $verbose;
 					}
 					print "\n" if $verbose;
 					
@@ -180,18 +209,19 @@ sub processNode {
 					elsif ( $getoid !~ /\.0/ ) {
 						$getoid .= ".0";
 					}
+					++$mib_count;
 					my $result = $snmp->get($getoid);
-
 					$doneIt{$thing->{snmpoid}} = 1;
+
 					if ( defined $result and $result->{$getoid} !~ /(noSuchObject|noSuchInstance)/ ) {
 						$works = "YES";
-						print "    MIB SUPPORTED: $thing->{oid} $thing->{snmpoid}\n" if $verbose;
+						print $t->elapTime(). " MIB SUPPORTED: $thing->{oid} $thing->{snmpoid}\n" if $verbose;
 						print Dumper $thing if $debug;
 						print Dumper $result if $debug;
 					}
 					else {
 						$works = "NO";
-						print "    MIB NOT SUPPORTED: $thing->{oid} $thing->{snmpoid}\n" if $verbose;
+						print $t->elapTime(). " MIB NOT SUPPORTED: $thing->{oid} $thing->{snmpoid}\n" if $verbose;
 					}
 					print "\n" if $verbose;
 					$discoveryResults->{$thing->{snmpoid}}{node} = $node;
@@ -532,3 +562,11 @@ sub loadMibs {
 	return ($mibs);
 }
 
+sub usage {
+	print <<EO_TEXT;
+$0 will check existing NMIS models and determine which models apply to a node in NMIS.
+usage: $0 node=<nodename> [debug=true|false]
+eg: $0 node=nodename [debug=true|false] [verbose=true|false]
+
+EO_TEXT
+}
