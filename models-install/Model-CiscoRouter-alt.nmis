@@ -1,0 +1,240 @@
+#
+## $Id: Model-CiscoRouter.nmis,v 8.6 2012/10/29 12:31:27 keiths Exp $
+#
+#  Copyright 1999-2011 Opmantek Limited (www.opmantek.com)
+#  
+#  ALL CODE MODIFICATIONS MUST BE SENT TO CODE@OPMANTEK.COM
+#  
+#  This file is part of Network Management Information System (NMIS).
+#  
+#  NMIS is free software: you can redistribute it and/or modify
+#  it under the terms of the GNU General Public License as published by
+#  the Free Software Foundation, either version 3 of the License, or
+#  (at your option) any later version.
+#  
+#  NMIS is distributed in the hope that it will be useful,
+#  but WITHOUT ANY WARRANTY; without even the implied warranty of
+#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+#  GNU General Public License for more details.
+#  
+#  You should have received a copy of the GNU General Public License
+#  along with NMIS (most likely in a file named LICENSE).  
+#  If not, see <http://www.gnu.org/licenses/>
+#  
+#  For further information on NMIS or for a license other than GPL please see
+#  www.opmantek.com or email contact@opmantek.com 
+#  
+#  User group details:
+#  http://support.opmantek.com/users/
+#  
+# *****************************************************************************
+
+%hash = (
+  '-common-' => {
+    'class' => {
+      'database' => {
+        'common-model' => 'database'
+      },
+      'calls' => {
+        'common-model' => 'calls'
+      },
+      'threshold' => {
+        'common-model' => 'threshold'
+      },
+      'summary' => {
+        'common-model' => 'summary'
+      },
+      'cbqos-in' => {
+        'common-model' => 'cbqos-in'
+      },
+      'heading' => {
+        'common-model' => 'heading'
+      },
+      'stats' => {
+        'common-model' => 'stats'
+      },
+      'cbqos-out' => {
+        'common-model' => 'cbqos-out'
+      },
+      'event' => {
+        'common-model' => 'event'
+      },
+      'asset' => {
+        'common-model' => 'Cisco-asset'
+      },
+      'cbqos' => {
+        'common-model' => 'Cisco-cbqos'
+      },
+      'mpls' => {
+        'common-model' => 'mpls'
+      },
+      'neighbor' => {
+        'common-model' => 'Cisco-neighbor'
+      },
+      'netflow' => {
+        'common-model' => 'Cisco-netflow'
+      },
+      'routing' => {
+        'common-model' => 'routing'
+      },
+      'status' => {
+        'common-model' => 'Cisco-status'
+      },
+      'Cisco-cpu' => {
+        'common-model' => 'Cisco-cpu'
+      },
+      'Cisco-system' => {
+        'common-model' => 'Cisco-system'
+      },
+      'interface-router' => {
+        'common-model' => 'interface-router'
+      },
+      'mib2ip' => {
+        'common-model' => 'mib2ip'
+      },
+    }
+  },
+  'system' => {
+    'nodeModel' => 'CiscoRouter-alt',
+    'nodeType' => 'router',
+    'nbarpd_check' => 'true',
+    'nodeVendor' => 'Cisco Systems',
+    'nodegraph' => 'health,response,cpu,mem-router,routenumber,ip,frag,buffer,modem,calls',
+    'cbqos' => {
+      'nocollect' => 'regex for cbqos control',
+    },
+    'rrd' => {
+      'nodehealth' => {
+        'threshold' => 'cpu,mem-proc',
+        'graphtype' => 'buffer,cpu,mem-io,mem-proc,mem-router',
+        'snmp' => {
+          'MemoryUsedPROC' => {
+            'oid' => 'ciscoMemoryPoolUsed.1'
+          },
+          'MemoryFreePROC' => {
+            'oid' => 'ciscoMemoryPoolFree.1'
+          },
+          'avgBusy5' => {
+            'oid' => 'avgBusy5'
+          },
+          'avgBusy1' => {
+            'oid' => 'avgBusy1'
+          },
+          'bufferFail' => {
+            'oid' => 'bufferFail',
+            'option' => 'counter,U:U'
+          },
+          'bufferElHit' => {
+            'oid' => 'bufferElHit',
+            'option' => 'counter,U:U'
+          },
+          'MemoryUsedIO' => {
+            'oid' => 'ciscoMemoryPoolUsed.2'
+          },
+          'MemoryFreeIO' => {
+            'oid' => 'ciscoMemoryPoolFree.2'
+          },
+          'bufferElFree' => {
+            'oid' => 'bufferElFree'
+          },
+          'RouteNumber' => {
+            'comment' => 'this will be deprecated from nodehealth',
+            'oid' => 'ipCidrRouteNumber'
+          }
+        },
+      },
+      'RouteNumber' => {
+        'graphtype' => 'routenumber',
+        'snmp' => {
+          'RouteNumber' => {
+            'oid' => 'ipCidrRouteNumber'
+          },
+        },
+      },
+      'modem' => {
+        'threshold' => 'modem_dead',
+        'graphtype' => 'modem',
+        'control' => '$InstalledModems > 0',
+        'snmp' => {
+          'ModemsInUse' => {
+            'oid' => 'cmSystemModemsInUse'
+          },
+          'ModemsAvailable' => {
+            'oid' => 'cmSystemModemsAvailable'
+          },
+          'ModemsOffline' => {
+            'oid' => 'cmSystemModemsOffline'
+          },
+          'ModemsDead' => {
+            'oid' => 'cmSystemModemsDead'
+          },
+          'ModemsUnavailable' => {
+            'threshold' => 'modem_unav',
+            'oid' => 'cmSystemModemsUnavailable'
+          },
+          'InstalledModem' => {
+            'oid' => 'cmSystemInstalledModem'
+          }
+        },
+      },
+    },
+    'sys' => {
+      'standard' => {
+        'snmp' => {
+          'ifNumber' => {
+            'oid' => 'ifNumber',
+            'title' => 'Interfaces'
+          },
+          'sysName' => {
+            'oid' => 'sysName'
+          },
+          'sysLocation' => {
+            'replace' => {
+              '' => 'default'
+            },
+            'oid' => 'sysLocation',
+            'title' => 'Location'
+          },
+          'sysObjectID' => {
+            'oid' => 'sysObjectID'
+          },
+          'sysDescr' => {
+            'oid' => 'sysDescr',
+            'title' => 'Description'
+          },
+          'sysUpTime' => {
+            'oid' => 'snmpEngineTime',
+            'title' => 'Uptime',
+            'calculate' => '$r * 100'
+          },
+          'InstalledModems' => {
+            'replace' => {
+              '' => '0',
+              'noSuchObject' => '0'
+            },
+            'oid' => 'cmSystemInstalledModem'
+          },
+          'sysContact' => {
+            'replace' => {
+              '' => 'default'
+            },
+            'oid' => 'sysContact',
+            'title' => 'Contact'
+          },
+        }
+      },
+      'modem' => {
+        'snmp' => {
+          'InstalledModems' => {
+            'oid' => 'cmSystemInstalledModem',
+            'title' => 'Modems'
+          }
+        },
+        'control' => '$InstalledModems > 0'
+      }
+    }
+  },
+  'systemHealth' => {
+    'sections' => 'cpu_cpm,Cisco_CBQoS,NetFlowInterfaces,addressTable,bgpPeer,ospfNbr,cdp,fanStatus,psuStatus,env_temp,tempStatus,tempValue,entityMib,ciscoAsset,vtpVlan,mplsVpnVrf,mplsL3VpnVrf,mplsL3VpnIfConf,mplsVpnInterface,mplsL3VpnVrfRT,mplsVpnVrfRouteTarget,mplsLdpEntity',
+  }
+);
