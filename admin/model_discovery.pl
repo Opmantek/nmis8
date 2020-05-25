@@ -351,21 +351,22 @@ sub processDir {
 
 		if ($debug > 1) { print "\tFound $#dirlist entries\n"; }
 
-		for ( $index = 0; $index <= $#dirlist; ++$index ) {
-			@filename = split(/\./,"$dir/$dirlist[$index]");
-			if ( -f "$dir/$dirlist[$index]"
+		foreach my $file (sort {$a cmp $b } (@dirlist)) {
+		#for ( $index = 0; $index <= $#dirlist; ++$index ) {
+			@filename = split(/\./,"$dir/$file");
+			if ( -f "$dir/$file"
 				and $extension =~ /$filename[$#filename]/i
-				and $bad_file !~ /$dirlist[$index]/i
+				and $bad_file !~ /$file/i
 			) {
-				if ($debug>1) { print "\t\t$index file $dir/$dirlist[$index]\n"; }
-				&processModelFile(dir => $dir, file => $dirlist[$index])
+				if ($debug>1) { print "\t\t$index file $dir/$file\n"; }
+				&processModelFile(dir => $dir, file => $file)
 			}
-			elsif ( -d "$dir/$dirlist[$index]"
-				and $dirlist[$index] !~ /^\.|CVS/
-				and $bad_dir !~ /$dirlist[$index]/i
+			elsif ( -d "$dir/$file"
+				and $file !~ /^\.|CVS/
+				and $bad_dir !~ /$file/i
 			) {
 				#if (!$debug) { print "."; }
-				&processDir(dir => "$dir/$dirlist[$index]");
+				&processDir(dir => "$dir/$file");
 				--$dirlevel;
 			}
 		}
@@ -379,7 +380,6 @@ sub processModelFile {
 	$indent = 2;
 	++$file_count;
 	
-	#if ( $file !~ /^Graph|^Common|^Model.nmis$/ ) {
 	if ( $file !~ /^Graph|^Model.nmis$/ ) {
 		$curModel = $file;
 		$curModel =~ s/Model\-|\.nmis//g;
