@@ -351,7 +351,7 @@ sub processDir {
 
 		if ($debug > 1) { print "\tFound $#dirlist entries\n"; }
 
-		foreach my $file (sort {$a cmp $b } (@dirlist)) {
+		foreach my $file (sort {$a cmp $b} (@dirlist)) {
 		#for ( $index = 0; $index <= $#dirlist; ++$index ) {
 			@filename = split(/\./,"$dir/$file");
 			if ( -f "$dir/$file"
@@ -387,7 +387,7 @@ sub processModelFile {
 		my $comment = "Model";
 		$comment = "Common" if ( $file =~ /Common/ );
 	
-		print &indent . "Processing $curModel: $file\n" if $debug;
+		print &indent . "Processing $curModel: $file\n" if $verbose;
 		my $model = readFiletoHash(file=>"$dir/$file");		
 		#Recurse into structure, handing off anything which is a HASH to be handled?
 		push(@path,$comment);
@@ -445,7 +445,7 @@ sub processData {
 					#print "    $curpath/$section: $data->{$section}\n";
 					$index_oid = $data->{$section};
 				}
-				if ( $curpath =~ /^Model\/system\/(sys|rrd)\/(\w+)\/snmp\/(\w+)/ and $section eq "oid" ) {
+				if ( $curpath =~ /^(Common|Model)\/system\/(sys|rrd)\/(\w+)\/snmp\/(\w+)/ and $section eq "oid" ) {
 					my $snmpoid = $mibs->{$data->{oid}};
 					if ( not defined $snmpoid and $data->{oid} =~ /1\.3\.6\.1/ ) {
 						$snmpoid = $data->{oid};
@@ -469,9 +469,9 @@ sub processData {
 
 					push(@discoverList,{
 						type => "system",
-						stat_type => $1,
-						section => $2,
-						metric => $3,
+						stat_type => $2,
+						section => $3,
+						metric => $4,
 						file => $file,
 						path => $curpath,
 						oid => $data->{$section},

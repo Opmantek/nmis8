@@ -41,6 +41,7 @@
       'Host_Storage' => 'Storage Usage',
       'Host_Storage_Util' => 'Storage Utilisation',
       'Host_Memory' => 'Real Memory Usage',
+      'Host_Swap_Memory' => 'Swap Memory Usage',
     }
   },
   'threshold' => {
@@ -277,7 +278,7 @@
   'system' => {
     'rrd' => {
       'Host_Memory' => {
-        'graphtype' => 'Host_Memory',
+        'graphtype' => 'Host_Memory,Host_Swap_Memory',
         'threshold' => 'Real_Memory_Utilisation,Swap_Memory_Utilisation',
       },
       'Host_Health' => {
