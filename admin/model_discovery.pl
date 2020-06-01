@@ -56,7 +56,7 @@ print $t->elapTime(). " Begin\n";
 # Variables for command line munging
 my %arg = getArguements(@ARGV);
 
-if ( not defined $arg{node} ) {
+if ( not defined $arg{node} and not defined $arg{debug}) {
 	print "ERROR: need a node to check\n";
 	usage();
 	exit 1;
@@ -68,13 +68,13 @@ my $newModelName = $arg{model};
 my $common_exclude = $arg{common_exclude};
 
 # Set debugging level.
-my $debug = setDebug($arg{debug});
-my $verbose = getbool($arg{verbose});
+my $debug = $arg{debug} ? setDebug($arg{debug}) : 0;
+my $errors = $arg{errors} ? setDebug($arg{errors}) : 1;
 
 # load configuration table
 my $C = loadConfTable(conf=>$arg{conf},debug=>$debug);
 
-print $t->elapTime(). " What Existing Modelling Applies to $node\n" if $verbose;
+print $t->elapTime(). " What Existing Modelling Applies to $node\n" if debug();
 
 # load configuration table
 my $C = loadConfTable(conf=>undef,debug=>$debug);
@@ -111,21 +111,49 @@ my %graphTypes;
 my %nodeSummary;
 my $mibs = loadMibs($C);
 
-print $t->elapTime(). " Load all the NMIS models.\n" if $verbose;
+print $t->elapTime(). " Load all the NMIS models.\n" if debug();
 processDir(dir => $C->{'<nmis_models>'});
-print $t->elapTime(). " Done with Models.  Processed $file_count NMIS Model files.\n" if $verbose;
+print $t->elapTime(). " Done with Models.  Processed $file_count NMIS Model files.\n" if debug();
 
-print $t->elapTime(). " Processing MIBS on node $node.\n" if $verbose;
-processNode($node);
-print $t->elapTime(). " Done with node.  Tried $mib_count SNMP MIBS.\n" if $verbose;
+checkGraphTypes();
 
-print Dumper $discoveryResults if $debug;
+if ( defined $node ) {
+	print $t->elapTime(). " Processing MIBS on node $node.\n" if debug();
+	processNode($node);
+	print $t->elapTime(). " Done with node.  Tried $mib_count SNMP MIBS.\n" if debug();	
+	print Dumper $discoveryResults if debug2();
 
-printDiscoverySummary();
+	printDiscoverySummary();
 
-printDiscoveryResults($file) if defined $file;
+	printDiscoveryResults($file) if defined $file;
+}
+else {
+	print "No node provided as argument, nothing else to do.\n";
+}
 
-#print Dumper(\@discoverList);
+if (debug3()) {
+	print Dumper \@discoverList;
+	print Dumper \%graphTypes;
+}
+
+sub checkGraphTypes {
+	my $model_dir = $C->{'<nmis_models>'};
+
+	foreach my $section (sort {$a cmp $b} (keys %graphTypes)) {
+		print "Checking section $section graphtypes: $graphTypes{$section}{graphtype}\n" if debug2();
+		my @graphtypes = split(",",$graphTypes{$section}{graphtype});
+		foreach my $graphtype (sort {$a cmp $b} (@graphtypes)) {
+			my $graph_file = "$model_dir/Graph-$graphtype.nmis";
+			if ( not -f $graph_file ) {
+				print "MODEL ERROR: missing file for graph type $graphtype: $graph_file\n" if errors();
+			}
+			else {
+				print "  Graph file found for graph type $graphtype: $graph_file\n" if debug2();
+			}
+
+		}
+	}
+}
 
 sub processNode {
 	my $node = shift;
@@ -136,7 +164,7 @@ sub processNode {
 		die "Node $node is not active, will die now.\n";
 	}
 	else {
-		print $t->elapTime(). " Working on SNMP Discovery for $node\n" if $verbose;
+		print $t->elapTime(). " Working on SNMP Discovery for $node\n" if debug();
 	}
 
 	my %doneIt;
@@ -156,7 +184,7 @@ sub processNode {
 	$nodeconfig{host_addr} = $NI->{system}{host};
 
 	my $snmp = snmp->new(name => $node);
-	print Dumper $snmp if $debug;
+	print Dumper $snmp if debug2();
 
 	if (!$snmp->open(config => \%nodeconfig ))
 	{
@@ -166,7 +194,7 @@ sub processNode {
 	{
 		if (!$snmp->testsession)
 		{
-			logMsg"ERROR: Could not retrieve SNMP vars from node $node: ".$snmp->error;
+			print "ERROR: Could not retrieve SNMP vars from node $node: ".$snmp->error;
 		}
 		else
 		{
@@ -176,21 +204,21 @@ sub processNode {
 				
 				if ( $thing->{type} eq "systemHealth" and not defined $doneIt{$thing->{index_oid}}) {
 					++$count;
-					print $t->elapTime(). " $count System Health Discovery on $node of MIB in $thing->{file}::$thing->{path}\n" if $verbose;
+					print $t->elapTime(). " $count System Health Discovery on $node of MIB in $thing->{file}::$thing->{path}\n" if debug();
 					++$mib_count;
 					my $result = $snmp->gettable($thing->{index_oid},$max_repetitions);
 					$doneIt{$thing->{index_oid}} = 1;
 					if ( defined $result ) {
 						$works = "YES";
-						print $t->elapTime(). " MIB SUPPORTED: $thing->{indexed} $thing->{index_oid}\n" if $verbose;
-						print Dumper $thing if $debug;
-						print Dumper $result if $debug;
+						print $t->elapTime(). " MIB SUPPORTED: $thing->{indexed} $thing->{index_oid}\n" if debug();
+						print Dumper $thing if debug2();
+						print Dumper $result if debug2();
 					}
 					else {
 						$works = "NO";
-						print $t->elapTime(). " MIB NOT SUPPORTED: $thing->{indexed} $thing->{index_oid}\n" if $verbose;
+						print $t->elapTime(). " MIB NOT SUPPORTED: $thing->{indexed} $thing->{index_oid}\n" if debug();
 					}
-					print "\n" if $verbose;
+					print "\n" if debug();
 					
 					$discoveryResults->{$thing->{index_oid}}{node} = $node;
 					#$discoveryResults->{$thing->{index_oid}}{sysDescr} = $NI->{system}{sysDescr};
@@ -208,7 +236,7 @@ sub processNode {
 				}
 				elsif ( $thing->{type} eq "system" and not defined $doneIt{$thing->{snmpoid}} ) {
 					++$count;
-					print "  $count System Discovery on $node of MIB in $thing->{file}::$thing->{path}\n" if $verbose;
+					print "  $count System Discovery on $node of MIB in $thing->{file}::$thing->{path}\n" if debug();
 					my $getoid = $thing->{snmpoid};
 					# does the oid in the model finish in a number?
 					if ( $thing->{oid} !~ /\.\d+/ ) {
@@ -224,15 +252,15 @@ sub processNode {
 
 					if ( defined $result and $result->{$getoid} !~ /(noSuchObject|noSuchInstance)/ ) {
 						$works = "YES";
-						print $t->elapTime(). " MIB SUPPORTED: $thing->{oid} $thing->{snmpoid}\n" if $verbose;
-						print Dumper $thing if $debug;
-						print Dumper $result if $debug;
+						print $t->elapTime(). " MIB SUPPORTED: $thing->{oid} $thing->{snmpoid}\n" if debug();
+						print Dumper $thing if debug2();
+						print Dumper $result if debug2();
 					}
 					else {
 						$works = "NO";
-						print $t->elapTime(). " MIB NOT SUPPORTED: $thing->{oid} $thing->{snmpoid}\n" if $verbose;
+						print $t->elapTime(). " MIB NOT SUPPORTED: $thing->{oid} $thing->{snmpoid}\n" if debug();
 					}
-					print "\n" if $verbose;
+					print "\n" if debug();
 					$discoveryResults->{$thing->{snmpoid}}{node} = $node;
 					#$discoveryResults->{$thing->{snmpoid}}{sysDescr} = $NI->{system}{sysDescr};
 					$discoveryResults->{$thing->{snmpoid}}{nodeModel} = $NI->{system}{nodeModel};
@@ -302,11 +330,11 @@ sub printDiscoverySummary {
 			# make this a little more pretty.
 			$discoveryResults->{$key}{result} =~ s/\r\n/\\n/g;
 			$discoveryResults->{$key}{result} =~ s/\n/  /g;
-			print "DISCOVERED: $discoveryResults->{$key}{Type} $discoveryResults->{$key}{File} $discoveryResults->{$key}{Path} $discoveryResults->{$key}{SNMP_OID} $discoveryResults->{$key}{result}\n" if $debug;
+			print "DISCOVERED: $discoveryResults->{$key}{Type} $discoveryResults->{$key}{File} $discoveryResults->{$key}{Path} $discoveryResults->{$key}{SNMP_OID} $discoveryResults->{$key}{result}\n" if debug2();
 		}
 	}
 
-	print "Common Things to Include: \n\n" if $debug;
+	print "Common Things to Include: \n\n" if debug2();
 	foreach my $common_name (@common_things) {
 		# save the new common sections if common_exclude is null or if it is defined and does not match.
 		if (( defined $newModelName and not defined $common_exclude )
@@ -319,7 +347,7 @@ sub printDiscoverySummary {
 			print "Excluding from common models: $common_name\n";
 		}
 
-		print <<EO_TEXT if $debug;
+		print <<EO_TEXT if debug2();
       '$common_name' => {
         'common-model' => '$common_name'
       },
@@ -445,10 +473,10 @@ sub processDir {
 	my $key;
 
 	if ( -d $dir ) {
-		print "\nProcessing Directory $dir pass=$dirpass level=$dirlevel\n" if $debug;
+		print "\nProcessing Directory $dir pass=$dirpass level=$dirlevel\n" if debug2();
 	}
 	else {
-		print "\n$dir is not a directory\n" if $debug;
+		print "\n$dir is not a directory\n" if debug2();
 		exit -1;
 	}
 
@@ -459,7 +487,7 @@ sub processDir {
 		@dirlist = readdir DIR;
 		closedir DIR;
 
-		if ($debug > 1) { print "\tFound $#dirlist entries\n"; }
+		if (debug2()) { print "\tFound $#dirlist entries\n"; }
 
 		foreach my $file (sort {$a cmp $b} (@dirlist)) {
 		#for ( $index = 0; $index <= $#dirlist; ++$index ) {
@@ -468,7 +496,7 @@ sub processDir {
 				and $extension =~ /$filename[$#filename]/i
 				and $bad_file !~ /$file/i
 			) {
-				if ($debug>1) { print "\t\t$index file $dir/$file\n"; }
+				if (debug2()) { print "\t\t$index file $dir/$file\n"; }
 				&processModelFile(dir => $dir, file => $file)
 			}
 			elsif ( -d "$dir/$file"
@@ -497,7 +525,7 @@ sub processModelFile {
 		my $comment = "Model";
 		$comment = "Common" if ( $file =~ /Common/ );
 	
-		print &indent . "Processing $curModel: $file\n" if $verbose;
+		print &indent . "Processing $curModel: $file\n" if debug();
 		my $model = readFiletoHash(file=>"$dir/$file");		
 		#Recurse into structure, handing off anything which is a HASH to be handled?
 		push(@path,$comment);
@@ -517,15 +545,15 @@ sub processData {
 	if ( ref($data) eq "HASH" ) {
 		my $indexed = undef;
 		my $index_oid = undef;
-		my $graphtype = undef;
+
 		foreach my $section (sort keys %{$data}) {
 			my $curpath = join("/",@path);
 			if ( ref($data->{$section}) =~ /HASH|ARRAY/ ) {
-				print &indent . "$curpath -> $section\n" if $debug;
-				#recurse baby!
+				print &indent . "$curpath -> $section\n" if debug2();
+				# if this section is an RRD/snmp variable, check its length
 				if ( $curpath =~ /rrd\/\w+\/snmp$/ ) {
-					#print indent."Found RRD Variable $section \@ $curpath\n" if $debug;
-					#checkRrdLength($section);
+					print indent()."Found RRD Variable $section \@ $curpath\n" if debug2();
+					checkRrdLength($section);
 				}
 									
 				push(@path,$section);
@@ -542,6 +570,7 @@ sub processData {
 					}				
 				}
 
+				#recurse baby!
 				processData($data->{$section},"$section",$file);
 				
 				pop(@path);
@@ -576,7 +605,7 @@ sub processData {
 					}
 					# this is a bad one like ciscoMemoryPoolUsed.2?
 					elsif ( $data->{oid} =~ /[a-zA-Z]+\.[\d\.]+/ ) {
-						print "FIXING bad Model OID $file :: $curpath $data->{oid}\n" if $debug;
+						print indent()."FIXING bad Model OID $file :: $curpath $data->{oid}\n" if debug();
 						my ($mib,$index) = split(/\./,$data->{oid});
 						
 						if ( defined $mibs->{$mib} ) {
@@ -586,7 +615,7 @@ sub processData {
 					}
 
 					if ( not defined $snmpoid ) {
-						print "ERROR with Model OID $file :: $curpath $data->{oid}\n";
+						print "MODEL ERROR: with Model OID $file :: $curpath $data->{oid}\n" if errors();
 					}
 
 					push(@discoverList,{
@@ -607,17 +636,17 @@ sub processData {
 				#	print "    $curpath/$section: $data->{$section}\n";
 				#	
 				#	if ( not grep {$data->{$section} eq $_} @oidList ) {
-				#		print "ADDING $data->{$section} to oidList\n" if $debug;
+				#		print "ADDING $data->{$section} to oidList\n" if debug2();
 				#		push(@oidList,$data->{$section});
 				#	}
 				#}
-				print &indent . "$curpath -> $section = $data->{$section}\n" if $debug;
+				print &indent . "$curpath -> $section = $data->{$section}\n" if debug2();
 			}
 		}
 		if ( defined $indexed ) {
 			my $curpath = join("/",@path);
 			my $section = $path[-1];
-			print "$curpath :: section=$section indexed=$indexed index_oid=$index_oid\n" if $debug;
+			print "$curpath :: section=$section indexed=$indexed index_oid=$index_oid\n" if debug2();
 			# convert indexed into an oid if index_oid is blank
 			if ( not defined $index_oid ) {
 				$index_oid = $mibs->{$indexed};
@@ -635,7 +664,7 @@ sub processData {
 	elsif ( ref($data) eq "ARRAY" ) {
 		foreach my $element (@{$data}) {
 			my $curpath = join("/",@path);
-			print indent."$curpath: $element\n" if $debug;
+			print indent."$curpath: $element\n" if debug2();
 			#Is this an RRD DEF?
 			if ( $element =~ /DEF:/ ) {
 				my @DEF = split(":",$element);
@@ -651,11 +680,13 @@ sub processData {
 sub checkRrdLength {
 	my $string = shift;
 	my $len = length($string);
-	print indent."FOUND: $string is length $len\n" if $debug;
+	$indent += 2;
+	print indent()."FOUND: $string is length $len\n" if debug2();
 	if ($len > $rrdlen ) {
-		print "    ERROR: RRD variable $string found longer than $rrdlen\n";
+		print "MODEL ERROR: RRD variable $string found longer than $rrdlen\n" if errors();
 			
 	}
+	$indent -= 2;
 }
 
 sub loadMibs {
@@ -686,16 +717,54 @@ sub loadMibs {
 	return ($mibs);
 }
 
+sub errors {
+        if ( $errors >= 1 ) {
+                return 1
+        }
+        else {
+                return 0
+        }
+}
+
+sub debug {
+        if ( $debug >= 1 ) {
+                return 1
+        }
+        else {
+                return 0
+        }
+}
+
+sub debug2 {
+        if ( $debug >= 2 ) {
+                return 1
+        }
+        else {
+                return 0
+        }
+}
+
+sub debug3 {
+        if ( $debug >= 3 ) {
+                return 1
+        }
+        else {
+                return 0
+        }
+}
+
 sub usage {
 	print <<EO_TEXT;
 $0 will check existing NMIS models and determine which models apply to a node in NMIS.
 usage: $0 node=<nodename> [model=name for new model] [file=/path/to/file_for_details.txt] [debug=true|false]
-eg: $0 node=nodename [debug=true|false] [verbose=true|false]
+eg: $0 [node=nodename] [debug=(true|false|1|2|3|4)] [errors=(true|false)]
 
 node: NMIS nodename
 model: Name of new model and the result file to be generated.
 common_exclude: A regular expression for the Common models to exclude in the auto geneated model.
 file: Where to save the results to, TAB delimited CSV.
+errors: Display models errors found or not.
+
 
 EO_TEXT
 }
