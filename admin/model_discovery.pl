@@ -42,6 +42,8 @@ use snmp 1.1.0;									# for snmp-related access
 use Data::Dumper;
 use NMIS::Timing;
 
+my $modelTemplate = "$FindBin::Bin/../models/Model-Default-HC.nmis";
+
 if ( $ARGV[0] eq "" ) {
 	usage();
 	exit 1;
@@ -61,6 +63,9 @@ if ( not defined $arg{node} ) {
 }
 
 my $node = $arg{node};
+my $file = $arg{file};
+my $newModelName = $arg{model};
+my $common_exclude = $arg{common_exclude};
 
 # Set debugging level.
 my $debug = setDebug($arg{debug});
@@ -102,6 +107,7 @@ my @oidList;
 
 my @discoverList;
 my $discoveryResults;
+my %graphTypes;
 my %nodeSummary;
 my $mibs = loadMibs($C);
 
@@ -115,7 +121,9 @@ print $t->elapTime(). " Done with node.  Tried $mib_count SNMP MIBS.\n" if $verb
 
 print Dumper $discoveryResults if $debug;
 
-printDiscoveryResults();
+printDiscoverySummary();
+
+printDiscoveryResults($file) if defined $file;
 
 #print Dumper(\@discoverList);
 
@@ -190,6 +198,7 @@ sub processNode {
 					$discoveryResults->{$thing->{index_oid}}{Type} = $thing->{type};
 					$discoveryResults->{$thing->{index_oid}}{File} = $thing->{file};
 					$discoveryResults->{$thing->{index_oid}}{Path} = $thing->{path};
+					$discoveryResults->{$thing->{index_oid}}{Section} = $thing->{section};
 					$discoveryResults->{$thing->{index_oid}}{Supported} = $works;
 					$discoveryResults->{$thing->{index_oid}}{SNMP_Object} = $thing->{indexed};
 					$discoveryResults->{$thing->{index_oid}}{SNMP_OID} = $thing->{index_oid};
@@ -230,6 +239,7 @@ sub processNode {
 					$discoveryResults->{$thing->{snmpoid}}{Type} = $thing->{type};
 					$discoveryResults->{$thing->{snmpoid}}{File} = $thing->{file};
 					$discoveryResults->{$thing->{snmpoid}}{Path} = $thing->{path};
+					$discoveryResults->{$thing->{snmpoid}}{Section} = $thing->{section};
 					$discoveryResults->{$thing->{snmpoid}}{Supported} = $works;
 					$discoveryResults->{$thing->{snmpoid}}{SNMP_Object} = $thing->{oid};
 					$discoveryResults->{$thing->{snmpoid}}{SNMP_OID} = $thing->{snmpoid};
@@ -244,7 +254,106 @@ sub processNode {
 	}
 }
 
+sub printDiscoverySummary {
+
+	my $newModel = readFiletoHash(file => $modelTemplate) if defined $newModelName;
+
+	# do some basic model changes
+	if ( defined $newModelName ) {
+		$newModel->{'system'}{'nodeModel'} = $newModelName;
+		$newModel->{'system'}{'nodeModelComment'} = "Auto Generated Model by model_discovery.pl";
+	}
+
+	my %graphTypeSupported;
+
+	$nodeSummary{sysDescr} =~ s/\r\n/\\n/g;
+	print "node:\t$nodeSummary{node}\n";
+	print "sysDescr:\t$nodeSummary{sysDescr}\n";
+	print "nodeModel:\t$nodeSummary{nodeModel}\n";
+
+	print "\n";
+
+	my @sections = ();
+	my @common_things = ();
+	# loop through the data
+	foreach my $key ( sort { $discoveryResults->{$a}{Type} cmp $discoveryResults->{$b}{Type} } (keys %$discoveryResults) ) {
+		if ( $discoveryResults->{$key}{Supported} eq "YES" ) {
+			if ( $discoveryResults->{$key}{Type} eq "systemHealth" ) {
+				my $section_name = $discoveryResults->{$key}{Path};
+				$section_name =~ s|\w+/systemHealth/sys/(\w+)|$1|;
+				if ( not grep ($_ eq $section_name, @sections) ) {
+					push(@sections,$section_name);
+				}
+			}
+
+			if ( $discoveryResults->{$key}{Path} =~ /Common/ ) {
+				my $common_name = $discoveryResults->{$key}{File};
+				$common_name =~ s|^Common-([\w\-]+)\.nmis$|$1|;
+				if ( not grep ($_ eq $common_name, @common_things) ) {
+					push(@common_things,$common_name);	
+				}
+			}
+
+			# what graphtypes does this section have?
+			my $section = $discoveryResults->{$key}{Section};
+			$graphTypeSupported{$section}{graphtype} = $graphTypes{$section}{graphtype} if defined $graphTypes{$section}{graphtype};
+			$graphTypeSupported{$section}{path} = $discoveryResults->{$key}{Path} if defined $graphTypes{$section}{graphtype};
+
+			# make this a little more pretty.
+			$discoveryResults->{$key}{result} =~ s/\r\n/\\n/g;
+			$discoveryResults->{$key}{result} =~ s/\n/  /g;
+			print "DISCOVERED: $discoveryResults->{$key}{Type} $discoveryResults->{$key}{File} $discoveryResults->{$key}{Path} $discoveryResults->{$key}{SNMP_OID} $discoveryResults->{$key}{result}\n" if $debug;
+		}
+	}
+
+	print "Common Things to Include: \n\n" if $debug;
+	foreach my $common_name (@common_things) {
+		# save the new common sections if common_exclude is null or if it is defined and does not match.
+		if (( defined $newModelName and not defined $common_exclude )
+		 	or ( defined $newModelName and defined $common_exclude and $common_name !~ /$common_exclude/ )
+		) {
+			print "Adding common model $common_name to model\n";
+			$newModel->{'-common-'}{'class'}{$common_name}{'common-model'} = $common_name;
+		}
+		elsif ( defined $common_exclude and $common_name =~ /$common_exclude/ ) {
+			print "Excluding from common models: $common_name\n";
+		}
+
+		print <<EO_TEXT if $debug;
+      '$common_name' => {
+        'common-model' => '$common_name'
+      },
+EO_TEXT
+	}
+	print "\n";
+
+	print "System Health Sections:\n";
+	@sections = sort { $a cmp $b } (@sections);
+	my $sections_list = join(",",@sections);
+	print "'sections' => '$sections_list',\n";
+
+    $newModel->{'systemHealth'}{'sections'} = $sections_list if defined $newModelName;
+
+	if ( defined $newModelName ) {
+		my $model_file_name = "$C->{'<nmis_models>'}/Model-$newModelName.nmis";
+		writeHashtoFile( file => $model_file_name, data=>$newModel);
+		print "New Auto Model $newModelName saved to $model_file_name\n";
+	}
+
+	# fixme, not currently right, needs more time.
+	#print "List of Graph Types found and their path:\n";
+	#foreach my $section ( sort { $a cmp $b } (keys %graphTypeSupported) ) {
+	#	print "$section ($graphTypeSupported{$section}{path}) has graph type: $graphTypeSupported{$section}{graphtype}\n";
+	#}
+	#print Dumper \%graphTypes;
+
+}
+
 sub printDiscoveryResults {
+	my $file = shift;
+
+	open(OUT,">$file") or die "ERROR with file $file: $!\n";
+
 	# make a header and print it out
 	my @header = qw(
 		node
@@ -260,13 +369,13 @@ sub printDiscoveryResults {
 	);
 
 	$nodeSummary{sysDescr} =~ s/\r\n/\\n/g;
-	print "node:\t$nodeSummary{node}\n";
-	print "sysDescr:\t$nodeSummary{sysDescr}\n";
-	print "nodeModel:\t$nodeSummary{nodeModel}\n";
+	print OUT "node:\t$nodeSummary{node}\n";
+	print OUT "sysDescr:\t$nodeSummary{sysDescr}\n";
+	print OUT "nodeModel:\t$nodeSummary{nodeModel}\n";
 
-	print "\n";
+	print OUT "\n";
 	my $printit = join("\t",@header);
-	print "$printit\n";
+	print OUT "$printit\n";
 
 	# loop through the data
 	foreach my $key ( keys %$discoveryResults ) {
@@ -278,8 +387,9 @@ sub printDiscoveryResults {
 			push(@data,$discoveryResults->{$key}{$head});
 		}
 		my $printit = join("\t",@data);
-		print "$printit\n";
+		print OUT "$printit\n";
 	}
+	close(OUT);
 }
 #print Dumper($models);
 
@@ -407,6 +517,7 @@ sub processData {
 	if ( ref($data) eq "HASH" ) {
 		my $indexed = undef;
 		my $index_oid = undef;
+		my $graphtype = undef;
 		foreach my $section (sort keys %{$data}) {
 			my $curpath = join("/",@path);
 			if ( ref($data->{$section}) =~ /HASH|ARRAY/ ) {
@@ -437,14 +548,27 @@ sub processData {
 			}
 			else {
 				# what are the index variables.
+				# looking at these variabled globally in the model
 				if ( $section eq "indexed" and $curpath =~ /\/sys\// and $data->{$section} ne "true" ) {
 					#print "    $curpath/$section: $data->{$section}\n";
 					$indexed = $data->{$section};
 				}	
-				elsif ( $section eq "index_oid" and $curpath =~ /\/sys\// and $data->{$section} ne "true" ) {
+				elsif ( $section eq "index_oid" and $curpath =~ /\/sys\// and $data->{$section} =~ /\.\d+\.\d+\.\d+\.\d+/ ) {
 					#print "    $curpath/$section: $data->{$section}\n";
 					$index_oid = $data->{$section};
 				}
+				elsif ( $section eq "graphtype" and $curpath =~ /\/rrd\// ) {
+					#print "    $curpath/$section: $data->{$section}\n";
+					if ( $curpath =~ /^(Common|Model)\/(\w+)\/rrd\/(\w+)/ ) {
+						my $type = $2; 
+						my $stat_section = $3; 
+						$graphTypes{$stat_section}{type} = $type;
+						$graphTypes{$stat_section}{section} = $stat_section;
+						$graphTypes{$stat_section}{graphtype} = $data->{graphtype};
+					}
+				}
+
+				# only diving deeper into the variables for the system.
 				if ( $curpath =~ /^(Common|Model)\/system\/(sys|rrd)\/(\w+)\/snmp\/(\w+)/ and $section eq "oid" ) {
 					my $snmpoid = $mibs->{$data->{oid}};
 					if ( not defined $snmpoid and $data->{oid} =~ /1\.3\.6\.1/ ) {
@@ -459,13 +583,11 @@ sub processData {
 							$snmpoid = $mibs->{$mib};
 							$snmpoid .= ".$index";							
 						}
-						
 					}
 
 					if ( not defined $snmpoid ) {
 						print "ERROR with Model OID $file :: $curpath $data->{oid}\n";
 					}
-
 
 					push(@discoverList,{
 						type => "system",
@@ -494,7 +616,8 @@ sub processData {
 		}
 		if ( defined $indexed ) {
 			my $curpath = join("/",@path);
-			print "$curpath :: indexed=$indexed index_oid=$index_oid\n" if $debug;
+			my $section = $path[-1];
+			print "$curpath :: section=$section indexed=$indexed index_oid=$index_oid\n" if $debug;
 			# convert indexed into an oid if index_oid is blank
 			if ( not defined $index_oid ) {
 				$index_oid = $mibs->{$indexed};
@@ -503,6 +626,7 @@ sub processData {
 				type => "systemHealth",
 				file => $file,
 				path => $curpath,
+				section => $section,
 				indexed => $indexed,
 				index_oid => $index_oid
 			});
@@ -565,8 +689,13 @@ sub loadMibs {
 sub usage {
 	print <<EO_TEXT;
 $0 will check existing NMIS models and determine which models apply to a node in NMIS.
-usage: $0 node=<nodename> [debug=true|false]
+usage: $0 node=<nodename> [model=name for new model] [file=/path/to/file_for_details.txt] [debug=true|false]
 eg: $0 node=nodename [debug=true|false] [verbose=true|false]
+
+node: NMIS nodename
+model: Name of new model and the result file to be generated.
+common_exclude: A regular expression for the Common models to exclude in the auto geneated model.
+file: Where to save the results to, TAB delimited CSV.
 
 EO_TEXT
 }
