@@ -43,6 +43,7 @@ use Data::Dumper;
 use NMIS::Timing;
 
 my $modelTemplate = "$FindBin::Bin/../models/Model-Default-HC.nmis";
+my $schemaFile = "$FindBin::Bin/../conf/Model-Schema.nmis";
 
 if ( $ARGV[0] eq "" ) {
 	usage();
@@ -56,20 +57,24 @@ print $t->elapTime(). " Begin\n";
 # Variables for command line munging
 my %arg = getArguements(@ARGV);
 
-if ( not defined $arg{node} and not defined $arg{debug}) {
-	print "ERROR: need a node to check\n";
+if ( not defined $arg{node} and not defined $arg{check} ) {
+	print "ERROR: need a node to discover or check things\n";
 	usage();
 	exit 1;
 }
 
 my $node = $arg{node};
 my $file = $arg{file};
+my $check = $arg{check};
+my $schema = $arg{schema} ? getbool($arg{schema}) : 1;
+my $make_schema = $arg{make_schema} ? getbool($arg{make_schema}) : 0;
+my $models_dir = $arg{models_dir} ? $arg{models_dir} : "models";
 my $newModelName = $arg{model};
 my $common_exclude = $arg{common_exclude};
+my $errors = $arg{errors} ? setDebug($arg{errors}) : 1;
 
 # Set debugging level.
 my $debug = $arg{debug} ? setDebug($arg{debug}) : 0;
-my $errors = $arg{errors} ? setDebug($arg{errors}) : 1;
 
 # load configuration table
 my $C = loadConfTable(conf=>$arg{conf},debug=>$debug);
@@ -104,18 +109,45 @@ my @oidList;
 
 # needs feature to match enterprise, e.g. only do standard mibs and my vendor mibs.
 
+# in the structure, which things are allowed to have children?
+my @topLevel = qw(
+	threshold
+	-common-
+	summary
+	system
+	heading
+	database
+	stats
+	event
+	systemHealth
+	interface
+	port
+	hrwincpu
+	hrdisk
+	hrmem
+	environment
+	calls
+	device
+	cbqos-in
+	cbqos-out
+	storage
+);
 
+my @schema;
 my @discoverList;
 my $discoveryResults;
 my %graphTypes;
 my %nodeSummary;
-my $mibs = loadMibs($C);
 
-print $t->elapTime(). " Load all the NMIS models.\n" if debug();
-processDir(dir => $C->{'<nmis_models>'});
+my $mibs = loadMibs($C);
+my $modelSchema;
+$modelSchema = readFiletoHash(file => $schemaFile) if $schema;
+
+print $t->elapTime(). " Load all the NMIS models from $C->{'<nmis_base>'}/$models_dir\n" if debug();
+processDir(dir => "$C->{'<nmis_base>'}/$models_dir");
 print $t->elapTime(). " Done with Models.  Processed $file_count NMIS Model files.\n" if debug();
 
-checkGraphTypes();
+checkGraphTypes("$C->{'<nmis_base>'}/$models_dir");
 
 if ( defined $node ) {
 	print $t->elapTime(). " Processing MIBS on node $node.\n" if debug();
@@ -127,23 +159,23 @@ if ( defined $node ) {
 
 	printDiscoveryResults($file) if defined $file;
 }
-else {
-	print "No node provided as argument, nothing else to do.\n";
-}
+
+saveSchema($schemaFile);
 
 if (debug3()) {
 	print Dumper \@discoverList;
 	print Dumper \%graphTypes;
+	print Dumper $modelSchema;
 }
 
 sub checkGraphTypes {
-	my $model_dir = $C->{'<nmis_models>'};
+	my $models_dir = shift;
 
 	foreach my $section (sort {$a cmp $b} (keys %graphTypes)) {
 		print "Checking section $section graphtypes: $graphTypes{$section}{graphtype}\n" if debug2();
 		my @graphtypes = split(",",$graphTypes{$section}{graphtype});
 		foreach my $graphtype (sort {$a cmp $b} (@graphtypes)) {
-			my $graph_file = "$model_dir/Graph-$graphtype.nmis";
+			my $graph_file = "$models_dir/Graph-$graphtype.nmis";
 			if ( not -f $graph_file ) {
 				print "MODEL ERROR: missing file for graph type $graphtype: $graph_file\n" if errors();
 			}
@@ -314,7 +346,7 @@ sub printDiscoverySummary {
 				}
 			}
 
-			if ( $discoveryResults->{$key}{Path} =~ /Common/ ) {
+			if ( $discoveryResults->{$key}{File} =~ /Common/ ) {
 				my $common_name = $discoveryResults->{$key}{File};
 				$common_name =~ s|^Common-([\w\-]+)\.nmis$|$1|;
 				if ( not grep ($_ eq $common_name, @common_things) ) {
@@ -503,9 +535,10 @@ sub processDir {
 				and $file !~ /^\.|CVS/
 				and $bad_dir !~ /$file/i
 			) {
+				# directory recursion disabled.
 				#if (!$debug) { print "."; }
-				&processDir(dir => "$dir/$file");
-				--$dirlevel;
+				#&processDir(dir => "$dir/$file");
+				#--$dirlevel;
 			}
 		}
 	}
@@ -522,15 +555,20 @@ sub processModelFile {
 		$curModel = $file;
 		$curModel =~ s/Model\-|\.nmis//g;
 
-		my $comment = "Model";
-		$comment = "Common" if ( $file =~ /Common/ );
+		my $modelType = "Model";
+		$modelType = "Common" if ( $file =~ /Common/ );
 	
 		print &indent . "Processing $curModel: $file\n" if debug();
 		my $model = readFiletoHash(file=>"$dir/$file");		
 		#Recurse into structure, handing off anything which is a HASH to be handled?
-		push(@path,$comment);
+		push(@path,$modelType);
 		$modLevel = 0;
-		processData($model,$comment,$file);
+		if ( $model ) {
+			processData($model,$modelType,$file);
+		}
+		else {
+			print indent(). "MODEL ERROR: Could not load $file\n";
+		}
 		pop(@path);
 	}	
 }
@@ -548,15 +586,41 @@ sub processData {
 
 		foreach my $section (sort keys %{$data}) {
 			my $curpath = join("/",@path);
+
+			# check the schema if I have a valid parent
+			if ( $schema )	{
+				# who is my parent.
+				my $parent = $path[-1];
+
+				#if ( )
+
+				# is this a keyword we care about?
+				if ( defined $modelSchema->{keywords}{$section}{parents} ) {
+					my $validChild = 0;
+					if ( grep ($_ eq $parent, @{$modelSchema->{keywords}{$section}{parents}}) ) {
+						$validChild = 1;
+					}
+					else {
+						print "SCHEMA ERROR: Keyword $section not correct with parent $parent in path $curpath\n" if errors();
+
+					}
+				}
+
+			}
+
 			if ( ref($data->{$section}) =~ /HASH|ARRAY/ ) {
 				print &indent . "$curpath -> $section\n" if debug2();
+				
 				# if this section is an RRD/snmp variable, check its length
 				if ( $curpath =~ /rrd\/\w+\/snmp$/ ) {
 					print indent()."Found RRD Variable $section \@ $curpath\n" if debug2();
 					checkRrdLength($section);
 				}
-									
+				
+				addToSchema(section => $section, location => \@schema, ref => ref($data->{$section}));
 				push(@path,$section);
+				push(@schema,$section);
+
 				if ( $modLevel <= 1 and $section !~ /-common-|class/ ) {
 					push(@{$models->{$curModel}{sections}},$section);
 					if ( not grep {$section eq $_} @path ) {
@@ -574,8 +638,11 @@ sub processData {
 				processData($data->{$section},"$section",$file);
 				
 				pop(@path);
+				pop(@schema);
 			}
 			else {
+
+				addToSchema(section => $section, location => \@schema, value => $data->{$section});
 				# what are the index variables.
 				# looking at these variabled globally in the model
 				if ( $section eq "indexed" and $curpath =~ /\/sys\// and $data->{$section} ne "true" ) {
@@ -689,6 +756,116 @@ sub checkRrdLength {
 	$indent -= 2;
 }
 
+sub addToSchema {
+	my %args = @_;
+	my $section = $args{section};
+	my $ref = $args{ref};
+	my $value = $args{value};
+	my $location = $args{location};
+
+	if ( $make_schema ) {
+		my $parent = @$location[-1];
+		my $route = join("/",@$location);  
+
+		# which things are structural in the schema and which are variables.
+		my $save = 1;
+		if ( $route =~ /^(system|systemHealth|interface|port|hrwincpu|hrdisk|hrmem|environment|calls|device|cbqos-in|cbqos-out|storage)\/(rrd|sys)$/ ) {
+			$save = 0;
+		}
+		elsif ( $route =~ /^(system|systemHealth|interface|port|hrwincpu|hrdisk|hrmem|environment|calls|device|cbqos-in|cbqos-out|storage)\/(rrd|sys)\/[\w\-]+\/(snmp|wmi)$/ ) {
+			$save = 0;
+		}
+		elsif ( $route =~ /^(system|systemHealth|interface|port|hrwincpu|hrdisk|hrmem|environment|calls|device|cbqos-in|cbqos-out|storage)\/(rrd|sys)\/[\w\-]+\/(snmp|wmi)\/[\w\-]+\/replace$/ ) {
+			$save = 0;
+		}
+		#summary/statstype
+		#summary/statstype/[\w\-]+/sumname
+		#summary/statstype/[\w\-]+/sumname/[\w\-]+/stsname
+		elsif ( $route =~ /^(summary\/statstype|summary\/statstype\/[\w\-]+\/sumname|summary\/statstype\/[\w\-]+\/sumname\/[\w\-]+\/stsname)$/ ) {
+			$save = 0;
+		}
+		# -common-/class
+		# threshold/name
+		# heading/graphtype
+		# database/type
+		# stats/type
+		# event/event
+
+		elsif ( $route =~ /^(threshold\/name|heading\/graphtype|database\/type|stats\/type|event\/event|\-common\-\/class)$/ ) {
+			$save = 0;
+		}
+		elsif ( $route =~ /^(alerts|alerts\/[\w\-]+)$/ ) {
+			$save = 0;
+		}
+		elsif ( $section =~ /^(\d+|\-\d+)$/ ) {
+			$save = 0;
+		}
+
+		if (not $save) {
+			print indent()."MODEL SCHEMA: NOT saving $section with $route\n" if debug3();
+			return;			
+		}
+		else {
+			print indent()."MODEL SCHEMA: Saving $section with $route\n" if debug3();
+
+			if ( defined $section and not grep ($_ eq $section, @{$modelSchema->{reserved}}) ) {
+				push(@{$modelSchema->{reserved}},$section);
+			}
+		}
+
+		# is the name of the section a reserved word or not?
+		# is the name of the parent a reserved word or not?
+
+		$modelSchema->{keywords}{$section}{name} = $section;
+
+		# we are only interested in structure of the model, not the variables.
+		if ( defined $section and not grep ($_ eq $route, @{$modelSchema->{keywords}{$section}{locations}}) ) {
+			push(@{$modelSchema->{keywords}{$section}{locations}},$route);
+		}
+
+		if ( defined $parent and not grep ($_ eq $parent, @{$modelSchema->{keywords}{$section}{parents}}) ) {
+			push(@{$modelSchema->{keywords}{$section}{parents}},$parent);
+		}		
+		
+		if ( defined $ref and not grep ($_ eq $ref, @{$modelSchema->{keywords}{$section}{refs}}) ) {
+			push(@{$modelSchema->{keywords}{$section}{refs}},$ref);
+		}
+
+		if ( defined $value and not grep ($_ eq $value, @{$modelSchema->{keywords}{$section}{values}}) ) {
+			push(@{$modelSchema->{keywords}{$section}{values}},$value);
+		}
+
+		my $type = schemaDataType($value);
+		if ( defined $value and not grep ($_ eq $type, @{$modelSchema->{keywords}{$section}{types}}) ) {
+			push(@{$modelSchema->{keywords}{$section}{types}},$type);
+		}
+	}
+}
+
+sub schemaDataType {
+	my $value = shift;
+
+	if ( $value =~ /(^\d+$|^\-\d+$)/ ) {
+		return "integer";
+	}
+	elsif ( $value =~ /(^\d+\.\d+$|^\-\d+\.\d+$)/ ) {
+		return "real";
+	}
+	else {
+		return "string";
+	}
+}
+
+sub saveSchema {
+	my $schemaFile = shift;
+
+	@{$modelSchema->{reserved}} = sort({$a cmp $b} (@{$modelSchema->{reserved}}));
+
+	if ( $make_schema ) {
+		writeHashtoFile( file => $schemaFile, data => $modelSchema );
+	}	
+}
+
 sub loadMibs {
 	my $C = shift;
 
@@ -756,15 +933,27 @@ sub debug3 {
 sub usage {
 	print <<EO_TEXT;
 $0 will check existing NMIS models and determine which models apply to a node in NMIS.
+Discover a node:
 usage: $0 node=<nodename> [model=name for new model] [file=/path/to/file_for_details.txt] [debug=true|false]
 eg: $0 [node=nodename] [debug=(true|false|1|2|3|4)] [errors=(true|false)]
 
+[models_dir=models|models-install]
+
+Check the models:
+usage: $0 check=true [errors=(true|false)] [debug=(true|false|1|2|3|4)]
+
+Create the Model Schema File for checking syntax:
+usage: $0 schema=true [errors=(true|false)] [debug=(true|false|1|2|3|4)]
+
 node: NMIS nodename
+check: (true|false), check the models structure and for errors
 model: Name of new model and the result file to be generated.
 common_exclude: A regular expression for the Common models to exclude in the auto geneated model.
 file: Where to save the results to, TAB delimited CSV.
 errors: Display models errors found or not.
-
+schema: Check the models structure against the schema.
+make_schema: Make the model schema file.
 
 EO_TEXT
 }
+
