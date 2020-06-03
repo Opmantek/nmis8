@@ -73,6 +73,9 @@ my $newModelName = $arg{model};
 my $common_exclude = $arg{common_exclude};
 my $errors = $arg{errors} ? setDebug($arg{errors}) : 1;
 
+# lets not check the schema while making one.
+$schema = 0 if $make_schema;
+
 # Set debugging level.
 my $debug = $arg{debug} ? setDebug($arg{debug}) : 0;
 
@@ -111,6 +114,9 @@ my @oidList;
 
 # in the structure, which things are allowed to have children?
 my @topLevel = qw(
+	alerts
+	custom
+	hrsmpcpu
 	threshold
 	-common-
 	summary
@@ -132,6 +138,100 @@ my @topLevel = qw(
 	cbqos-out
 	storage
 );
+
+
+my $schemaMasks = {
+	'alert' => [ 20, 21 ],
+	'control' => [ 1, 2, 23 ],
+	'graphtype' => [ 2 ],
+	'headers' => [ 1 ],
+	'index_oid' => [ 1 ],
+	'index_regex' => [ 1 ],
+	'indexed' => [ 1, 2 ],
+	'info' => [ 3 ],
+	'level' => [ 23 ],
+	'oid' => [ 3, 20, 22, 24 ],
+	'option' => [ 3 ],
+	'replace' => [ 3 ],	
+	'snmp' => [ 1,2 ],
+	'sections' => [ 10 ],
+
+	'test' => [ 23 ],
+	'title' => [ 3, 20, 23 ],	
+	'threshold' => [ 1, 2, 23 ],
+	'type' => [ 23 ],	
+	'unit' => [ 23 ],	
+	'value' => [ 23 ],	
+};
+
+my $keywordSchemaMasks = {
+	#systemHealth/sys/QoSOut/snmp/QosName
+	0 => qr/./,
+	1 => qr/^(interface|system|systemHealth)\/(sys)\/[\w\-]+$/,
+	2 => qr/^(interface|system|systemHealth)\/(rrd)\/[\w\-]+$/,
+	3 => qr/^(interface|system|systemHealth)\/(rrd|sys)\/[\w\-]+\/snmp\/[\w\-]+$/,
+	4 => qr/^(system|interface)\/(rrd|sys)\/[\w\-]+\/snmp$/,
+
+	10 => qr/^systemHealth$/,
+	12 => qr/^systemHealth$/,
+
+	#system/sys/alerts/snmp/banana
+	20 => qr/^system\/sys\/alerts\/snmp\/[\w\-]+$/,
+	21 => qr/^event\/event$/,
+	22 => qr/^(device|storage)\/(sys)\/[\w\-]+$/,
+	23 => qr/^alerts\/[\w\-]+\/[\w\-]+$/,
+	24 => qr/^(port|hrwincpu|hrdisk|hrmem|environment|calls|device|cbqos-in|cbqos-out|storage)\/(rrd|sys)\/[\w\-]+\/snmp\/[\w\-]+$/,
+
+};
+
+my $includeSchemaMasks = {
+	#systemHealth/sys/QoSOut/snmp/QosName
+	1 => qr/^(systemHealth|interface)\/(sys)\/[\w\-]+$/,
+	2 => qr/^(systemHealth|interface)\/(rrd)\/[\w\-]+$/,
+	3 => qr/^(systemHealth|interface)\/(rrd|sys)\/[\w\-]+\/snmp\/[\w\-]+$/,
+	4 => qr/^(system|interface)\/(rrd|sys)\/[\w\-]+\/snmp$/,
+	10 => qr/^(system|systemHealth|interface|port|hrwincpu|hrdisk|hrmem|environment|calls|device|cbqos-in|cbqos-out|storage)\/(rrd|sys)$/,
+	20 => qr/^(system|systemHealth|interface|port|hrwincpu|hrdisk|hrmem|environment|calls|device|cbqos-in|cbqos-out|storage)\/(rrd|sys)\/[\w\-]+\/(snmp|wmi)\/[\w\-]+$/,
+	30 => qr/^(system|systemHealth|interface|port|hrwincpu|hrdisk|hrmem|environment|calls|device|cbqos-in|cbqos-out|storage)\/(rrd|sys)\/[\w\-]+\/(snmp|wmi)\/[\w\-]+\/replace$/,
+	#summary/statstype
+	#summary/statstype/[\w\-]+/sumname
+	#summary/statstype/[\w\-]+/sumname/[\w\-]+/stsname
+	40 => qr/^(summary\/statstype|summary\/statstype\/[\w\-]+\/sumname|summary\/statstype\/[\w\-]+\/sumname\/[\w\-]+\/stsname)$/,
+	# -common-/class
+	# threshold/name
+	# heading/graphtype
+	# database/type
+	# stats/type
+	# event/event
+	50 => qr/^(threshold\/name|heading\/graphtype|database\/type|stats\/type|event\/event|\-common\-\/class)$/,
+	60 => qr/^(alerts|alerts\/[\w\-]+)$/,
+	70 => qr/^(\d+|\-\d+)$/,
+};
+
+my $genericSchemaMasks = {
+	#systemHealth/sys/QoSOut/snmp/QosName
+	5 => qr/^(system|systemHealth|interface)\/(rrd|sys)$/,
+	10 => qr/^(system|systemHealth|interface)\/(rrd|sys)\/[\w\-]+\/(snmp|wmi)$/,
+	15 => qr/^(system|systemHealth|interface)\/(rrd|sys)\/[\w\-]+\/(snmp|wmi)\/[\w\-]+\/replace$/,
+
+	20 => qr/^(port|hrwincpu|hrdisk|hrmem|environment|calls|device|cbqos-in|cbqos-out|storage)\/(rrd|sys)$/,
+	25 => qr/^(port|hrwincpu|hrdisk|hrmem|environment|calls|device|cbqos-in|cbqos-out|storage)\/(rrd|sys)\/[\w\-]+\/(snmp|wmi)$/,
+	30 => qr/^(port|hrwincpu|hrdisk|hrmem|environment|calls|device|cbqos-in|cbqos-out|storage)\/(rrd|sys)\/[\w\-]+\/(snmp|wmi)\/[\w\-]+\/replace$/,
+	#summary/statstype
+	#summary/statstype/[\w\-]+/sumname
+	#summary/statstype/[\w\-]+/sumname/[\w\-]+/stsname
+	40 => qr/^(summary\/statstype|summary\/statstype\/[\w\-]+\/sumname|summary\/statstype\/[\w\-]+\/sumname\/[\w\-]+\/stsname)$/,
+	# -common-/class
+	# threshold/name
+	# heading/graphtype
+	# database/type
+	# stats/type
+	# event/event
+	50 => qr/^(threshold\/name|heading\/graphtype|database\/type|stats\/type|event\/event|\-common\-\/class)$/,
+	60 => qr/^(alerts|alerts\/[\w\-]+)$/,
+	70 => qr/^(\d+|\-\d+)$/,
+};
+
 
 my @schema;
 my @discoverList;
@@ -166,6 +266,20 @@ if (debug3()) {
 	print Dumper \@discoverList;
 	print Dumper \%graphTypes;
 	print Dumper $modelSchema;
+}
+
+printSchemaSummary() if $schema;
+
+sub printSchemaSummary {
+	foreach my $keyword ( sort {$a cmp $b} keys (%{$modelSchema->{keywords}}) ) {
+		my $parents = "@{$modelSchema->{keywords}{$keyword}{parents}}" if defined $modelSchema->{keywords}{$keyword}{parents};
+		#print "$keyword :: parents:$parents\n";
+		foreach my $parent (@{$modelSchema->{keywords}{$keyword}{parents}}) {
+			if ( not defined $modelSchema->{keywords}{$parent} ) {
+				print "$keyword, has parent $parent which is not a keyword\n";
+			}
+		}
+	}
 }
 
 sub checkGraphTypes {
@@ -561,7 +675,8 @@ sub processModelFile {
 		print &indent . "Processing $curModel: $file\n" if debug();
 		my $model = readFiletoHash(file=>"$dir/$file");		
 		#Recurse into structure, handing off anything which is a HASH to be handled?
-		push(@path,$modelType);
+		# track the modelType not using the path.
+		#push(@path,$modelType);
 		$modLevel = 0;
 		if ( $model ) {
 			processData($model,$modelType,$file);
@@ -575,7 +690,7 @@ sub processModelFile {
 
 sub processData {
 	my $data = shift;
-	my $comment = shift;
+	my $modelType = shift;
 	my $file = shift;
 	$indent += 2;
 	++$modLevel;
@@ -592,28 +707,72 @@ sub processData {
 				# who is my parent.
 				my $parent = $path[-1];
 
-				#if ( )
-
-				# is this a keyword we care about?
-				if ( defined $modelSchema->{keywords}{$section}{parents} ) {
-					my $validChild = 0;
-					if ( grep ($_ eq $parent, @{$modelSchema->{keywords}{$section}{parents}}) ) {
-						$validChild = 1;
+				my $validSchema = 0;
+				if ( not @path ) {
+					if ( not grep ($_ eq $section, @topLevel) ) {
+						print "SCHEMA ERROR: Keyword $section incorrect Top Level: $file\n" if errors();
 					}
 					else {
-						print "SCHEMA ERROR: Keyword $section not correct with parent $parent in path $curpath\n" if errors();
-
+						$validSchema = 1;
 					}
 				}
 
+				if ( not $validSchema and defined $modelSchema->{keywords}{$section} and defined $modelSchema->{keywords}{$section}{parents} ) {
+					if ( grep ($_ eq $parent, @{$modelSchema->{keywords}{$section}{parents}}) ) {
+						$validSchema = 1;
+						print "SCHEMA INFO: Keyword $section has parent $parent\n" if debug3();
+					}
+				}
+
+				# is this a keyword we care about?
+				
+				if ( not $validSchema ) {
+					#else {
+						# lets check this a little more.
+						# is this a special variable?
+						print "SCHEMA INFO: Keyword $section is a Special Variable\n" if debug3();
+
+						if ( $section =~ /(\ |[\d\-]+)/ and $parent =~ /(select|replace)/ ) {
+							$validSchema = 1;
+						}
+
+
+						# check the variable against our known masks, if it matches it is OK.
+						if ( defined $schemaMasks->{$section} ) {
+							foreach my $mask ( @{$schemaMasks->{$section}} ) {
+								if ( $curpath =~ /$keywordSchemaMasks->{$mask}/ ) {
+									$validSchema = 1;
+								}									
+							}
+						}
+						else {
+						#if ( not $validSchema ) {
+							foreach my $mask ( sort {$a <=> $b} (keys %$genericSchemaMasks) ) {
+								if ( $curpath =~ /$genericSchemaMasks->{$mask}/ ) {
+									$validSchema = 1;
+									last();
+								}
+							}								
+						}
+
+						if ( not $validSchema ) {
+							print "SCHEMA ERROR: Keyword $section incorrect path: $file $curpath\n" if errors();
+						}
+
+						#}
+						#else {
+						#	print "SCHEMA ERROR: Keyword $section incorrect parent $parent: $file $curpath\n" if errors();
+						#}
+					#}
+				}
 			}
 
 			if ( ref($data->{$section}) =~ /HASH|ARRAY/ ) {
-				print &indent . "$curpath -> $section\n" if debug2();
+				print &indent . "$modelType:$curpath -> $section\n" if debug2();
 				
 				# if this section is an RRD/snmp variable, check its length
 				if ( $curpath =~ /rrd\/\w+\/snmp$/ ) {
-					print indent()."Found RRD Variable $section \@ $curpath\n" if debug2();
+					print indent()."Found RRD Variable $section \@ $modelType:$curpath\n" if debug2();
 					checkRrdLength($section);
 				}
 				
@@ -635,7 +794,7 @@ sub processData {
 				}
 
 				#recurse baby!
-				processData($data->{$section},"$section",$file);
+				processData($data->{$section},$modelType,$file);
 				
 				pop(@path);
 				pop(@schema);
@@ -655,7 +814,7 @@ sub processData {
 				}
 				elsif ( $section eq "graphtype" and $curpath =~ /\/rrd\// ) {
 					#print "    $curpath/$section: $data->{$section}\n";
-					if ( $curpath =~ /^(Common|Model)\/(\w+)\/rrd\/(\w+)/ ) {
+					if ( $modelType =~ /^(Common|Model)/ and $curpath =~ /^(\w+)\/rrd\/(\w+)/ ) {
 						my $type = $2; 
 						my $stat_section = $3; 
 						$graphTypes{$stat_section}{type} = $type;
@@ -665,14 +824,14 @@ sub processData {
 				}
 
 				# only diving deeper into the variables for the system.
-				if ( $curpath =~ /^(Common|Model)\/system\/(sys|rrd)\/(\w+)\/snmp\/(\w+)/ and $section eq "oid" ) {
+				if ( $modelType =~ /^(Common|Model)/ and $curpath =~ /system\/(sys|rrd)\/(\w+)\/snmp\/(\w+)/ and $section eq "oid" ) {
 					my $snmpoid = $mibs->{$data->{oid}};
 					if ( not defined $snmpoid and $data->{oid} =~ /1\.3\.6\.1/ ) {
 						$snmpoid = $data->{oid};
 					}
 					# this is a bad one like ciscoMemoryPoolUsed.2?
 					elsif ( $data->{oid} =~ /[a-zA-Z]+\.[\d\.]+/ ) {
-						print indent()."FIXING bad Model OID $file :: $curpath $data->{oid}\n" if debug();
+						print indent()."FIXING bad Model OID $file :: $modelType:$curpath $data->{oid}\n" if debug();
 						my ($mib,$index) = split(/\./,$data->{oid});
 						
 						if ( defined $mibs->{$mib} ) {
@@ -682,7 +841,7 @@ sub processData {
 					}
 
 					if ( not defined $snmpoid ) {
-						print "MODEL ERROR: with Model OID $file :: $curpath $data->{oid}\n" if errors();
+						print "MODEL ERROR: with Model OID $file :: $modelType:$curpath $data->{oid}\n" if errors();
 					}
 
 					push(@discoverList,{
@@ -707,13 +866,13 @@ sub processData {
 				#		push(@oidList,$data->{$section});
 				#	}
 				#}
-				print &indent . "$curpath -> $section = $data->{$section}\n" if debug2();
+				print &indent . "$modelType:$curpath -> $section = $data->{$section}\n" if debug2();
 			}
 		}
 		if ( defined $indexed ) {
 			my $curpath = join("/",@path);
 			my $section = $path[-1];
-			print "$curpath :: section=$section indexed=$indexed index_oid=$index_oid\n" if debug2();
+			print "$modelType:$curpath :: section=$section indexed=$indexed index_oid=$index_oid\n" if debug2();
 			# convert indexed into an oid if index_oid is blank
 			if ( not defined $index_oid ) {
 				$index_oid = $mibs->{$indexed};
@@ -721,7 +880,7 @@ sub processData {
 			push(@discoverList,{
 				type => "systemHealth",
 				file => $file,
-				path => $curpath,
+				path => "$modelType:$curpath",
 				section => $section,
 				indexed => $indexed,
 				index_oid => $index_oid
@@ -731,7 +890,7 @@ sub processData {
 	elsif ( ref($data) eq "ARRAY" ) {
 		foreach my $element (@{$data}) {
 			my $curpath = join("/",@path);
-			print indent."$curpath: $element\n" if debug2();
+			print indent."$modelType:$curpath: $element\n" if debug2();
 			#Is this an RRD DEF?
 			if ( $element =~ /DEF:/ ) {
 				my @DEF = split(":",$element);
@@ -768,49 +927,71 @@ sub addToSchema {
 		my $route = join("/",@$location);  
 
 		# which things are structural in the schema and which are variables.
+		# things are allowed at certain levels in the schema
+		# these can be represented by a mask
+		# if the thing is a reserved word and it is one of the masks, it is all good.
 		my $save = 1;
-		if ( $route =~ /^(system|systemHealth|interface|port|hrwincpu|hrdisk|hrmem|environment|calls|device|cbqos-in|cbqos-out|storage)\/(rrd|sys)$/ ) {
-			$save = 0;
+		foreach my $mask ( sort {$a <=> $b} (keys %$genericSchemaMasks) ) {
+			if ( $route =~ /$genericSchemaMasks->{$mask}/ ) {
+				$save = 0;
+				last();
+			}
 		}
-		elsif ( $route =~ /^(system|systemHealth|interface|port|hrwincpu|hrdisk|hrmem|environment|calls|device|cbqos-in|cbqos-out|storage)\/(rrd|sys)\/[\w\-]+\/(snmp|wmi)$/ ) {
-			$save = 0;
-		}
-		elsif ( $route =~ /^(system|systemHealth|interface|port|hrwincpu|hrdisk|hrmem|environment|calls|device|cbqos-in|cbqos-out|storage)\/(rrd|sys)\/[\w\-]+\/(snmp|wmi)\/[\w\-]+\/replace$/ ) {
-			$save = 0;
-		}
-		#summary/statstype
-		#summary/statstype/[\w\-]+/sumname
-		#summary/statstype/[\w\-]+/sumname/[\w\-]+/stsname
-		elsif ( $route =~ /^(summary\/statstype|summary\/statstype\/[\w\-]+\/sumname|summary\/statstype\/[\w\-]+\/sumname\/[\w\-]+\/stsname)$/ ) {
-			$save = 0;
-		}
-		# -common-/class
-		# threshold/name
-		# heading/graphtype
-		# database/type
-		# stats/type
-		# event/event
 
-		elsif ( $route =~ /^(threshold\/name|heading\/graphtype|database\/type|stats\/type|event\/event|\-common\-\/class)$/ ) {
-			$save = 0;
-		}
-		elsif ( $route =~ /^(alerts|alerts\/[\w\-]+)$/ ) {
-			$save = 0;
-		}
+		# exceptions to the masks.
+		if ( $route =~ /^(system\/sys\/alerts)$/ ) {
+			$save = 1;
+		}	
 		elsif ( $section =~ /^(\d+|\-\d+)$/ ) {
 			$save = 0;
 		}
 
-		if (not $save) {
-			print indent()."MODEL SCHEMA: NOT saving $section with $route\n" if debug3();
-			return;			
-		}
-		else {
+		#elsif ( $route =~ /^(system|systemHealth|interface|port|hrwincpu|hrdisk|hrmem|environment|calls|device|cbqos-in|cbqos-out|storage)\/(rrd|sys)$/ ) {
+		#	$save = 0;
+		#}
+		#elsif ( $route =~ /^(system|systemHealth|interface|port|hrwincpu|hrdisk|hrmem|environment|calls|device|cbqos-in|cbqos-out|storage)\/(rrd|sys)\/[\w\-]+\/(snmp|wmi)$/ ) {
+		#	$save = 0;
+		#}
+		#elsif ( $route =~ /^(system|systemHealth|interface|port|hrwincpu|hrdisk|hrmem|environment|calls|device|cbqos-in|cbqos-out|storage)\/(rrd|sys)\/[\w\-]+\/(snmp|wmi)\/[\w\-]+\/replace$/ ) {
+		#	$save = 0;
+		#}
+		##summary/statstype
+		##summary/statstype/[\w\-]+/sumname
+		##summary/statstype/[\w\-]+/sumname/[\w\-]+/stsname
+		#elsif ( $route =~ /^(summary\/statstype|summary\/statstype\/[\w\-]+\/sumname|summary\/statstype\/[\w\-]+\/sumname\/[\w\-]+\/stsname)$/ ) {
+		#	$save = 0;
+		#}
+		## -common-/class
+		## threshold/name
+		## heading/graphtype
+		## database/type
+		## stats/type
+		## event/event
+#
+		#elsif ( $route =~ /^(threshold\/name|heading\/graphtype|database\/type|stats\/type|event\/event|\-common\-\/class)$/ ) {
+		#	$save = 0;
+		#}
+		#elsif ( $route =~ /^(alerts|alerts\/[\w\-]+)$/ ) {
+		#	$save = 0;
+		#}
+
+		if ($save) {
 			print indent()."MODEL SCHEMA: Saving $section with $route\n" if debug3();
 
 			if ( defined $section and not grep ($_ eq $section, @{$modelSchema->{reserved}}) ) {
 				push(@{$modelSchema->{reserved}},$section);
 			}
+		}
+		else {
+			print indent()."MODEL SCHEMA: NOT saving $section with $route\n" if debug3();
+
+			# BUT is this a variable which is also a reserved variable.
+			# if so then it get special clasification.
+			if (grep ($_ eq $section, @{$modelSchema->{reserved}})) {
+				$modelSchema->{keywords}{$section}{special} = 1;
+			}
+
+			return;			
 		}
 
 		# is the name of the section a reserved word or not?
@@ -839,6 +1020,7 @@ sub addToSchema {
 		if ( defined $value and not grep ($_ eq $type, @{$modelSchema->{keywords}{$section}{types}}) ) {
 			push(@{$modelSchema->{keywords}{$section}{types}},$type);
 		}
+
 	}
 }
 
@@ -851,6 +1033,9 @@ sub schemaDataType {
 	elsif ( $value =~ /(^\d+\.\d+$|^\-\d+\.\d+$)/ ) {
 		return "real";
 	}
+	elsif ( $value =~ /(^\d+\.\d+\.\d+\.|^\.\d+\.\d+\.\d+\.)/ ) {
+		return "dotted-decimal";
+	}
 	else {
 		return "string";
 	}
@@ -860,6 +1045,20 @@ sub saveSchema {
 	my $schemaFile = shift;
 
 	@{$modelSchema->{reserved}} = sort({$a cmp $b} (@{$modelSchema->{reserved}}));
+
+	# whip through the parents of each keyword and remove parents which are not keywords.
+	foreach my $keyword ( sort {$a cmp $b} keys (%{$modelSchema->{keywords}}) ) {
+		my @parents;
+		foreach my $parent (@{$modelSchema->{keywords}{$keyword}{parents}}) {
+			if ( defined $modelSchema->{keywords}{$parent} ) {
+				push(@parents,$parent);
+			}
+			else {
+				print "SCHEMA CLEAN: $keyword, has parent $parent which is not a keyword\n" if debug3();	
+			}
+		}
+		$modelSchema->{keywords}{$keyword}{parents} = \@parents;
+	}
 
 	if ( $make_schema ) {
 		writeHashtoFile( file => $schemaFile, data => $modelSchema );
