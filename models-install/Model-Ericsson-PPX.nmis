@@ -394,7 +394,7 @@
       'ppxCardMEM' => {
         'graphtype' => 'ppxCardMEM,ppxCardMEMFast,ppxCardMEMNormal,ppxCardMEMShared',
         'indexed' => 'true',
-        'skip_collect' => 'true',
+        'skip_collect_comment' => 'true',
       },
       'ppxAtm' => {
         'graphtype' => 'ppxAtmCells,ppxAtmUtil',

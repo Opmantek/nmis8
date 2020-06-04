@@ -57,7 +57,7 @@ print $t->elapTime(). " Begin\n";
 # Variables for command line munging
 my %arg = getArguements(@ARGV);
 
-if ( not defined $arg{node} and not defined $arg{check} ) {
+if ( not defined $arg{node} and not defined $arg{check} and not defined $arg{schema} ) {
 	print "ERROR: need a node to discover or check things\n";
 	usage();
 	exit 1;
@@ -109,6 +109,7 @@ my $vendors;
 my $modLevel;
 my @topSections;
 my @oidList;
+my $schemaErrors = 0;
 
 # needs feature to match enterprise, e.g. only do standard mibs and my vendor mibs.
 
@@ -140,76 +141,84 @@ my @topLevel = qw(
 );
 
 
+# these keywords should only live in these locations.
+# keyword points to the one or more masks it can be used in.
 my $schemaMasks = {
 	'alert' => [ 20, 21 ],
-	'control' => [ 1, 2, 23 ],
-	'graphtype' => [ 2 ],
+	'calculate' => [ 3, 24 ],
+
+	'check' => [ 3 ],
+	'common-model' => [ 41 ],
+	'control' => [ 1, 23, 25, 26 ],
+	'control_regex' => [ 27 ],
+	'element' => [ 23 ],
+	'event' => [ 23, 27 ],
+	'field' => [ 3, 30 ],
+	'format' => [ 3 ],
+	'graphtype' => [ 1, 25 ],
 	'headers' => [ 1 ],
+	'index_headers' => [ 1 ],
 	'index_oid' => [ 1 ],
 	'index_regex' => [ 1 ],
-	'indexed' => [ 1, 2 ],
+	'indexed' => [ 1, 24, 25 ],
 	'info' => [ 3 ],
+	'item' => [ 27 ],
 	'level' => [ 23 ],
+	'nocollect' => [ 1 ],
 	'oid' => [ 3, 20, 22, 24 ],
-	'option' => [ 3 ],
-	'replace' => [ 3 ],	
-	'snmp' => [ 1,2 ],
-	'sections' => [ 10 ],
+	'option' => [ 3, 24 ],
+	'query' => [ 3, 30 ],
+	'replace' => [ 3, 24 ],	
+	'snmp' => [ 1, 22, 25 ],
+	'snmpObject' => [ 3, 20, 23, 24 ],
+	'snmpObjectName' => [ 1, 3, 20, 23 ],
+	'sysObjectName' => [ 3, 20, 23 ],
 
+	'sections' => [ 10 ],
+	'select' => [ 27 ],
+	'stsname' => [ 45 ],
+	'sumname' => [ 45 ],
 	'test' => [ 23 ],
-	'title' => [ 3, 20, 23 ],	
-	'threshold' => [ 1, 2, 23 ],
+	'title' => [ 3, 20, 23, 24, 27 ],	
+	'title_export' => [ 3, 20, 23, 24 ],	
+	'threshold' => [ 1, 23, 25 ],
 	'type' => [ 23 ],	
-	'unit' => [ 23 ],	
-	'value' => [ 23 ],	
+	'unit' => [ 3, 23, 27 ],	
+	'value' => [ 23, 26 ],	
+	'wmi' => [ 1, 22, 25 ],
 };
 
 my $keywordSchemaMasks = {
 	#systemHealth/sys/QoSOut/snmp/QosName
 	0 => qr/./,
-	1 => qr/^(interface|system|systemHealth)\/(sys)\/[\w\-]+$/,
-	2 => qr/^(interface|system|systemHealth)\/(rrd)\/[\w\-]+$/,
-	3 => qr/^(interface|system|systemHealth)\/(rrd|sys)\/[\w\-]+\/snmp\/[\w\-]+$/,
+	1 => qr/^(interface|system|systemHealth)\/(rrd|sys)\/[\w\-]+$/,
+	3 => qr/^(interface|system|systemHealth)\/(rrd|sys)\/[\w\-]+\/(snmp|wmi)\/[\w\-]+$/,
 	4 => qr/^(system|interface)\/(rrd|sys)\/[\w\-]+\/snmp$/,
 
 	10 => qr/^systemHealth$/,
 	12 => qr/^systemHealth$/,
 
 	#system/sys/alerts/snmp/banana
-	20 => qr/^system\/sys\/alerts\/snmp\/[\w\-]+$/,
+	20 => qr/^system\/sys\/alerts\/(snmp|wmi)\/[\w\-]+$/,
 	21 => qr/^event\/event$/,
 	22 => qr/^(device|storage)\/(sys)\/[\w\-]+$/,
 	23 => qr/^alerts\/[\w\-]+\/[\w\-]+$/,
 	24 => qr/^(port|hrwincpu|hrdisk|hrmem|environment|calls|device|cbqos-in|cbqos-out|storage)\/(rrd|sys)\/[\w\-]+\/snmp\/[\w\-]+$/,
+	25 => qr/^(port|hrwincpu|hrdisk|hrmem|environment|calls|device|cbqos-in|cbqos-out|storage)\/(rrd|sys)\/[\w\-]+$/,
+	26 => qr/^threshold\/name\/[\w\-]+\/select\/[\w\-]+$/,
+	27 => qr/^threshold\/name\/[\w\-]+$/,
 
+	30 => qr/^system\/sys\/[\w\-]+\/wmi\/[\w\-]+$/,
+
+	41 => qr/^\-common\-\/class\/[\w\-]+$/,
+	#summary/statstype/nodehealth
+	#summary/statstype/health/sumname/reachable
+	45 => qr/^(summary\/statstype\/[\w\-]+|summary\/statstype\/[\w\-]+\/sumname\/[\w\-]+)$/,
 };
 
-my $includeSchemaMasks = {
-	#systemHealth/sys/QoSOut/snmp/QosName
-	1 => qr/^(systemHealth|interface)\/(sys)\/[\w\-]+$/,
-	2 => qr/^(systemHealth|interface)\/(rrd)\/[\w\-]+$/,
-	3 => qr/^(systemHealth|interface)\/(rrd|sys)\/[\w\-]+\/snmp\/[\w\-]+$/,
-	4 => qr/^(system|interface)\/(rrd|sys)\/[\w\-]+\/snmp$/,
-	10 => qr/^(system|systemHealth|interface|port|hrwincpu|hrdisk|hrmem|environment|calls|device|cbqos-in|cbqos-out|storage)\/(rrd|sys)$/,
-	20 => qr/^(system|systemHealth|interface|port|hrwincpu|hrdisk|hrmem|environment|calls|device|cbqos-in|cbqos-out|storage)\/(rrd|sys)\/[\w\-]+\/(snmp|wmi)\/[\w\-]+$/,
-	30 => qr/^(system|systemHealth|interface|port|hrwincpu|hrdisk|hrmem|environment|calls|device|cbqos-in|cbqos-out|storage)\/(rrd|sys)\/[\w\-]+\/(snmp|wmi)\/[\w\-]+\/replace$/,
-	#summary/statstype
-	#summary/statstype/[\w\-]+/sumname
-	#summary/statstype/[\w\-]+/sumname/[\w\-]+/stsname
-	40 => qr/^(summary\/statstype|summary\/statstype\/[\w\-]+\/sumname|summary\/statstype\/[\w\-]+\/sumname\/[\w\-]+\/stsname)$/,
-	# -common-/class
-	# threshold/name
-	# heading/graphtype
-	# database/type
-	# stats/type
-	# event/event
-	50 => qr/^(threshold\/name|heading\/graphtype|database\/type|stats\/type|event\/event|\-common\-\/class)$/,
-	60 => qr/^(alerts|alerts\/[\w\-]+)$/,
-	70 => qr/^(\d+|\-\d+)$/,
-};
-
+# these classes can have user defined terms
 my $genericSchemaMasks = {
-	#systemHealth/sys/QoSOut/snmp/QosName
+	# systemHealth/sys/QoSOut/snmp/QosName
 	5 => qr/^(system|systemHealth|interface)\/(rrd|sys)$/,
 	10 => qr/^(system|systemHealth|interface)\/(rrd|sys)\/[\w\-]+\/(snmp|wmi)$/,
 	15 => qr/^(system|systemHealth|interface)\/(rrd|sys)\/[\w\-]+\/(snmp|wmi)\/[\w\-]+\/replace$/,
@@ -217,10 +226,17 @@ my $genericSchemaMasks = {
 	20 => qr/^(port|hrwincpu|hrdisk|hrmem|environment|calls|device|cbqos-in|cbqos-out|storage)\/(rrd|sys)$/,
 	25 => qr/^(port|hrwincpu|hrdisk|hrmem|environment|calls|device|cbqos-in|cbqos-out|storage)\/(rrd|sys)\/[\w\-]+\/(snmp|wmi)$/,
 	30 => qr/^(port|hrwincpu|hrdisk|hrmem|environment|calls|device|cbqos-in|cbqos-out|storage)\/(rrd|sys)\/[\w\-]+\/(snmp|wmi)\/[\w\-]+\/replace$/,
-	#summary/statstype
-	#summary/statstype/[\w\-]+/sumname
-	#summary/statstype/[\w\-]+/sumname/[\w\-]+/stsname
-	40 => qr/^(summary\/statstype|summary\/statstype\/[\w\-]+\/sumname|summary\/statstype\/[\w\-]+\/sumname\/[\w\-]+\/stsname)$/,
+	
+	40 => qr/^\-common\-\/class$/,
+
+	# anything under event/event/[event name] is allowed, needs context checking.
+	41 => qr/^event\/event\/[\w\-\ ]+$/,
+
+	# summary/statstype
+	# summary/statstype/[\w\-]+/sumname
+	# summary/statstype/[\w\-]+/sumname/[\w\-]+/stsname
+	45 => qr/^(summary\/statstype|summary\/statstype\/[\w\-]+\/sumname|summary\/statstype\/[\w\-]+\/sumname\/[\w\-]+\/stsname)$/,
+	
 	# -common-/class
 	# threshold/name
 	# heading/graphtype
@@ -232,6 +248,31 @@ my $genericSchemaMasks = {
 	70 => qr/^(\d+|\-\d+)$/,
 };
 
+my $includeSchemaMasks = {
+	# systemHealth/sys/QoSOut/snmp/QosName
+	1 => qr/^(systemHealth|interface)\/(sys)\/[\w\-]+$/,
+	2 => qr/^(systemHealth|interface)\/(rrd)\/[\w\-]+$/,
+	3 => qr/^(systemHealth|interface)\/(rrd|sys)\/[\w\-]+\/snmp\/[\w\-]+$/,
+	4 => qr/^(system|interface)\/(rrd|sys)\/[\w\-]+\/snmp$/,
+	10 => qr/^(system|systemHealth|interface|port|hrwincpu|hrdisk|hrmem|environment|calls|device|cbqos-in|cbqos-out|storage)\/(rrd|sys)$/,
+	20 => qr/^(system|systemHealth|interface|port|hrwincpu|hrdisk|hrmem|environment|calls|device|cbqos-in|cbqos-out|storage)\/(rrd|sys)\/[\w\-]+\/(snmp|wmi)\/[\w\-]+$/,
+	30 => qr/^(system|systemHealth|interface|port|hrwincpu|hrdisk|hrmem|environment|calls|device|cbqos-in|cbqos-out|storage)\/(rrd|sys)\/[\w\-]+\/(snmp|wmi)\/[\w\-]+\/replace$/,
+	
+	# summary/statstype
+	# summary/statstype/[\w\-]+/sumname
+	# summary/statstype/[\w\-]+/sumname/[\w\-]+/stsname
+	40 => qr/^(summary\/statstype|summary\/statstype\/[\w\-]+\/sumname|summary\/statstype\/[\w\-]+\/sumname\/[\w\-]+\/stsname)$/,
+	
+	# -common-/class
+	# threshold/name
+	# heading/graphtype
+	# database/type
+	# stats/type
+	# event/event
+	50 => qr/^(threshold\/name|heading\/graphtype|database\/type|stats\/type|event\/event|\-common\-\/class)$/,
+	60 => qr/^(alerts|alerts\/[\w\-]+)$/,
+	70 => qr/^(\d+|\-\d+)$/,
+};
 
 my @schema;
 my @discoverList;
@@ -241,11 +282,17 @@ my %nodeSummary;
 
 my $mibs = loadMibs($C);
 my $modelSchema;
-$modelSchema = readFiletoHash(file => $schemaFile) if $schema;
+if ( $schema and -r $schemaFile ) {
+	$modelSchema = readFiletoHash(file => $schemaFile);	
+}
+else {
+	$schema = 0;
+}
 
-print $t->elapTime(). " Load all the NMIS models from $C->{'<nmis_base>'}/$models_dir\n" if debug();
+
+print $t->elapTime(). " Load all the NMIS models from $C->{'<nmis_base>'}/$models_dir\n";
 processDir(dir => "$C->{'<nmis_base>'}/$models_dir");
-print $t->elapTime(). " Done with Models.  Processed $file_count NMIS Model files.\n" if debug();
+print $t->elapTime(). " Done with Models.  Processed $file_count NMIS Model files.\n";
 
 checkGraphTypes("$C->{'<nmis_base>'}/$models_dir");
 
@@ -268,7 +315,10 @@ if (debug3()) {
 	print Dumper $modelSchema;
 }
 
-printSchemaSummary() if $schema;
+if ( $schema ) {
+	printSchemaSummary();
+	print "$schemaErrors model schema errors were found.\n";
+}
 
 sub printSchemaSummary {
 	foreach my $keyword ( sort {$a cmp $b} keys (%{$modelSchema->{keywords}}) ) {
@@ -688,6 +738,12 @@ sub processModelFile {
 	}	
 }
 
+sub schemaError {
+	my $error = shift;
+	print "$error\n" if errors();
+	++$schemaErrors;
+}
+
 sub processData {
 	my $data = shift;
 	my $modelType = shift;
@@ -710,7 +766,7 @@ sub processData {
 				my $validSchema = 0;
 				if ( not @path ) {
 					if ( not grep ($_ eq $section, @topLevel) ) {
-						print "SCHEMA ERROR: Keyword $section incorrect Top Level: $file\n" if errors();
+						schemaError("SCHEMA ERROR: Keyword $section incorrect Top Level: $file");
 					}
 					else {
 						$validSchema = 1;
@@ -732,10 +788,14 @@ sub processData {
 						# is this a special variable?
 						print "SCHEMA INFO: Keyword $section is a Special Variable\n" if debug3();
 
+						# when numbers or blanks are used for ordering
 						if ( $section =~ /(\ |[\d\-]+)/ and $parent =~ /(select|replace)/ ) {
 							$validSchema = 1;
 						}
-
+						# comments can be used, e.g. comment or control_comment are allowed anywhere.
+						elsif ( $section =~ /(example|comment)$/ ) {
+							$validSchema = 1;
+						}
 
 						# check the variable against our known masks, if it matches it is OK.
 						if ( defined $schemaMasks->{$section} ) {
@@ -745,8 +805,10 @@ sub processData {
 								}									
 							}
 						}
-						else {
-						#if ( not $validSchema ) {
+						
+						if ( not $validSchema ) {
+							# check the section name against the generic masks
+							# these ones can be almost anything.
 							foreach my $mask ( sort {$a <=> $b} (keys %$genericSchemaMasks) ) {
 								if ( $curpath =~ /$genericSchemaMasks->{$mask}/ ) {
 									$validSchema = 1;
@@ -756,7 +818,7 @@ sub processData {
 						}
 
 						if ( not $validSchema ) {
-							print "SCHEMA ERROR: Keyword $section incorrect path: $file $curpath\n" if errors();
+							schemaError("SCHEMA ERROR: Keyword $section incorrect path: $file $curpath");
 						}
 
 						#}
@@ -773,7 +835,9 @@ sub processData {
 				# if this section is an RRD/snmp variable, check its length
 				if ( $curpath =~ /rrd\/\w+\/snmp$/ ) {
 					print indent()."Found RRD Variable $section \@ $modelType:$curpath\n" if debug2();
-					checkRrdLength($section);
+					if ( checkRrdLength($section) > $rrdlen ) {
+						print "MODEL ERROR: RRD variable $section found longer than $rrdlen: $file $curpath\n" if errors();
+					}
 				}
 				
 				addToSchema(section => $section, location => \@schema, ref => ref($data->{$section}));
@@ -895,7 +959,9 @@ sub processData {
 			if ( $element =~ /DEF:/ ) {
 				my @DEF = split(":",$element);
 				#DEF:avgBusy1=$database:avgBusy1:AVERAGE
-				checkRrdLength($DEF[2]);
+				if ( checkRrdLength($DEF[2]) > $rrdlen ) {
+					print "MODEL ERROR: RRD variable $DEF[2] found longer than $rrdlen: $file $curpath\n" if errors();
+				}
 			}
 		}
 	}
@@ -906,13 +972,7 @@ sub processData {
 sub checkRrdLength {
 	my $string = shift;
 	my $len = length($string);
-	$indent += 2;
-	print indent()."FOUND: $string is length $len\n" if debug2();
-	if ($len > $rrdlen ) {
-		print "MODEL ERROR: RRD variable $string found longer than $rrdlen\n" if errors();
-			
-	}
-	$indent -= 2;
+	return $len
 }
 
 sub addToSchema {
