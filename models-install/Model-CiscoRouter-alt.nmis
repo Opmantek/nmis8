@@ -169,7 +169,6 @@
             'oid' => 'cmSystemModemsDead'
           },
           'ModemsUnavailable' => {
-            'threshold' => 'modem_unav',
             'oid' => 'cmSystemModemsUnavailable'
           },
           'InstalledModem' => {
