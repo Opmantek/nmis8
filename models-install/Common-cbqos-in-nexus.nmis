@@ -42,7 +42,7 @@
         #'threshold' => 'qos_pkt_drop',
         'snmp' => {
           'DropPkt' => {
-            'cbqosMibObject' => 'cbQosCMDropPkt64',
+            'cbqosMibObject_comment' => 'cbQosCMDropPkt64',
             'oid' => 'cbQosQueueingDiscardPkt64',
             'option' => 'counter,U:U'
           },
@@ -57,7 +57,7 @@
           #  'option' => 'counter,U:U'
           #},
           'DropByte' => {
-            'cbqosMibObject' => 'cbQosCMDropByte64',
+            'cbqosMibObject_comment' => 'cbQosCMDropByte64',
             'oid' => 'cbQosQueueingDiscardByte64',
             'option' => 'counter,U:U'
           },
@@ -68,12 +68,12 @@
           #},
           # Placing the data into the PrePolicy objects so it gets graphed
           'PrePolicyByte' => {
-            'cbqosMibObject' => 'cbQosCMPostPolicyByte64',
+            'cbqosMibObject_comment' => 'cbQosCMPostPolicyByte64',
             'oid' => 'cbQosQueueingTransmitByte64',
             'option' => 'counter,U:U'
           },
           'PrePolicyPkt' => {
-            'cbqosMibObject' => 'no related cbQosCMPostPolicy mib exists',
+            'cbqosMibObject_comment' => 'no related cbQosCMPostPolicy mib exists',
             'oid' => 'cbQosQueueingTransmitPkt64',
             'option' => 'counter,U:U'
           }

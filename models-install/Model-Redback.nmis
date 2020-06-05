@@ -135,6 +135,33 @@
           }
         },
         'graphtype' => 'ip,frag'
+      },
+      'power' => {
+        'snmp' => {
+          'SupplyState1' => {
+            'replace' => {
+              '1' => 'Alarm',
+              'unknown' => 'unknown',
+              '2' => 'normal'
+            },
+            'oid' => 'rbnPowerFail.1'
+          },
+          'SupplyDescr1' => {
+            'oid' => 'rbnPowerDescr.1'
+          },
+          'SupplyDescr2' => {
+            'oid' => 'rbnPowerDescr.2'
+          },
+          'SupplyState2' => {
+            'replace' => {
+              '1' => 'Alarm',
+              'unknown' => 'unknown',
+              '2' => 'normal'
+            },
+            'oid' => 'rbnPowerFail.2'
+          }
+        },
+        'control' => '$sysObjectName =~ /^rbn/i'
       }
     },
     'sys' => {
@@ -180,35 +207,6 @@
             'title' => 'Contact'
           }
         }
-      }
-    },
-    'power' => {
-      'pwr' => {
-        'snmp' => {
-          'SupplyState1' => {
-            'replace' => {
-              '1' => 'Alarm',
-              'unknown' => 'unknown',
-              '2' => 'normal'
-            },
-            'oid' => 'rbnPowerFail.1'
-          },
-          'SupplyDescr1' => {
-            'oid' => 'rbnPowerDescr.1'
-          },
-          'SupplyDescr2' => {
-            'oid' => 'rbnPowerDescr.2'
-          },
-          'SupplyState2' => {
-            'replace' => {
-              '1' => 'Alarm',
-              'unknown' => 'unknown',
-              '2' => 'normal'
-            },
-            'oid' => 'rbnPowerFail.2'
-          }
-        },
-        'control' => '$sysObjectName =~ /^rbn/i'
       }
     },
     'nodeVendor' => 'RedBack Networks',

@@ -109,34 +109,30 @@
     'rrd' => {
       'nodehealth' => {
         'threshold' => 'cpu,hrmem',
-        'graphtype' => 'cpu,hrmem,routenumber'
-,
+        'graphtype' => 'cpu,hrmem,routenumber',
         'snmp' => {
-         'avgBusy5' => {
-	  'snmpObject' => 'extremeCpuMonitorTotalUtilization',
-          'oid' => '.1.3.6.1.4.1.1916.1.32.1.2.0'
+          'avgBusy5' => {
+            'snmpObject' => 'extremeCpuMonitorTotalUtilization',
+            'oid' => '.1.3.6.1.4.1.1916.1.32.1.2.0'
           },
-
-         'avgBusy1' => {
-	  'snmpObject' => 'extremeCpuMonitorTotalUtilization',
-          'oid' => '.1.3.6.1.4.1.1916.1.32.1.2.0'
+          'avgBusy1' => {
+            'snmpObject' => 'extremeCpuMonitorTotalUtilization',
+            'oid' => '.1.3.6.1.4.1.1916.1.32.1.2.0'
           },    
-	  'RouteNumber' => {
-	  'oid' => 'ipCidrRouteNumber'
-	         },
-	  'hrMemSize' => {
-           'snmpObject' => 'extremeMemoryMonitorSystemTotal',
-          'oid' => '.1.3.6.1.4.1.1916.1.32.2.2.1.2.1'
+          'RouteNumber' => {
+	           'oid' => 'ipCidrRouteNumber'
+	        },
+	        'hrMemSize' => {
+            'snmpObject' => 'extremeMemoryMonitorSystemTotal',
+            'oid' => '.1.3.6.1.4.1.1916.1.32.2.2.1.2.1'
           },
           'hrMemUsed' => {
-           'snmpObject' => 'extremeMemoryMonitorSystemUsage',
+            'snmpObject' => 'extremeMemoryMonitorSystemUsage',
             'oid' => '.1.3.6.1.4.1.1916.1.32.2.2.1.4.1'
           },
 
-             },
-          },
-       },
-      
+        },
+      },      
       'mib2ip' => {
         'snmp' => {
           'ipInAddrErrors' => {
@@ -206,7 +202,6 @@
         'graphtype' => 'ip,frag'
       },
       'power' => {
-      'pwr' => {
         'snmp' => {
           'SupplyState1' => {
             'replace' => {
@@ -231,7 +226,7 @@
               'unknown' => 'unknown',
               '2' => 'normal'
             },
-	    'snmpObject' => 'extremeRedundantPowerAlarm',
+            'snmpObject' => 'extremeRedundantPowerAlarm',
             'oid' => '.1.3.6.1.4.1.1916.1.1.1.12'
           }
         },
