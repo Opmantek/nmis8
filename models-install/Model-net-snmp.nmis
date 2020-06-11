@@ -169,6 +169,17 @@
       },
     },
     'rrd' => {
+      'nodehealth' => {
+        'graphtype' => 'hrsystem',
+        'snmp' => {
+          'hrSystemProcesses' => {
+            'oid' => 'hrSystemProcesses'
+          },
+          'hrSystemNumUsers' => {
+            'oid' => 'hrSystemNumUsers'
+          }
+        }
+      },
       'tcp' => {
         'graphtype' => 'tcp-conn,tcp-segs',
         'snmp' => {
@@ -687,7 +698,7 @@
     },
     'nocollect' => {
       'ifOperStatus' => 'other',
-      'ifDescr' => 'sublayer|null',
+      'ifDescr' => 'sublayer|null|et.*',
       'Description' => '^#',
       'noDescription' => 'false',
       'ifType' => 'other|softwareloopback|isdn'

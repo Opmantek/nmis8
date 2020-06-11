@@ -120,7 +120,7 @@ sub collect_plugin
 				info("Host Memory Type = $entry->{hrStorageDescr} interesting as $type");
 			}
 			else {
-				info("Host Storage Type = $entry->{hrStorageDescr} less interesting");
+				info("Host Storage Type = $entry->{hrStorageDescr} less interesting") if defined $entry->{hrStorageDescr};
 			}
 
 			# do we have a type of memory to process?
@@ -130,30 +130,32 @@ sub collect_plugin
 				$Host_Memory->{$type ."_units"} = $entry->{hrStorageAllocationUnits};
 			}
 
-			# must guard against 'noSuchInstance', which surivies first check b/c non-empty
-			my $sizeisnumber = ( $entry->{hrStorageSize}
-													 # int or float
-													 && $entry->{hrStorageSize} =~ /^([+-]?)(?=\d|\.\d)\d*(\.\d*)?([Ee]([+-]?\d+))?$/ );
+			if ( defined $entry->{hrStorageUnits} and defined $entry->{hrStorageSize} and defined $entry->{hrStorageUsed} ) {
+				# must guard against 'noSuchInstance', which surivies first check b/c non-empty
+				my $sizeisnumber = ( $entry->{hrStorageSize}
+														 # int or float
+														 && $entry->{hrStorageSize} =~ /^([+-]?)(?=\d|\.\d)\d*(\.\d*)?([Ee]([+-]?\d+))?$/ );
 
-			$entry->{hrStorageUtil} = sprintf("%.1f", $entry->{hrStorageUsed} / $entry->{hrStorageSize} * 100)
-					if (defined $sizeisnumber && $sizeisnumber && $entry->{hrStorageSize} != 0);
+				$entry->{hrStorageUtil} = sprintf("%.1f", $entry->{hrStorageUsed} / $entry->{hrStorageSize} * 100)
+						if (defined $sizeisnumber && $sizeisnumber && $entry->{hrStorageSize} != 0);
 
-			$entry->{hrStorageTotal} = getDiskBytes($entry->{hrStorageUnits} * $entry->{hrStorageSize})
-					if (defined $sizeisnumber && $sizeisnumber && $entry->{hrStorageUnits});
+				$entry->{hrStorageTotal} = getDiskBytes($entry->{hrStorageUnits} * $entry->{hrStorageSize})
+						if (defined $sizeisnumber && $sizeisnumber && $entry->{hrStorageUnits});
 
-			my $usedisnumber = ($entry->{hrStorageUsed}
-													&& $entry->{hrStorageUsed} =~ /^([+-]?)(?=\d|\.\d)\d*(\.\d*)?([Ee]([+-]?\d+))?$/ );
-			$entry->{hrStorageUsage} = getDiskBytes($entry->{hrStorageUnits} * $entry->{hrStorageUsed})
-					if (defined $usedisnumber && $usedisnumber && $entry->{hrStorageUnits});
+				my $usedisnumber = ($entry->{hrStorageUsed}
+														&& $entry->{hrStorageUsed} =~ /^([+-]?)(?=\d|\.\d)\d*(\.\d*)?([Ee]([+-]?\d+))?$/ );
+				$entry->{hrStorageUsage} = getDiskBytes($entry->{hrStorageUnits} * $entry->{hrStorageUsed})
+						if (defined $usedisnumber && $usedisnumber && $entry->{hrStorageUnits});
 
-			$entry->{hrStorageTypeName} = $typeName;
+				$entry->{hrStorageTypeName} = $typeName;
 
-			my @summary;
-			push(@summary,"Size: $entry->{hrStorageTotal}<br/>") if ($sizeisnumber);
-			push(@summary,"Used: $entry->{hrStorageUsage} ($entry->{hrStorageUtil}%)<br/>") if ($usedisnumber);
-			push(@summary,"Partition: $entry->{hrPartitionLabel}<br/>") if defined $entry->{hrPartitionLabel};
+				my @summary;
+				push(@summary,"Size: $entry->{hrStorageTotal}<br/>") if ($sizeisnumber);
+				push(@summary,"Used: $entry->{hrStorageUsage} ($entry->{hrStorageUtil}%)<br/>") if ($usedisnumber);
+				push(@summary,"Partition: $entry->{hrPartitionLabel}<br/>") if defined $entry->{hrPartitionLabel};
 
-			$entry->{hrStorageSummary} = join(" ",@summary);
+				$entry->{hrStorageSummary} = join(" ",@summary);
+			}
 		}
 
 		if ( ref($Host_Memory) eq "HASH" ) {
@@ -225,7 +227,7 @@ sub update_plugin
 				$changesweremade = 1;
 			}
 			else {
-				dbg("Host_Storage no name found for $entry->{hrStorageType}",1);
+				dbg("Host_Storage no name found for $entry->{hrStorageType}",1) if defined $entry->{hrStorageType};
 			}
 		}
 	}

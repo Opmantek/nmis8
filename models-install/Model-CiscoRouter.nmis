@@ -80,6 +80,9 @@
       'status' => {
         'common-model' => 'Cisco-status'
       },
+      'Cisco-cpu' => {
+        'common-model' => 'Cisco-cpu'
+      },
     }
   },
   'system' => {
@@ -94,7 +97,7 @@
     'rrd' => {
       'nodehealth' => {
         'threshold' => 'cpu,mem-proc',
-        'graphtype' => 'buffer,cpu,mem-io,mem-proc,mem-router,routenumber',
+        'graphtype' => 'buffer,cpu,mem-io,mem-proc,mem-router',
         'snmp' => {
           'MemoryUsedPROC' => {
             'oid' => 'ciscoMemoryPoolUsed.1'
@@ -125,9 +128,18 @@
           'bufferElFree' => {
             'oid' => 'bufferElFree'
           },
-	        'RouteNumber' => {
-	          'oid' => 'ipCidrRouteNumber'
-	        }
+          'RouteNumber' => {
+            'comment' => 'this will be deprecated from nodehealth',
+            'oid' => 'ipCidrRouteNumber'
+          }
+        },
+      },
+      'RouteNumber' => {
+        'graphtype' => 'routenumber',
+        'snmp' => {
+          'RouteNumber' => {
+            'oid' => 'ipCidrRouteNumber'
+          },
         },
       },
       'modem' => {
@@ -148,7 +160,6 @@
             'oid' => 'cmSystemModemsDead'
           },
           'ModemsUnavailable' => {
-            'threshold' => 'modem_unav',
             'oid' => 'cmSystemModemsUnavailable'
           },
           'InstalledModem' => {
@@ -642,6 +653,6 @@
     }
   },
   'systemHealth' => {
-    'sections' => 'Cisco_CBQoS,NetFlowInterfaces,addressTable,bgpPeer,ospfNbr,cdp,fanStatus,psuStatus,tempStatus,entityMib,ciscoAsset,vtpVlan,mplsVpnVrf,mplsL3VpnVrf,mplsL3VpnIfConf,mplsVpnInterface,mplsL3VpnVrfRT,mplsVpnVrfRouteTarget,mplsLdpEntity',
+    'sections' => 'cpu_cpm,Cisco_CBQoS,NetFlowInterfaces,addressTable,bgpPeer,ospfNbr,cdp,fanStatus,psuStatus,env_temp,tempStatus,tempValue,entityMib,ciscoAsset,vtpVlan,mplsVpnVrf,mplsL3VpnVrf,mplsL3VpnIfConf,mplsVpnInterface,mplsL3VpnVrfRT,mplsVpnVrfRouteTarget,mplsLdpEntity',
   }
 );

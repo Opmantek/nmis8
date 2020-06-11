@@ -53,6 +53,12 @@
       'software' => {
         'common-model' => 'software'
       },
+      'system' => {
+        'common-model' => 'tcp'
+      },
+      'system' => {
+        'common-model' => 'mib2ip'
+      },
       'interface' => {
         'common-model' => 'Windows-interface'
       },

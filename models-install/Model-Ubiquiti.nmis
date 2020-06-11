@@ -757,27 +757,27 @@
         'snmp' => {
           'linkRateTx' => {
             'oid' => '1.3.6.1.4.1.14988.1.1.1.1.1.2',
-            'sysObjectID' => 'mtxrWlStatTxRate',
+            'snmpObjectName' => 'mtxrWlStatTxRate',
             'title' => 'Wireless Link Rate Tx',
           },
           'linkRateRx' => {
             'oid' => '1.3.6.1.4.1.14988.1.1.1.1.1.3',
-            'sysObjectID' => 'mtxrWlStatRxRate',
+            'snmpObjectName' => 'mtxrWlStatRxRate',
             'title' => 'Wireless Link Rate Rx',
           },
           'SSID' => {
             'oid' => '1.3.6.1.4.1.14988.1.1.1.1.1.5',
-            'sysObjectID' => 'mtxrWlStatSsid',
+            'snmpObjectName' => 'mtxrWlStatSsid',
             'title' => 'SSID',
           },
           #'BSSID' => {
           #  'oid' => '1.3.6.1.4.1.14988.1.1.1.1.1.6',
-          #  'sysObjectID' => 'mtxrWlStatBssid',
+          #  'snmpObjectName' => 'mtxrWlStatBssid',
           #  'title' => 'BSSID',
           #},
           'Frequency' => {
             'oid' => '1.3.6.1.4.1.14988.1.1.1.1.1.7',
-            'sysObjectID' => 'mtxrWlStatFreq',
+            'snmpObjectName' => 'mtxrWlStatFreq',
             'title' => 'Frequency',
           },
         },

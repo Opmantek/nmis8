@@ -59,7 +59,7 @@
         'graphtype' => 'jnxCPU,jnxMem,jnxTemp',
         'indexed' => 'true',
         'control' => 'CVAR=jnxOperatingMemory;$CVAR > 0',
-        'control_descr' => 'Only collect if the memory is greater than 0 (ZERO)',        
+        'control_comment' => 'Only collect if the memory is greater than 0 (ZERO)',        
         'threshold' => 'jnx_cpu,jnx_temp,jnx_buffer,jnx_heap',
         'snmp' => {
           'jnxOperatingTemp' => {
