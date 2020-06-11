@@ -172,6 +172,7 @@
       'systemStats' => '/nodes/$node/health/systemstats.rrd',
       'systemStatsMulti' => '/nodes/$node/health/systemStatsMulti-$index.rrd',
       'tcp' => '/nodes/$node/health/tcp.rrd',
+      'FEemailhandling' => '/nodes/$node/health/FEemailhandling.rrd',
       'tempStatus' => '/nodes/$node/health/tempstatus-$index.rrd',
       'tempValue' => '/nodes/$node/health/tempvalue-$index.rrd',
       'upsbat' => '/nodes/$node/misc/apc-ups-bat.rrd',

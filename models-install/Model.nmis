@@ -668,6 +668,13 @@
         }
       }
     },
+    'FireEye Inc.' => {
+      'order' => {
+        '10' => {
+          'FireEye' => '.'
+        }
+      }
+    },
   },
   'system' => {
     'nodeModel' => 'Default',
@@ -696,6 +703,7 @@
           },
           'sysName' => {
             'oid' => 'sysName',
+            'title' => 'System Name',
           },
           'sysContact' => {
             'oid' => 'sysContact',

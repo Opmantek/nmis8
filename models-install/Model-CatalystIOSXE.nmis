@@ -547,7 +547,7 @@
   },
   'system' => {
     'nodeModel' => 'CatalystIOSXE',
-    'nodeType' => 'router',
+    'nodeType' => 'switch',
     'nodeVendor' => 'Cisco Systems',
     'nodegraph' => 'health,response,cpu,ip,mem-proc,routenumber,topo',
     'rrd' => {
