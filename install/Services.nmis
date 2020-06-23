@@ -4,7 +4,7 @@
     'Port' => '',
     'Poll_Interval' => '5m',
     'Service_Name' => 'snmp.exe',
-		'Service_Parameters' => '',
+    'Service_Parameters' => '',
     'Name' => 'SNMP_Service'
   },
   'SNMP_Daemon' => {
@@ -12,7 +12,7 @@
     'Port' => '',
     'Poll_Interval' => '5m',
     'Service_Name' => 'snmpd',
-		'Service_Parameters' => '',
+    'Service_Parameters' => '',
     'Name' => 'SNMP_Daemon'
   },
   'dns' => {
@@ -55,15 +55,15 @@
     'Port' => '',
     'Poll_Interval' => '5m',
     'Service_Name' => 'httpd',
-		'Service_Parameters' => '',
+    'Service_Parameters' => '',
     'Name' => 'HTTP_Server'
   },
   'mysqld_daemon' => {
     'Service_Type' => 'service',
     'Port' => '',
     'Poll_Interval' => '5m',
-    'Service_Name' => 'mysqld',
-		'Service_Parameters' => '',
+    'Service_Name' => '(mysqld|mysqld_safe|mariadb)',
+    'Service_Parameters' => '',
     'Name' => 'mysqld_daemon'
   },
   'port22' => {
@@ -93,5 +93,21 @@
     'Poll_Interval' => '5m',
     'Service_Name' => 'DNS',
     'Name' => 'port53'
-  }
+  },
+  'opmantek.pl' => {
+    'Service_Type' => 'service',
+    'Port' => '',
+    'Poll_Interval' => '5m',
+    'Service_Name' => 'opmantek.pl',
+    'Service_Parameters' => '',
+    'Name' => 'opmantek.pl'
+  },
+  'mongo_daemon' => {
+    'Service_Type' => 'service',
+    'Port' => '',
+    'Poll_Interval' => '5m',
+    'Service_Name' => 'mongod',
+    'Service_Parameters' => '',
+    'Name' => 'mongo_daemon'
+  },
 );
