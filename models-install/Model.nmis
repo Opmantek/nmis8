@@ -562,9 +562,10 @@
         #'40' => {
         #  'HuaweiSwitches' => 'S5700|S7700'
         #},
-        #'50' => {
-        #  'HuaweiRouterAR2240' => 'AR2240'
-        #},
+        '50' => {
+          'HuaweiRouterAR2240-uses-common' => 'AR2240'
+          #'HuaweiRouterAR2240' => 'AR2240'
+        },
         '99' => {
           'Default-HC' => '.'
         }
