@@ -8576,6 +8576,14 @@ sub runMetrics
 	}
 
 	foreach $group (sort keys %{$GT}) {
+		if ( defined $C->{run_metrics_groups} 
+					and $C->{run_metrics_groups} ne ""
+					and $group !~ /$C->{run_metrics_groups}/
+				)
+		{
+			dbg("Skipping $group because it is not included in run_metrics_groups");
+			next;
+		}
 		$groupSummary = getGroupSummary(group=>$group);
 		$status = overallNodeStatus(group=>$group);
 		$status = statusNumber($status);
