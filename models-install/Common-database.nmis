@@ -103,6 +103,7 @@
       'cempMemPool' => '/nodes/$node/health/cempMemPool-$index.rrd',
       'checkpoint' => '/nodes/$node/health/checkpoint.rrd',
       'ciscoMemoryPool' => '/nodes/$node/health/ciscoMemoryPool-$index.rrd',
+      'combinedCPUload' => '/nodes/$node/health/combinedCPUload.rrd',
       'cps6000Alarm' => '/nodes/$node/health/cps6000Alarm-$index.rrd',
       'cps6000Cct' => '/nodes/$node/health/cps6000Cct-$index.rrd',
       'cps6000Grp' => '/nodes/$node/health/cps6000Grp-$index.rrd',
