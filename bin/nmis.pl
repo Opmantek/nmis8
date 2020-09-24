@@ -1508,6 +1508,11 @@ sub doCollect
 				print "MODEL $S->{name}: vendor=$NI->{system}{nodeVendor} model=$NI->{system}{nodeModel} interfaces=$NI->{system}{ifNumber}\n";
 			}
 
+			# if WMI is not enabled this flag should never be set.
+			if ( not $status{wmi} and defined $NI->{system}{last_poll_wmi} ) {
+				delete $NI->{system}{last_poll_wmi};
+			}
+
 			# at this point we need to tell sys that dead sources are to be ignored
 			for my $source (qw(snmp wmi))
 			{
@@ -1546,8 +1551,8 @@ sub doCollect
 			# something wrong with SNMP, don't poll straight away, wait polling period.
 			$NI->{system}{collectPollDelta} = time() - $NI->{system}{lastCollectPoll};
 			$NI->{system}{lastCollectPoll} = time();
-			$NI->{system}{last_poll_snmp} = time() if $wantsnmp;
-			$NI->{system}{last_poll_wmi} = time() if $wantwmi; 
+			$NI->{system}{last_poll_snmp} = time() if $status{snmp};
+			$NI->{system}{last_poll_wmi} = time() if $status{wmi}; 
 
 		}
 	} else {
@@ -8571,6 +8576,14 @@ sub runMetrics
 	}
 
 	foreach $group (sort keys %{$GT}) {
+		if ( defined $C->{run_metrics_groups} 
+					and $C->{run_metrics_groups} ne ""
+					and $group !~ /$C->{run_metrics_groups}/
+				)
+		{
+			dbg("Skipping $group because it is not included in run_metrics_groups");
+			next;
+		}
 		$groupSummary = getGroupSummary(group=>$group);
 		$status = overallNodeStatus(group=>$group);
 		$status = statusNumber($status);
