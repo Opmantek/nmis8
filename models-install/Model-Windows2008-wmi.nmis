@@ -53,6 +53,12 @@
       'software' => {
         'common-model' => 'software'
       },
+      'system' => {
+        'common-model' => 'tcp'
+      },
+      'system' => {
+        'common-model' => 'mib2ip'
+      },
       'interface' => {
         'common-model' => 'Windows-interface'
       },
@@ -72,7 +78,7 @@
 	},
 
   'system' => {
-    'nodegraph' => 'health,response,ip,tcp-conn,tcp-segs,WindowsProcessor,hrmem,hrvmem,hrsmpcpu,hrwinproc,hrwinusers',
+    'nodegraph' => 'health,response,ip,tcp-conn,tcp-segs,combinedCPUload,WindowsProcessor,hrmem,hrvmem,hrsmpcpu,hrwinproc,hrwinusers',
     'nodeType' => 'server',
     'nodeModel' => 'Windows2008-wmi',
     'nodeVendor' => 'Microsoft',

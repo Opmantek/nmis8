@@ -543,7 +543,7 @@
   #  'sections' => 'cdp,entityMib,addressTable,bgpPeer,ospfNbr,fanStatus,psuStatus,tempStatus',
   #},
   'systemHealth' => {
-    'sections' => 'cpu_cpm,addressTable,cdp,vtpVlan,fanStatus,psuStatus,tempStatus,entityMib,mplsVpnVrf,mplsL3VpnVrf,mplsL3VpnIfConf,mplsVpnInterface,mplsL3VpnVrfRT,mplsVpnVrfRouteTarget,mplsLdpEntity',
+    'sections' => 'cpu_cpm,addressTable,cdp,vtpVlan,fanStatus,psuStatus,tempStatus,tempValue,entityMib,mplsVpnVrf,mplsL3VpnVrf,mplsL3VpnIfConf,mplsVpnInterface,mplsL3VpnVrfRT,mplsVpnVrfRouteTarget,mplsLdpEntity',
   },
   'system' => {
     'nodeModel' => 'CatalystIOSXE',
@@ -699,7 +699,7 @@
           },
           'TimeSinceTopologyChange' => {
             'oid' => 'dot1dStpTimeSinceTopologyChange',
-            'Title' => 'Time Since STP Topology Change',
+            'title' => 'Time Since STP Topology Change',
             'replace' => {
               'noSuchObject' => 'N/A',
               'noSuchInstance' => 'N/A',

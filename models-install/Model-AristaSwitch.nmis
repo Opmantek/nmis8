@@ -50,6 +50,7 @@
 #
 # Common-database.nmis
 #  'hrProcessorLoad' => '/nodes/$node/health/hrProcessorLoad-$index.rrd',
+# MLA: Included entTempSensor
 #
 
 %hash = (
@@ -78,8 +79,8 @@
       },
       'threshold' => {
         'common-model' => 'threshold'
-      }
-    }
+      },
+    },
   },
   'interface' => {
     'collect' => {
@@ -422,6 +423,19 @@
           }
         }
       },
+      'entTempSensor' => {
+        'control' => 'CVAR=entTempSensorType;$CVAR =~ /celsius/',
+        'graphtype' => 'entTempSensor',
+        'indexed' => 'true',
+        'snmp' => {
+          'entTempSensorValue' => {
+            'calculate' => '$r = $r / 10; return $r',
+            'oid' => '1.3.6.1.2.1.99.1.1.1.4',
+            'option' => 'gauge,U:U',
+            'sysObjectName' => 'entTempSensorValue'
+          }
+        }
+      },
       'hrProcessorLoad' => {
         'graphtype' => 'hrprocload',
         'indexed' => 'true',
@@ -433,7 +447,7 @@
         }
       }
     },
-    'sections' => 'hrProcessorLoad,lldp,lldpLocal,entityMib,entPhySensor',
+    'sections' => 'hrProcessorLoad,lldp,lldpLocal,entityMib,entPhySensor,entTempSensor',
     'sys' => {
       'entPhySensor' => {
         'headers' => 'entPhysicalDescr,entPhySensorValue',
@@ -466,6 +480,44 @@
             'calculate' => '$r=10 *(log($r * 10**-4)/log(10)); return $r',
             'oid' => '1.3.6.1.2.1.99.1.1.1.4',
             'sysObjectName' => 'entPhySensorValue'
+          },
+          'entPhysicalDescr' => {
+            'oid' => 'entPhysicalDescr',
+            'sysObjectName' => 'entPhysicalDescr'
+          }
+        }
+      },
+      'entTempSensor' => {
+        'headers' => 'entPhysicalDescr,entTempSensorValue',
+        'index_oid' => '1.3.6.1.2.1.99.1.1.1.1',
+        'indexed' => 'entTempSensorType',
+        'snmp' => {
+          'entTempSensorScale' => {
+            'oid' => '1.3.6.1.2.1.99.1.1.1.2',
+            'sysObjectName' => 'entTempSensorScale'
+          },
+          'entTempSensorType' => {
+            'oid' => '1.3.6.1.2.1.99.1.1.1.1',
+            'replace' => {
+              '1' => 'other',
+              '10' => 'rpm',
+              '11' => 'cmm',
+              '12' => 'truthvalue',
+              '2' => 'unknown',
+              '3' => 'voltsAC',
+              '4' => 'voltsDC',
+              '5' => 'amperes',
+              '6' => 'watts',
+              '7' => 'hertz',
+              '8' => 'celsius',
+              '9' => 'percentRH'
+            },
+            'sysObjectName' => 'entTempSensorType'
+          },
+          'entTempSensorValue' => {
+            'calculate' => '$r = $r / 10; return $r',
+            'oid' => '1.3.6.1.2.1.99.1.1.1.4',
+            'sysObjectName' => 'entTempSensorValue'
           },
           'entPhysicalDescr' => {
             'oid' => 'entPhysicalDescr',

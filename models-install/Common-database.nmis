@@ -69,18 +69,29 @@
       'Host_Memory' => '/nodes/$node/health/hrMemory.rrd',
       'Host_Processor' => '/nodes/$node/health/hrProcessorLoad-$index.rrd',
       'Host_Storage' => '/nodes/$node/health/hrStorage-$index.rrd',
+      'hwMusaBoard' => '/nodes/$node/health/hwMusaBoard-$index.rrd',
+      'hwGponStats' => '/nodes/$node/interface/hwGponStats-$index.rrd',
       'Juniper_CoS' => '/nodes/$node/interface/Juniper_CoSstats-$index.rrd',
       'LinkRate' => '/nodes/$node/health/ubnt-linkrate-$index.rrd',
       'LogicalDisk' => '/nodes/$node/health/LogicalDisk-$index.rrd',
       'NetFlowStats' => '/nodes/$node/misc/NetFlowStats.rrd',
       'NetworkInterface' => '/nodes/$node/interface/NetworkInterface-$index.rrd',
       'QualityOfServiceStat' => '/nodes/$node/interface/hwqos-$index.rrd',
+      'TeldatQoSStat' => '/nodes/$node/interface/tdqos-$index.rrd',
+      'TeldatBRSStat' => '/nodes/$node/interface/tdbrs-$index.rrd',
       'Radio' => '/nodes/$node/health/radio-$index.rrd',
       'Radwin' => '/nodes/$node/health/RadwinTAB-$index.rrd',
       'SONETErrors' => '/nodes/$node/health/soneterrors-$index.rrd',
       'Sat-Demodulate' => '/nodes/$node/health/Sat-Demodulate-$index.rrd',
       'SignalStatus' => '/nodes/$node/health/signalstatus-$index.rrd',
       'Station' => '/nodes/$node/health/ubnt-tab-$index.rrd',
+
+
+      'mtxrWlRtab' => '/nodes/$node/interface/mtxrWlRtab-$index.rrd',
+      'mtxrWlAp' => '/nodes/$node/interface/mtxrWlAp-$index.rrd',
+      'HBS-Util' => '/nodes/$node/health/hbs.rrd',
+
+
       'Stream' => '/nodes/$node/health/Stream-$index.rrd',
       'TeldatBRSStat' => '/nodes/$node/interface/tdbrs-$index.rrd',
       'TeldatQoSStat' => '/nodes/$node/interface/tdqos-$index.rrd',
@@ -101,6 +112,7 @@
       'cempMemPool' => '/nodes/$node/health/cempMemPool-$index.rrd',
       'checkpoint' => '/nodes/$node/health/checkpoint.rrd',
       'ciscoMemoryPool' => '/nodes/$node/health/ciscoMemoryPool-$index.rrd',
+      'combinedCPUload' => '/nodes/$node/health/combinedCPUload.rrd',
       'cps6000Alarm' => '/nodes/$node/health/cps6000Alarm-$index.rrd',
       'cps6000Cct' => '/nodes/$node/health/cps6000Cct-$index.rrd',
       'cps6000Grp' => '/nodes/$node/health/cps6000Grp-$index.rrd',
@@ -156,6 +168,10 @@
       'pkts_hc' => '/nodes/$node/interface/$ifDescr-pkts_hc.rrd',
       'power' => '/nodes/$node/health/power.rrd',
       'ppxAtm' => '/nodes/$node/interface/ppxAtm-$index.rrd',
+
+      'ppxCardCPU' => '/nodes/$node/health/ppxCardCPU-$index.rrd',
+      'ppxCardMEM' => '/nodes/$node/health/ppxCardMEM-$index.rrd',
+
       'psuStatus' => '/nodes/$node/health/psustatus-$index.rrd',
       'pvc' => '/nodes/$node/interface/pvc-$item.rrd',
       'radio' => '/nodes/$node/health/radio.rrd',
@@ -179,7 +195,10 @@
       'upscur' => '/nodes/$node/misc/apc-ups-cur.rrd',
       'upsload' => '/nodes/$node/misc/apc-ups-load.rrd',
       'upspwr' => '/nodes/$node/misc/apc-ups-pwr.rrd',
-      'upsvolt' => '/nodes/$node/misc/apc-ups-volt.rrd'
+      'upsvolt' => '/nodes/$node/misc/apc-ups-volt.rrd',
+      'RouteNumber' => '/nodes/$node/health/routenumber.rrd',
+      'entTempSensor' => '/nodes/$node/health/enttempsensor-$index.rrd',
+      'entPhySensor' => '/nodes/$node/health/entphysensor-$index.rrd'
     }
   }
 );

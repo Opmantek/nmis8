@@ -262,7 +262,7 @@ if ($osflavour)
 libpango1.0-dev libxml2 libxml2-dev libnet-ssleay-perl
 libcrypt-ssleay-perl apache2 fping nmap snmp snmpd snmptrapd libnet-snmp-perl
 libcrypt-passwdmd5-perl libjson-xs-perl libnet-dns-perl
-libio-socket-ssl-perl libwww-perl libnet-smtp-ssl-perl libnet-smtps-perl
+libio-socket-ssl-perl libwww-perl libwww-mechanize-perl libnet-smtp-ssl-perl libnet-smtps-perl
 libcrypt-unixcrypt-perl libcrypt-rijndael-perl libuuid-tiny-perl libproc-processtable-perl libdigest-sha-perl
 libnet-ldap-perl libdbi-perl
 libsoap-lite-perl libauthen-simple-radius-perl libauthen-tacacsplus-perl
@@ -277,7 +277,7 @@ pango pango-devel glib glib-devel libxml2 libxml2-devel gd gd-devel
 libXpm-devel libXpm openssl openssl-devel net-snmp net-snmp-libs
 net-snmp-utils net-snmp-perl perl-IO-Socket-SSL perl-Net-SSLeay
 perl-JSON-XS httpd fping nmap make groff perl-CPAN perl-App-cpanminus crontabs dejavu*
-perl-libwww-perl perl-Net-DNS perl-Digest-SHA
+perl-libwww-perl perl-WWW-Mechanize perl-Net-DNS perl-Digest-SHA
 perl-DBI perl-Net-SMTPS perl-Net-SMTP-SSL perl-CGI net-snmp-perl perl-Proc-ProcessTable perl-Authen-SASL
 perl-Crypt-PasswdMD5 perl-Crypt-Rijndael perl-Net-SNMP perl-GD rrdtool
 rrdtool-perl perl-Test-Deep dialog
@@ -490,6 +490,7 @@ dependencies manually before NMIS can operate properly.\n\nHit <Enter> to contin
 			elsif ($pkg eq "perl-Net-SNMP" or $pkg eq "glib" or $pkg eq "glib-devel"
 						 or $pkg eq "perl-Crypt-Rijndael" or $pkg eq "perl-JSON-XS"
 						 or $pkg eq "perl-Net-SMTPS" 
+						 or $pkg eq "perl-WWW-Mechanize"
 						 or $pkg eq "perl-Proc-ProcessTable")
 			{
 					$installcmd = "yum -y --enablerepo=epel install $pkg";
@@ -634,11 +635,16 @@ and then restart the installer.\n\n";
 				$prompt = "--prompt";
 			}
 
-			# if $noninteractive we pre-install HTTP::Daemon with --notest for this module that often hangs on testing on ubuntu, redhat and centos
+			# We pre-install HTTP::Daemon with --notest for this module that often hangs on testing on ubuntu, redhat and centos
 			# HTTP::Daemon is a dependency of WWW::Mechanize
 			if ( grep( /^WWW::Mechanize$/, @missingones) or grep( /^HTTP::Daemon$/, @missingones) )
 			{
-				system("cpanm HTTP::Daemon --sudo $prompt --notest");	# can't use execprint as cpan is interactive: but is cpanm interactive?
+				system("cpanm HTTP::Daemon --sudo $prompt --notest 2>&1");	# can't use execprint as cpan is interactive: but is cpanm interactive?
+			}
+			# We pre-install WWW::Mechanize with --notest for this module that often hangs on testing on ubuntu, redhat and centos
+			if ( grep( /^WWW::Mechanize$/, @missingones) )
+			{
+				system("cpanm WWW::Mechanize --sudo $prompt --notest 2>&1");	# can't use execprint as cpan is interactive: but is cpanm interactive?
 			}
 			# Net::SNPP fails tests
 			if ( grep( /^Net::SNPP$/, @missingones) )
@@ -646,7 +652,7 @@ and then restart the installer.\n\n";
 				system("cpanm Net::SNPP --sudo $prompt --notest");	# can't use execprint as cpan is interactive: but is cpanm interactive?
 			}
 			# default test-timeout is 30 mins: install will return exit code 1 on test timeout
-			system("cpanm --sudo $prompt ".join(" ",@missingones));  # can't use execprint as cpan is interactive but is cpanm interactive?
+			system("cpanm --sudo $prompt ".join(" ",@missingones)." 2>&1");  # can't use execprint as cpan is interactive but is cpanm interactive?
 		}
 		else
 		{

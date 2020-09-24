@@ -1,32 +1,3 @@
-#
-#  Copyright Opmantek Limited (www.opmantek.com)
-#
-#  ALL CODE MODIFICATIONS MUST BE SENT TO CODE@OPMANTEK.COM
-#
-#  This file is part of Network Management Information System ("NMIS").
-#
-#  NMIS is free software: you can redistribute it and/or modify
-#  it under the terms of the GNU General Public License as published by
-#  the Free Software Foundation, either version 3 of the License, or
-#  (at your option) any later version.
-#
-#  NMIS is distributed in the hope that it will be useful,
-#  but WITHOUT ANY WARRANTY; without even the implied warranty of
-#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-#  GNU General Public License for more details.
-#
-#  You should have received a copy of the GNU General Public License
-#  along with NMIS (most likely in a file named LICENSE).
-#  If not, see <http://www.gnu.org/licenses/>
-#
-#  For further information on NMIS or for a license other than GPL please see
-#  www.opmantek.com or email contact@opmantek.com
-#
-#  User group details:
-#  http://support.opmantek.com/users/
-#
-# *****************************************************************************
-#
 # a small update plugin for discovering interfaces on alcatel asam devices
 # which requires custom snmp accesses
 package AsamInterface;
@@ -193,47 +164,72 @@ sub update_plugin
 		$intfTotal++;				
 		my $ifDescr = getIfDescr(prefix => "ATM", version => $version, ifIndex => $index, asamModel => $asamModel);
 		my $Description = getDescription(version => $version, ifIndex => $index);
-				
+		my $ifSpeedIn;
+		my $ifSpeedOut;
+		my $snmpdata;
+
 		my $offset = 12288;
 		if ( $version eq "4.2" )  {
 			$offset = 6291456;
 		}
 
 		my $offsetIndex = $index - $offset;
-		
-		#asamIfExtCustomerId
-		my $prefix = "1.3.6.1.4.1.637.61.1.6.5.1.1";
-		my $oid = "$prefix.$offsetIndex";
 
-		if ( defined $NI->{Customer_ID} and defined $NI->{Customer_ID}{$offsetIndex} ) {
-			$Description = $NI->{Customer_ID}{$offsetIndex}{asamIfExtCustomerId};
-			dbg("Customer_ID $node $ifDescr $Description");
+		my @atmVclVars = qw(
+			asamIfExtCustomerId
+			xdslLinkUpMaxBitrateUpstream
+			xdslLinkUpMaxBitrateDownstream
+		);
+
+		my %atmOidSet = (
+			asamIfExtCustomerId => "1.3.6.1.4.1.637.61.1.6.5.1.1.$offsetIndex",
+			xdslLinkUpMaxBitrateUpstream =>	"1.3.6.1.4.1.637.61.1.39.12.1.1.11.$index",
+			xdslLinkUpMaxBitrateDownstream => "1.3.6.1.4.1.637.61.1.39.12.1.1.12.$index",
+		);
+
+		# build an array combining the atmVclVars and atmOidSet into a single array
+		my @oids = map {$atmOidSet{$_}} @atmVclVars;
+
+		if ( $session ) {
+			$snmpdata = $session->get_request(
+				-varbindlist => \@oids
+			);
+
+			if ( $session->error() ) {
+				dbg("ERROR with SNMP on $node: ". $session->error());
+			}
 		}
 		else {
-			#my $customerid = $snmp->get($oid);		
-			my $customerid;
-			if ( $session ) {
-				#print "DEBUG: running the SNMP NOW\n";
-				my @oids = ( $oid );			
-				$customerid = $session->get_request(
-					-varbindlist => \@oids
-				);
-	
-				if ( $session->error() ) {
-					dbg("ERROR with SNMP on $node: ". $session->error());
-				}
-			}
-			else {
-				dbg("ERROR some session problem with SNMP on $node");
-			}
-			
-			if ( $customerid->{$oid} ne "" and $customerid->{$oid} !~ /SNMP ERROR/ ) {
-				$Description = $customerid->{$oid};
-			}
-			dbg("SNMP $node $ifDescr $Description, index=$index, offset=$offset, offsetIndex=$offsetIndex, customerid=$Description");
+			dbg("ERROR some session problem with SNMP on $node");
 		}
-		
-		
+
+		if ( $snmpdata ) {
+			# get the customer id
+			my $oid = "1.3.6.1.4.1.637.61.1.6.5.1.1.$offsetIndex";
+			if ( $snmpdata->{$oid} ne "" and $snmpdata->{$oid} !~ /SNMP ERROR/ ) {
+				$Description = $snmpdata->{$oid};
+			}
+			# get the speed out
+			$oid = "1.3.6.1.4.1.637.61.1.39.12.1.1.12.$index";
+			if ( $snmpdata->{$oid} ne "" and $snmpdata->{$oid} !~ /SNMP ERROR/ ) {
+				$ifSpeedOut = $snmpdata->{$oid} * 1000;
+			}
+			# get the speed in
+			$oid = "1.3.6.1.4.1.637.61.1.39.12.1.1.11.$index";
+			if ( $snmpdata->{$oid} ne "" and $snmpdata->{$oid} !~ /SNMP ERROR/ ) {
+				$ifSpeedIn = $snmpdata->{$oid} * 1000;
+			}
+
+			if ( defined $NI->{Customer_ID} and defined $NI->{Customer_ID}{$offsetIndex} ) {
+				$Description = $NI->{Customer_ID}{$offsetIndex}{asamIfExtCustomerId};
+				dbg("Customer_ID $node $ifDescr $Description");
+			}
+
+			dbg("SNMP $node $ifDescr $Description, index=$index, offset=$offset, offsetIndex=$offsetIndex, customerid=$Description ifSpeedIn=$ifSpeedIn ifSpeedOut=$ifSpeedOut");
+		}
+
+		my $maxSpeed = $ifSpeedIn > $ifSpeedOut ? $ifSpeedIn : $ifSpeedOut;
+
 		$S->{info}{interface}{$index} = {
 			'Description' => $Description,
 			'ifAdminStatus' => 'unknown',
@@ -242,7 +238,9 @@ sub update_plugin
 			'ifLastChange' => '0:00:00',
 			'ifLastChangeSec' => 0,
 			'ifOperStatus' => 'unknown',
-			'ifSpeed' => 1000000000,
+			'ifSpeed' => $maxSpeed,
+			'ifSpeedIn' => $ifSpeedIn,
+			'ifSpeedOut' => $ifSpeedOut,
 			'ifType' => 'atm',
 			'interface' => convertIfName($ifDescr),
 			'real' => 'true',
@@ -382,7 +380,12 @@ sub update_plugin
 		
 		$V->{interface}{"${index}_ifAdminStatus_value"} = $S->{info}{interface}{$index}{ifAdminStatus};
 		$V->{interface}{"${index}_ifOperStatus_value"} = $S->{info}{interface}{$index}{ifOperStatus};
-		
+
+		# ensuring the ifSpeeds get set.
+		$V->{interface}{"${index}_ifSpeed_value"} = $S->{info}{interface}{$index}{ifSpeed};
+		$V->{interface}{"${index}_ifSpeedIn_value"} = $S->{info}{interface}{$index}{ifSpeedIn};
+		$V->{interface}{"${index}_ifSpeedOut_value"} = $S->{info}{interface}{$index}{ifSpeedOut};
+
 		# Add the titles as they are missing from the model.
 		$V->{interface}{"${index}_ifOperStatus_title"} = 'Oper Status';
 		$V->{interface}{"${index}_ifDescr_title"} = 'Name';

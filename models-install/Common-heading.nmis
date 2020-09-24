@@ -66,6 +66,7 @@
       'cbqos-out' => 'Class Based QoS for output',
       'ccpu' => 'CPU Utilisation',
       'checkpoint' => 'Checkpoint Stats',
+      'combinedCPUload' => 'Combined CPU Average Load',
       'cps6000Alarm' => 'CPS 6000 Alarm Status',
       'cps6000Cct' => 'Circuit Power and Status',
       'cps6000Grp' => 'Group Power and Status',
@@ -191,7 +192,9 @@
       'upsvoltin' => 'UPS Voltage',
       'upsvoltout' => 'UPS Voltage',
       'util' => 'Interface $ifDescr Utilisation Including Availability',
-      'vmwVmState' => 'Virtual Machine Status'
+      'vmwVmState' => 'Virtual Machine Status',
+      'entPhySensor' => 'Physical Sensor',
+      'entTempSensor' => 'Temperature Sensor'
     }
   }
 );

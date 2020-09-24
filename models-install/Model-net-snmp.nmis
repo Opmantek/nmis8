@@ -66,7 +66,7 @@
     'nodeModel' => 'net-snmp',
     'nodeVendor' => 'net-snmp',
     'nodeType' => 'server',
-    'nodegraph' => 'health,response,ss-cpu,Host_Memory,ss-blocks,hrsystem,ip,tcp-conn,tcp-segs,laload,hrsmpcpu,hrmem,hrcachemem,hrbufmem,hrswapmem,hrvmem',
+    'nodegraph' => 'health,response,combinedCPUload,ss-cpu,Host_Memory,ss-blocks,hrsystem,ip,tcp-conn,tcp-segs,laload,hrsmpcpu,hrmem,hrcachemem,hrbufmem,hrswapmem,hrvmem',
     
 		'sys' => 
 		{
@@ -169,6 +169,17 @@
       },
     },
     'rrd' => {
+      'nodehealth' => {
+        'graphtype' => 'hrsystem',
+        'snmp' => {
+          'hrSystemProcesses' => {
+            'oid' => 'hrSystemProcesses'
+          },
+          'hrSystemNumUsers' => {
+            'oid' => 'hrSystemNumUsers'
+          }
+        }
+      },
       'tcp' => {
         'graphtype' => 'tcp-conn,tcp-segs',
         'snmp' => {
@@ -687,7 +698,7 @@
     },
     'nocollect' => {
       'ifOperStatus' => 'other',
-      'ifDescr' => 'sublayer|null',
+      'ifDescr' => 'sublayer|null|et.*',
       'Description' => '^#',
       'noDescription' => 'false',
       'ifType' => 'other|softwareloopback|isdn'

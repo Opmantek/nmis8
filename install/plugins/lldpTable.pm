@@ -109,27 +109,54 @@ sub update_plugin
 		}
 
 		if ( @parts = split(/\./,$entry->{index}) ) {
-			$entry->{unused} = shift(@parts);
-			$entry->{lldpLocPortNum} = shift(@parts);
-			$entry->{lldpDeviceIndex} = shift(@parts);
 
-			# did I find an interface in the lldpLocPortDesc lldpLocPortId data?
-			my @lldpLocalThing = qw(lldpLocPortDesc lldpLocPortId);
-			foreach my $lldpLocalInt (@lldpLocalThing) {
-				if ( defined $NI->{lldpLocal} and defined $NI->{lldpLocal}{$entry->{lldpLocPortNum}} ) {
-					# yes, so get a local portnum and get the ifDescr, then get the ifIndex using the reverse index.
-					my $lldpLocPortNum = $entry->{lldpLocPortNum};
-					my $ifDescr = $NI->{lldpLocal}{$lldpLocPortNum}{$lldpLocalInt};
-					$entry->{lldpIfIndex} = $IFD->{$ifDescr}{ifIndex};
-				}
+			if ( @parts == 3 ) {
+				$entry->{unused} = shift(@parts);
+				$entry->{lldpLocPortNum} = shift(@parts);
+				$entry->{lldpDeviceIndex} = shift(@parts);				
+			}
+			elsif ( @parts == 4 ) {
+				$entry->{unused} = shift(@parts);
+				$entry->{lldpLocPortNum} = shift(@parts);
+				$entry->{unused} = shift(@parts);
+				$entry->{lldpDeviceIndex} = shift(@parts);				
+			}
 
-				if ( defined $IF->{$entry->{lldpIfIndex}}{ifDescr} ) {
-					$entry->{ifDescr} = $IF->{$entry->{lldpIfIndex}}{ifDescr};
-					$entry->{ifDescr_url} = "/cgi-nmis8/network.pl?conf=$C->{conf}&act=network_interface_view&intf=$entry->{cdpCacheIfIndex}&node=$node";
-					$entry->{ifDescr_id} = "node_view_$node";
-					# exit the foreach loop
-					last;
-				}
+			# is the lldpLocPortNum actually the ifIndex?  easy.
+			if ( defined $IF->{$entry->{lldpLocPortNum}}{ifDescr} ) {
+				dbg("Found a ifDescr entry for lldpLocPortNum=$entry->{lldpLocPortNum}: $IF->{$entry->{lldpLocPortNum}}{ifDescr}");
+				$entry->{ifDescr} = $IF->{$entry->{lldpLocPortNum}}{ifDescr};
+				$entry->{ifDescr_url} = "/cgi-nmis8/network.pl?conf=$C->{conf}&act=network_interface_view&intf=$entry->{lldpLocPortNum}&node=$node";
+				$entry->{ifDescr_id} = "node_view_$node";
+			}
+			else {
+				# nope it is some obscure double look up.
+				# so did I find an interface in the lldpLocPortDesc lldpLocPortId data?
+				my @lldpLocalThing = qw(lldpLocPortDesc lldpLocPortId);
+				foreach my $lldpLocalInt (@lldpLocalThing) {
+					if ( defined $NI->{lldpLocal} and defined $NI->{lldpLocal}{$entry->{lldpLocPortNum}} ) {
+						# yes, so get a local portnum and get the ifDescr, then get the ifIndex using the reverse index.
+						dbg("Found a lldpLocal entry for lldpLocPortNum=$entry->{lldpLocPortNum}");
+						my $lldpLocPortNum = $entry->{lldpLocPortNum};
+						my $ifDescr = $NI->{lldpLocal}{$lldpLocPortNum}{$lldpLocalInt};
+						if ( defined $IFD->{$ifDescr}{ifIndex} ) {
+							$entry->{lldpIfIndex} = $IFD->{$ifDescr}{ifIndex};	
+						}
+						else {
+							dbg("No lldpIfIndex found from lldpLocal entry for lldpLocalInt=$lldpLocalInt ifDescr=$ifDescr");
+						}
+						
+					}
+
+					if ( defined $IF->{$entry->{lldpIfIndex}}{ifDescr} ) {
+						dbg("Found a ifDescr entry for lldpIfIndex=$entry->{lldpIfIndex}: $IF->{$entry->{lldpIfIndex}}{ifDescr}");
+						$entry->{ifDescr} = $IF->{$entry->{lldpIfIndex}}{ifDescr};
+						$entry->{ifDescr_url} = "/cgi-nmis8/network.pl?conf=$C->{conf}&act=network_interface_view&intf=$entry->{lldpIfIndex}&node=$node";
+						$entry->{ifDescr_id} = "node_view_$node";
+						# exit the foreach loop
+						last;
+					}
+				}				
 			}
 		}
 	}
