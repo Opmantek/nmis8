@@ -701,6 +701,16 @@
         }
       }
     },
+    'Accedian Networks' => {
+      'order' => {
+        '10' => {
+          'Accedian' => 'AMO-10000-LT-S'
+        },
+        '20' => {
+          'Accedian' => '.'
+        },
+      }
+    },
   },
   'system' => {
     'nodeModel' => 'Default',

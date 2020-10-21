@@ -341,6 +341,7 @@
     },
     'collect' => {
       'Description' => '(CNOC|Collection)',
+      'ifDescr' => 'East|West|east|west',
     },
     'nocollect' => {
       'ifOperStatus' => 'other',
