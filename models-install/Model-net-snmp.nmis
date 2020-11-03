@@ -110,10 +110,10 @@
           # SRC IMPORTANT - sysUptime is the number of clock ticks that snapped
           #              has been running for, not the uptime of the box.  hrSystemUpTime
           #              is the same as 'uptime' on the bash command line.
-          'sysUpTime' => {
-            'oid' => 'hrSystemUptime',
-            'title' => 'Uptime',
-          },
+          #'sysUpTime' => {
+          #  'oid' => 'hrSystemUptime',
+          #  'title' => 'Uptime',
+          #},
           
 					'snmpUpTime' => {
             'oid' => 'sysUpTime',
