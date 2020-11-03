@@ -667,6 +667,9 @@
       'order' => {
         '10' => {
           'NetVanta' => 'NetVanta'
+        },
+        '20' => {
+          'Adtran-TA5000' => 'TA5000'
         }
       }
     },
