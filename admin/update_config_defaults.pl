@@ -98,7 +98,7 @@ for (["outage","status"],["host_addr_backup","host_addr"])
 
 $conf->{"system"}->{"nmis_executable"} = '(/(bin|admin|install/scripts|conf/scripts)/[a-zA-Z0-9_\\.-]+|\\.pl|\\.sh)$';
 
-$conf->{'authentication'}{'auth_user_name_regex'} = "[\\w \\-\\.\\@\\`\\']+";
+delete $conf->{'authentication'}{'auth_user_name_regex'};
 
 $conf->{'system'}{'threshold_period-default'} = "-15 minutes";
 $conf->{'system'}{'threshold_period-health'} = "-4 hours";

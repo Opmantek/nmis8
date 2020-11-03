@@ -95,7 +95,7 @@
   'system' => {
     'nodeModel' => 'Windows2000',
     'nodeType' => 'server',
-    'nodegraph' => 'health,response,ip,hrwincpu,hrsmpcpu,hrwinproc,hrwinmem,hrwincpuint,hrwinpps,hrwinusers',
+    'nodegraph' => 'health,response,ip,combinedCPUload,hrwincpu,hrsmpcpu,hrwinproc,hrwinmem,hrwincpuint,hrwinpps,hrwinusers',
     'sys' => {
       'standard' => {
         'snmp' => {

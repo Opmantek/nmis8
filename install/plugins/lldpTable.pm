@@ -109,9 +109,18 @@ sub update_plugin
 		}
 
 		if ( @parts = split(/\./,$entry->{index}) ) {
-			$entry->{unused} = shift(@parts);
-			$entry->{lldpLocPortNum} = shift(@parts);
-			$entry->{lldpDeviceIndex} = shift(@parts);
+
+			if ( @parts == 3 ) {
+				$entry->{unused} = shift(@parts);
+				$entry->{lldpLocPortNum} = shift(@parts);
+				$entry->{lldpDeviceIndex} = shift(@parts);				
+			}
+			elsif ( @parts == 4 ) {
+				$entry->{unused} = shift(@parts);
+				$entry->{lldpLocPortNum} = shift(@parts);
+				$entry->{unused} = shift(@parts);
+				$entry->{lldpDeviceIndex} = shift(@parts);				
+			}
 
 			# is the lldpLocPortNum actually the ifIndex?  easy.
 			if ( defined $IF->{$entry->{lldpLocPortNum}}{ifDescr} ) {

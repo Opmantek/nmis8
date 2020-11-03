@@ -29,7 +29,7 @@
 # *****************************************************************************
 #
 # a command-line node administration tool for NMIS
-our $VERSION = "1.4.0";
+our $VERSION = "1.5.0";
 
 if (@ARGV == 1 && $ARGV[0] eq "--version")
 {
@@ -67,7 +67,9 @@ export: exports to file=someFile.json (or STDOUT if no file given)
 update: updates existing node from file=someFile.json (or STDIN)
 delete: only deletes if confirm=yes (in uppercase) is given
 
-show: prints the nodes properties in the same format as set
+show: prints the nodes properties in the same format as set,
+ with option interfaces=true show interface basic information
+
 set: adjust one or more node properties
 
 extras: deletedata=<true,false> which makes delete also
@@ -159,6 +161,19 @@ elsif ($args{act} eq "show")
 		my $val = $flatearth{$k};
 		print "$k=$flatearth{$k}\n";
 	}
+
+	my $S = Sys->new; $S->init(name => $node, snmp => "false");
+
+	my $IF = $S->ifinfo;
+
+	if(keys %{$IF} and $args{interfaces} eq "true"){
+		foreach my $ifID (sort keys %{$IF}){
+			if(keys %{$IF->{$ifID}}){
+				print "Interface=\"".$IF->{$ifID}{'Description'}. "\" ifDescr=\"" . $IF->{$ifID}{'ifDescr'} ."\" ifIndex=" . $IF->{$ifID}{'ifIndex'} . "\n";
+			}
+		}
+	}
+
 	exit 0;
 }
 elsif ($args{act} eq "set")
