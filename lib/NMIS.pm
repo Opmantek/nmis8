@@ -2612,7 +2612,7 @@ sub outageCheck
 	my $nodeoutages = check_outages(node => $node, time => $time);
 	if (!$nodeoutages->{success})
 	{
-		logMessage("ERROR failed to check $node outages: $nodeoutages->{error}");
+		logMsg("ERROR failed to check $node outages: $nodeoutages->{error}");
 		return;
 	}
 
@@ -2636,7 +2636,7 @@ sub outageCheck
 		my $depoutages = check_outages(node => $nd, time => $time);
 		if (!$depoutages->{success})
 		{
-			logMessage("ERROR failed to check $nd outages: $depoutages->{error}");
+			logMsg("ERROR failed to check $nd outages: $depoutages->{error}");
 			return;
 		}
 		if (@{$depoutages->{current}})
