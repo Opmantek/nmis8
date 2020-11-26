@@ -63,7 +63,7 @@
     'nodeType' => 'router',
     'nbarpd_check' => 'true',
     'nodeVendor' => 'HUAWEI Technology',
-    'nodegraph' => 'health,response,cpu-huawei,mem-proc-huawei,routenumber,ip,modem,calls',
+    'nodegraph' => 'health,response,cpu-huawei,mem-proc-huawei,routenumber,ip,calls',
     'rrd' => {
       'nodehealth' => {
         'threshold' => '',
@@ -83,32 +83,33 @@
           }
         },
       },
-      'modem' => {
-        'threshold' => 'modem_dead',
-        'graphtype' => 'modem',
-        'control' => '$InstalledModems > 0',
-        'snmp' => {
-          'ModemsInUse' => {
-            'oid' => 'cmSystemModemsInUse'
-          },
-          'ModemsAvailable' => {
-            'oid' => 'cmSystemModemsAvailable'
-          },
-          'ModemsOffline' => {
-            'oid' => 'cmSystemModemsOffline'
-          },
-          'ModemsDead' => {
-            'oid' => 'cmSystemModemsDead'
-          },
-          'ModemsUnavailable' => {
-            'threshold' => 'modem_unav',
-            'oid' => 'cmSystemModemsUnavailable'
-          },
-          'InstalledModem' => {
-            'oid' => 'cmSystemInstalledModem'
-          }
-        },
-      },
+      # these are Cisco MIBS which Huawei will not support
+      #'modem' => {
+      #  'threshold' => 'modem_dead',
+      #  'graphtype' => 'modem',
+      #  'control' => '$InstalledModems > 0',
+      #  'snmp' => {
+      #    'ModemsInUse' => {
+      #      'oid' => 'cmSystemModemsInUse'
+      #    },
+      #    'ModemsAvailable' => {
+      #      'oid' => 'cmSystemModemsAvailable'
+      #    },
+      #    'ModemsOffline' => {
+      #      'oid' => 'cmSystemModemsOffline'
+      #    },
+      #    'ModemsDead' => {
+      #      'oid' => 'cmSystemModemsDead'
+      #    },
+      #    'ModemsUnavailable' => {
+      #      'threshold' => 'modem_unav',
+      #      'oid' => 'cmSystemModemsUnavailable'
+      #    },
+      #    'InstalledModem' => {
+      #      'oid' => 'cmSystemInstalledModem'
+      #    }
+      #  },
+      #},
       'mib2ip' => {
         'graphtype' => 'ip,frag',
         'snmp' => {
@@ -207,13 +208,6 @@
             'oid' => 'snmpEngineTime',
             'title' => 'Uptime',
             'calculate' => '$r * 100'
-          },
-          'InstalledModems' => {
-            'replace' => {
-              '' => '0',
-              'noSuchObject' => '0'
-            },
-            'oid' => 'cmSystemInstalledModem'
           },
           'sysContact' => {
             'replace' => {
@@ -326,15 +320,6 @@
           },
         }
       },
-      'modem' => {
-        'snmp' => {
-          'InstalledModems' => {
-            'oid' => 'cmSystemInstalledModem',
-            'title' => 'Modems'
-          }
-        },
-        'control' => '$InstalledModems > 0'
-      }
     }
   },
   'systemHealth' => {
