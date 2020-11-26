@@ -28,6 +28,11 @@
 #  http://support.opmantek.com/users/
 #  
 # *****************************************************************************
+# MLA: Included entTempSensor
+# MLA: Included hrProcessorLoad
+# MLA: Included entFan and entPowerSupply
+# MLA: Included separate broadcast/multicast graphs
+#
 
 %hash = (
   '-common-' => {
@@ -58,6 +63,30 @@
       }
     }
   },
+  'alerts' => {
+    'entFan' => {
+      'entFanState' => {
+        'type' => 'test',
+        'test' => 'CVAR1=entFanState;$CVAR1 != 1',
+        'value' => 'CVAR1=entFanName;"$CVAR1"',
+        'unit' => '',
+        'element' => 'index',
+        'event' => 'FAN Status',
+        'level' => 'Warning',
+      },
+    },
+    'entPowerSupply' => {
+      'entPowerSupplyState' => {
+        'type' => 'test',
+        'test' => 'CVAR1=entPowerSupplyState;$CVAR1 != 1',
+        'value' => 'CVAR1=entPowerSupplyDescr;"$CVAR1"',
+        'unit' => '',
+        'element' => 'index',
+        'event' => 'PSU Status',
+        'level' => 'Warning',
+      },
+    },
+  },
   #'database' => {
   #  'type' => {
   #    'hwMusaBoard' => '/nodes/$node/health/hwMusaBoard-$index.rrd',
@@ -82,11 +111,107 @@
   #  },
   #},
   'systemHealth' => {
-    'sections' => 'entityMib,Huawei_ProfUserHQoS',
-    #'rrd' => {
-    #},
-    #'sys' => {
-    #}
+    'sections' => 'entityMib,Huawei_ProfUserHQoS,hrProcessorLoad,entTempSensor,entFan,entPowerSupply',
+    'rrd' => {
+      'entTempSensor' => {
+	'control' => 'CVAR=entPhysicalClass;$CVAR == 9',
+        'graphtype' => 'entTempSensor',
+        'indexed' => 'true',
+        'snmp' => {
+          'entTempSensorValue' => {
+            'oid' => '1.3.6.1.4.1.2011.5.25.31.1.1.1.1.11',
+            'option' => 'gauge,U:U',
+            'sysObjectName' => 'entTempSensorValue'
+          }
+        }
+      },
+      'hrProcessorLoad' => {
+	'control' => 'CVAR=entPhysicalClass;$CVAR == 9',
+        'graphtype' => 'hrprocload',
+        'indexed' => 'true',
+        'snmp' => {
+          'hrProcessorLoad' => {
+            'oid' => '1.3.6.1.4.1.2011.5.25.31.1.1.1.1.5',
+            'option' => 'gauge,U:U',
+            'sysObjectName' => 'hrProcessorLoad'
+          }
+        }
+      },
+    },
+    'sys' => {
+      'hrProcessorLoad' => {
+        'headers' => 'entProcessorName,hrProcessorLoad',
+        'index_oid' => '1.3.6.1.2.1.47.1.1.1.1.7',
+	'index_regex' => '\.(\d+)$',
+        'indexed' => 'true',
+        'snmp' => {
+          'hrProcessorLoad' => {
+            'oid' => '1.3.6.1.4.1.2011.5.25.31.1.1.1.1.5',
+            'sysObjectName' => 'hrProcessorLoad'
+          },
+          'entPhysicalClass' => {
+            'oid' => '1.3.6.1.2.1.47.1.1.1.1.5',
+            'sysObjectName' => 'entPhysicalClass'
+          },
+          'entProcessorName' => {
+            'oid' => '1.3.6.1.2.1.47.1.1.1.1.7',
+            'sysObjectName' => 'entProcessorName'
+          }
+        }
+      },
+      'entTempSensor' => {
+        'headers' => 'entTempSensorName,entPhysicalClass,entTempSensorValue',
+        'index_oid' => '1.3.6.1.2.1.47.1.1.1.1.7',
+	'index_regex' => '\.(\d+)$',
+        'indexed' => 'true',
+        'snmp' => {
+          'entTempSensorValue' => {
+            'oid' => '1.3.6.1.4.1.2011.5.25.31.1.1.1.1.11',
+            'sysObjectName' => 'entTempSensorValue'
+          },
+          'entPhysicalClass' => {
+            'oid' => '1.3.6.1.2.1.47.1.1.1.1.5',
+            'sysObjectName' => 'entPhysicalClass'
+          },
+          'entTempSensorName' => {
+            'oid' => '1.3.6.1.2.1.47.1.1.1.1.7',
+            'sysObjectName' => 'entTempSensorName'
+          }
+        }
+      },
+      'entFan' => {
+        'headers' => 'entFanName,entFanState',
+        'index_oid' => '1.3.6.1.4.1.2011.5.25.31.1.1.10.1.7',
+	'index_regex' => '\.(\d+\.\d+)$',
+        'indexed' => 'true',
+        'snmp' => {
+          'entFanState' => {
+            'oid' => '1.3.6.1.4.1.2011.5.25.31.1.1.10.1.7',
+            'sysObjectName' => 'entFanState'
+          },
+          'entFanName' => {
+            'oid' => '1.3.6.1.4.1.2011.5.25.31.1.1.10.1.8',
+            'sysObjectName' => 'entFanName'
+          }
+        }
+      },
+      'entPowerSupply' => {
+        'headers' => 'entPowerSupplyName,entPowerSupplyState',
+        'index_oid' => '1.3.6.1.4.1.2011.5.25.31.1.1.18.1.9',
+	'index_regex' => '\.(\d+\.\d+)$',
+        'indexed' => 'true',
+        'snmp' => {
+          'entPowerSupplyState' => {
+            'oid' => '1.3.6.1.4.1.2011.5.25.31.1.1.18.1.6',
+            'sysObjectName' => 'entPowerSupplyState'
+          },
+          'entPowerSupplyName' => {
+            'oid' => '1.3.6.1.4.1.2011.5.25.31.1.1.18.1.9',
+            'sysObjectName' => 'entPowerSupplyName'
+          }
+        }
+      },
+    }
   },
   'system' => {
     'nodegraph' => 'health,response,ip,routenumber',

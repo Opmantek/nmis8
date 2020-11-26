@@ -27,6 +27,22 @@
 #  http://support.opmantek.com/users/
 #
 # *****************************************************************************
+# 2016-12-08: Mike Langen, University of Zurich
+# Adding thresholds and broadcast, multicast graphs
+#                 'pkts_hc' => {
+#                     'indexed' => 'true',
+#                     'threshold' => 'pkt_discards_in,pkt_discards_out,pkt_errors_in,pkt_errors_out,pkt_bcast_in,pkt_bcast_out,pkt_mcast_in,pkt_mcast_out',
+#                     'graphtype' => 'pkts_hc,errpkts_hci,broadcast,multicast',
+#
+# 2017-03-16: Mike Langen
+# Insert environment section for displaying temperature graphs - but comment it out 'cause it's generating events
+# 2017-12-15: Mike Langen
+# adjusting temperature thresholds for new nexus
+# 2018-12-07: Mike Langen
+# New graph for displaying absolute values of error packets: errpkts_hc_abs
+# *****************************************************************************
+# 2020-07-31: Mike Langen
+# Add topology changes for VLANS. This needs a plugin.
 
 %hash = (
   '-common-' => {
@@ -58,6 +74,9 @@
       'vlan' => {
         'common-model' => 'Cisco-vlan'
       },
+      'routing' => {
+        'common-model' => 'Cisco-routing'
+      },
       'cbqos' => {
         'common-model' => 'Cisco-cbqos'
       },
@@ -66,6 +85,9 @@
       },
       'Cisco-memory' => {
         'common-model' => 'Cisco-memory'
+      },
+      'Cisco-topChanges' => {
+        'common-model' => 'Cisco-topChanges'
       },
       'lldp' => {
         'common-model' => 'lldp'
@@ -79,7 +101,7 @@
         'threshold' => {
           'Warning' => '80',
           'Minor' => '85',
-          'Major' => '80',
+          'Major' => '90',
           'Critical' => '95',
           'Fatal' => '100',
         },
@@ -280,7 +302,7 @@
   	'nodegraph' => 'health,response,cpu,ip,mem-proc,routenumber,topo'
   },
   'systemHealth' => {
-    'sections' => 'cpu_cpm,cempMemPool,Cisco_CBQoS,cdp,lldp,lldpLocal,entityMib,env-temp,vtpVlan',
+    'sections' => 'cpu_cpm,cempMemPool,Cisco_CBQoS,cdp,lldp,lldpLocal,entityMib,env-temp,vtpVlan,Cisco_BGP_Peer,topChanges',
     'sys' => {
       'env-temp' => {
         'indexed' => 'entSensorStatus',
@@ -541,8 +563,8 @@
   		#},
   		'pkts_hc' => {
   			'indexed' => 'true',
-        'threshold' => 'pkt_errors_in,pkt_errors_out',
-        'graphtype' => 'pkts_hc,errpkts_hc',
+        'threshold' => 'pkt_discards_in,pkt_discards_out,pkt_errors_in,pkt_errors_out,pkt_bcast_in,pkt_bcast_out,pkt_mcast_in,pkt_mcast_out',
+        'graphtype' => 'pkts_hc,errpkts_hc,errpkts_hc_abs,broadcast,multicast',
   			'snmp' => {
   				'ifInOctets' => {
   					'oid' => 'ifInOctets',
