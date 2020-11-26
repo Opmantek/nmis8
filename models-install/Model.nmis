@@ -106,14 +106,16 @@
         }
       }
     },
-    'Foundry Networks' => {
+    'Foundry Networks, Inc.' => {
       'order' => {
         '10' => {
           'FoundrySwitch' => 'IronWare|ServerIron'
         }
+        '20' => {
+          'Ruckus-ICX7150' => 'ICX7150'
+        }
       }
-    },
-
+    }
     'Juniper Networks/Unisphere' => {
       'order' => {
         '10' => {
@@ -712,6 +714,13 @@
         '20' => {
           'Accedian' => '.'
         },
+      }
+    },
+    'Siklu Communication LTD' => {
+      'order' => {
+        '10' => {
+          'Siklu-EH-600' => 'EH-600TX'
+        }
       }
     },
   },
