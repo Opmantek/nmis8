@@ -73728,4 +73728,8 @@
     'Enterprise' => 'Vyatta, Inc.',
     'OID' => '30803'
   },
+  '31926' => {
+    'Enterprise' => 'Siklu Communication LTD',
+    'OID' => '31926'
+  },
 );

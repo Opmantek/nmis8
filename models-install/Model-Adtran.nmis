@@ -1,5 +1,5 @@
 #
-## $Id: Model-Generic.nmis,v 8.7 2012/11/26 05:02:35 keiths Exp $
+## $Id: Model-Default.nmis,v 8.7 2012/11/16 05:46:04 keiths Exp $
 #
 #  Copyright 1999-2011 Opmantek Limited (www.opmantek.com)
 #  
@@ -38,9 +38,6 @@
       'threshold' => {
         'common-model' => 'threshold'
       },
-      'lldp' => {
-        'common-model' => 'lldpv2'
-      },
       'summary' => {
         'common-model' => 'summary'
       },
@@ -57,8 +54,46 @@
   },
   'system' => {
     'nodegraph' => 'health,response,ip',
-    'nodeType' => 'switch',
-    'nodeModel' => 'Accedian',
+    'nodeModel' => 'Default-HC',
+    'nodeType' => 'generic',
+    'sys' => {
+      'standard' => {
+        'snmp' => {
+          'sysLocation' => {
+            'replace' => {
+              '' => 'default'
+            },
+            'oid' => 'sysLocation',
+            'title' => 'Location'
+          },
+          'sysDescr' => {
+            'oid' => 'sysDescr',
+            'title' => 'Description'
+          },
+          'sysObjectID' => {
+            'oid' => 'sysObjectID'
+          },
+          'sysUpTime' => {
+            'oid' => 'sysUpTime',
+            'title' => 'Uptime'
+          },
+          'ifNumber' => {
+            'oid' => 'ifNumber',
+            'title' => 'Interfaces'
+          },
+          'sysContact' => {
+            'replace' => {
+              '' => 'default'
+            },
+            'oid' => 'sysContact',
+            'title' => 'Contact'
+          },
+          'sysName' => {
+            'oid' => 'sysName'
+          }
+        }
+      }
+    },
     'rrd' => {
       'mib2ip' => {
         'snmp' => {
@@ -128,162 +163,18 @@
         },
         'graphtype' => 'ip,frag'
       }
-    },
-    'sys' => {
-      'standard' => {
-        'snmp' => {
-          'sysLocation' => {
-            'replace' => {
-              '' => 'default'
-            },
-            'oid' => 'sysLocation',
-            'title' => 'Location'
-          },
-          'sysObjectID' => {
-            'oid' => 'sysObjectID'
-          },
-          'sysDescr' => {
-            'oid' => 'sysDescr',
-            'title' => 'Description'
-          },
-          'ifNumber' => {
-            'oid' => 'ifNumber',
-            'title' => 'Interfaces'
-          },
-          'sysUpTime' => {
-            'oid' => 'sysUpTime',
-            'title' => 'Uptime'
-          },
-          'sysName' => {
-            'oid' => 'sysName'
-          },
-          'sysContact' => {
-            'replace' => {
-              '' => 'default'
-            },
-            'oid' => 'sysContact',
-            'title' => 'Contact'
-           }
-         }
-       }
-     },
+    }
   },
   'interface' => {
-    'rrd' => {
-      'pkts' => {
-        'snmp' => {
-          'ifHCOutUcastPkts' => {
-            'oid' => 'ifHCOutUcastPkts',
-            'option' => 'counter,0:U'
-          },
-          'ifHCInUcastPkts' => {
-            'oid' => 'ifHCInUcastPkts',
-            'option' => 'counter,0:U'
-          },
-          'ifInDiscards' => {
-            'oid' => 'ifInDiscards',
-            'option' => 'counter,0:U'
-          },
-          'ifInUcastPkts' => {
-            'oid' => 'ifInUcastPkts',
-            'option' => 'counter,0:U'
-          },
-          'ifOutErrors' => {
-            'oid' => 'ifOutErrors',
-            'option' => 'counter,0:U'
-          },
-          'ifOutDiscards' => {
-            'oid' => 'ifOutDiscards',
-            'option' => 'counter,0:U'
-          },
-          'ifInNUcastPkts' => {
-            'oid' => 'ifInNUcastPkts',
-            'option' => 'counter,0:U'
-          },
-          'ifInErrors' => {
-            'oid' => 'ifInErrors',
-            'option' => 'counter,0:U'
-          },
-          'ifOutNUcastPkts' => {
-            'oid' => 'ifOutNUcastPkts',
-            'option' => 'counter,0:U'
-          },
-          'ifOutUcastPkts' => {
-            'oid' => 'ifOutUcastPkts',
-            'option' => 'counter,0:U'
-          },
-          'ifInOctets' => {
-            'oid' => 'ifInOctets',
-            'option' => 'counter,0:U'
-          },
-          'ifOutOctets' => {
-            'oid' => 'ifOutOctets',
-            'option' => 'counter,0:U'
-          }
-        },
-        'indexed' => 'true',
-        'graphtype' => 'pkts,errpkts'
-      },
-      'interface' => {
-        'snmp' => {
-          'ifOperStatus' => {
-            'replace' => {
-              '6' => 'notPresent',
-              '4' => 'unknown',
-              '1' => 'up',
-              '3' => 'testing',
-              '7' => 'lowerLayerDown',
-              '2' => 'down',
-              '5' => 'dormant'
-            },
-            'oid' => 'ifOperStatus',
-            'option' => 'gauge,0:100'
-          },
-          'ifDescr' => {
-            'oid' => 'ifDescr'
-          },
-          'ifHCOutOctets' => {
-            'oid' => 'ifHCOutOctets',
-            'option' => 'counter,0:U'
-          },
-          'ifInOctets' => {
-            'oid' => 'ifInOctets',
-            'option' => 'counter,0:U'
-          },
-          'ifOutOctets' => {
-            'oid' => 'ifOutOctets',
-            'option' => 'counter,0:U'
-          },
-          'ifAdminStatus' => {
-            'replace' => {
-              '6' => 'notPresent',
-              '4' => 'unknown',
-              '1' => 'up',
-              '3' => 'testing',
-              '7' => 'lowerLayerDown',
-              '2' => 'down',
-              '5' => 'dormant'
-            },
-            'oid' => 'ifAdminStatus'
-          },
-          'ifHCInOctets' => {
-            'oid' => 'ifHCInOctets',
-            'option' => 'counter,0:U'
-          }
-        },
-        'indexed' => 'true',
-        'threshold' => 'util_in,util_out',
-        'graphtype' => 'bits,abits,maxbits,util,autil'
-      }
-    },
     'sys' => {
       'standard' => {
+        'indexed' => 'true',
         'snmp' => {
           'ifOperStatus' => {
             'replace' => {
               '6' => 'notPresent',
-              '4' => 'unknown',
               '1' => 'up',
+              '4' => 'unknown',
               '3' => 'testing',
               '7' => 'lowerLayerDown',
               '2' => 'down',
@@ -301,11 +192,15 @@
             'title' => 'Physical Address',
           },
 
+          'ifSpeed' => {
+            'oid' => 'ifSpeed',
+            'title' => 'Bandwidth'
+          },
           'ifAdminStatus' => {
             'replace' => {
               '6' => 'notPresent',
-              '4' => 'unknown',
               '1' => 'up',
+              '4' => 'unknown',
               '3' => 'testing',
               '7' => 'lowerLayerDown',
               '2' => 'down',
@@ -314,50 +209,151 @@
             'oid' => 'ifAdminStatus',
             'title' => 'Admin Status'
           },
-          'ifSpeed' => {
-            'oid' => 'ifSpeed',
-            'title' => 'Bandwidth'
+          'ifType' => {
+            'oid' => 'ifType',
+            'title' => 'Type (ifType)'
           },
           'ifLastChange' => {
             'oid' => 'ifLastChange',
             'title' => 'Last Change'
-          },
-          'ifType' => {
-            'oid' => 'ifType',
-            'title' => 'Type (ifType)'
           }
-        },
-        'indexed' => 'true'
+        }
       },
       'extra' => {
+        'indexed' => 'true',
         'snmp' => {
-          'Description' => {
+  				'ifHighSpeed' => {
+  					'oid' => 'ifHighSpeed'
+  				},
+  				'Description' => {
             'oid' => 'ifAlias',
             'title' => 'Description (ifAlias)'
           }
-        },
-        'indexed' => 'true'
+        }
       }
+    },
+    'rrd' => {
+      'interface' => {
+        'indexed' => 'true',
+        'snmp' => {
+          'ifOperStatus' => {
+            'replace' => {
+              '6' => 'notPresent',
+              '1' => 'up',
+              '4' => 'unknown',
+              '3' => 'testing',
+              '7' => 'lowerLayerDown',
+              '2' => 'down',
+              '5' => 'dormant'
+            },
+            'oid' => 'ifOperStatus',
+            'option' => 'gauge,0:100'
+          },
+          'ifDescr' => {
+            'oid' => 'ifDescr'
+          },
+          'ifInOctets' => {
+            'oid' => 'ifInOctets',
+            'option' => 'counter,0:U'
+          },
+          'ifHCOutOctets' => {
+            'oid' => 'ifHCOutOctets',
+            'option' => 'counter,0:U'
+          },
+          'ifAdminStatus' => {
+            'replace' => {
+              '6' => 'notPresent',
+              '1' => 'up',
+              '4' => 'unknown',
+              '3' => 'testing',
+              '7' => 'lowerLayerDown',
+              '2' => 'down',
+              '5' => 'dormant'
+            },
+            'oid' => 'ifAdminStatus'
+          },
+          'ifOutOctets' => {
+            'oid' => 'ifOutOctets',
+            'option' => 'counter,0:U'
+          },
+          'ifHCInOctets' => {
+            'oid' => 'ifHCInOctets',
+            'option' => 'counter,0:U'
+          }
+        },
+        'threshold' => 'util_in,util_out',
+        'graphtype' => 'bits,abits,maxbits,util,autil'
+      },
+  		'pkts_hc' => {
+  			'indexed' => 'true',
+        'threshold' => 'pkt_errors_in,pkt_errors_out',
+        'graphtype' => 'pkts_hc,errpkts_hc',
+  			'snmp' => {
+  				'ifHCInOctets' => {
+  					'oid' => 'ifHCInOctets',
+  					'option' => 'counter,0:U'
+  				},
+  				'ifHCInUcastPkts' => {
+  					'oid' => 'ifHCInUcastPkts',
+  					'option' => 'counter,0:U'
+  				},
+  				'ifHCInMcastPkts' => {
+  					'oid' => 'ifHCInMulticastPkts',
+  					'option' => 'counter,0:U'
+  				},
+  				'ifHCInBcastPkts' => {
+  					'oid' => 'ifHCInBroadcastPkts',
+  					'option' => 'counter,0:U'
+  				},
+  				'ifInDiscards' => {
+  					'oid' => 'ifInDiscards',
+  					'option' => 'counter,0:U'
+  				},
+  				'ifInErrors' => {
+  					'oid' => 'ifInErrors',
+  					'option' => 'counter,0:U'
+  				},
+  				'ifHCOutOctets' => {
+  					'oid' => 'ifHCOutOctets',
+  					'option' => 'counter,0:U'
+  				},
+  				'ifHCOutUcastPkts' => {
+  					'oid' => 'ifHCOutUcastPkts',
+  					'option' => 'counter,0:U'
+  				},
+  				'ifHCOutMcastPkts' => {
+  					'oid' => 'ifHCOutMulticastPkts',
+  					'option' => 'counter,0:U'
+  				},
+  				'ifHCOutBcastPkts' => {
+  					'oid' => 'ifHCOutBroadcastPkts',
+  					'option' => 'counter,0:U'
+  				},
+  				'ifOutDiscards' => {
+  					'oid' => 'ifOutDiscards',
+  					'option' => 'counter,0:U'
+  				},
+  				'ifOutErrors' => {
+  					'oid' => 'ifOutErrors',
+  					'option' => 'counter,0:U'
+  				},
+  			}
+  		}
     },
     'collect' => {
       'Description' => '(CNOC|Collection)',
-      'ifDescr' => 'East|West|east|west',
     },
     'nocollect' => {
       'ifOperStatus' => 'other',
       'ifDescr' => 'sublayer|null|controller|^e0|^e1|^t0|^t1|^t3|async|bri[0-9]$|virtual|Bearer Channel|virtual-access',
+      'Description' => '^#',
       'noDescription' => 'true',
-      'Description' => 'notyetplease',
       'ifType' => 'lapd|ds0|ds1|other|softwareloopback|isdn'
     },
     'noevent' => {
       'Description' => '^!',
       'ifDescr' => 'null',
       'ifType' => 'other'
-     }
-   },
-   'systemHealth' => {
-    #'sections' => 'acdDesc,deviceStatus',
-    'sections' => 'lldp',
+    }
   }
 );
