@@ -1,0 +1,226 @@
+#
+## $Id: Model-Windows2008.nmis,v 8.5 2012/04/28 00:59:36 keiths Exp $
+#
+#  Copyright 1999-2011 Opmantek Limited (www.opmantek.com)
+#
+#  ALL CODE MODIFICATIONS MUST BE SENT TO CODE@OPMANTEK.COM
+#
+#  This file is part of Network Management Information System (“NMIS”).
+#
+#  NMIS is free software: you can redistribute it and/or modify
+#  it under the terms of the GNU General Public License as published by
+#  the Free Software Foundation, either version 3 of the License, or
+#  (at your option) any later version.
+#
+#  NMIS is distributed in the hope that it will be useful,
+#  but WITHOUT ANY WARRANTY; without even the implied warranty of
+#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+#  GNU General Public License for more details.
+#
+#  You should have received a copy of the GNU General Public License
+#  along with NMIS (most likely in a file named LICENSE).
+#  If not, see <http://www.gnu.org/licenses/>
+#
+#  For further information on NMIS or for a license other than GPL please see
+#  www.opmantek.com or email contact@opmantek.com
+#
+#  User group details:
+#  http://support.opmantek.com/users/
+#
+# *****************************************************************************
+
+%hash = (
+  '-common-' => {
+    'class' => {
+      'database' => {
+        'common-model' => 'database'
+      },
+      'threshold' => {
+        'common-model' => 'threshold'
+      },
+      'summary' => {
+        'common-model' => 'summary'
+      },
+      'heading' => {
+        'common-model' => 'heading'
+      },
+      'stats' => {
+        'common-model' => 'stats'
+      },
+      'event' => {
+        'common-model' => 'event'
+      },
+      'software' => {
+        'common-model' => 'software'
+      },
+      'interface' => {
+        'common-model' => 'Windows-interface'
+      },
+      'alerts' => {
+        'common-model' => 'Windows-alerts'
+      },
+      'wmi' => {
+        'common-model' => 'Windows-wmi'
+      }
+    }
+  },
+	'systemHealth' => {
+		'sections' => 'WindowsPagefile,LogicalDisk',
+	},
+
+  'system' => {
+    'nodegraph' => 'health,response,WindowsProcessor,tcp-conn', #remove SNMP based "ip,tcp-conn,tcp-segs,,hrmem,hrvmem,hrsmpcpu,hrwinproc,hrwinusers"
+    'nodeType' => 'server',
+    'nodeModel' => 'Windows2016-wmi.nmis',
+    'nodeVendor' => 'Microsoft',
+
+    'sys' => {
+
+      'standard' => {
+
+				'wmi' => {
+					'LocalDateTime' => {
+						query => "select * from win32_operatingsystem",
+						field => "LocalDateTime", # 20160824173101.375199+600
+						calculate => '($r =~ /^(\d{4})(\d{2})(\d{2})(\d{2})(\d{2})(\d{2})\.\d+([\+-]\d+)$/) && ($r=Time::Local::timegm($6,$5,$4,$3,$2-1,$1)-$7*60); return func::returnDateStamp($r)',
+            'title' => 'System Clock',
+					},
+
+					'winbuild' => {
+						query => "select * from win32_operatingsystem",
+						field => "BuildNumber",
+					},
+					'winosname' => {
+						query => "select * from win32_operatingsystem",
+						field => "Caption",	# note: field Name is similar but gunk-infested
+					},
+					'winversion' => {
+						query => "select * from win32_operatingsystem",
+						field => "Version",	# = major.minor.buildnumber, ie. 6.1.7601
+					},
+					'winsysname' => {
+						query => "select * from win32_operatingsystem",
+						field => "CSName",
+					},
+					'wintime' => {
+						query => "select * from win32_operatingsystem",
+						field => "LocalDateTime", # 20160824173101.375199+600
+						calculate => '($r =~ /^(\d{4})(\d{2})(\d{2})(\d{2})(\d{2})(\d{2})\.\d+([\+-]\d+)$/) && ($r=Time::Local::timegm($6,$5,$4,$3,$2-1,$1)-$7*60)',
+					},
+					'winboottime' => {
+						query => "select * from win32_operatingsystem",
+						field => "LastBootUpTime", # 20160824173101.375199+600
+						calculate => '($r =~ /^(\d{4})(\d{2})(\d{2})(\d{2})(\d{2})(\d{2})\.\d+([\+-]\d+)$/) && ($r=Time::Local::timegm($6,$5,$4,$3,$2-1,$1)-$7*60)',
+					},
+
+				},
+      },
+
+      'extra' =>
+			{
+        
+				'wmi' =>
+				{
+					# example for pulling stuff from an UNSHARED SEPARATE query
+					'bios' => {
+						title  => "Bios Name",
+						query => 'select name from win32_bios',
+						field => "Name",
+						calculate => '$r =~ s/\s*$//; return $r;',
+					},
+
+					# if we want to get multiple things from a single query
+					# actually not even required: the code runs every query it sees just once
+					#"-common-" => {
+					#	query => 'select * from win32_pagefileusage'
+					#},
+          #
+					#'swapname' => {
+					#	title => "Swap File",
+					#	field => 'Name',
+					#	calculate => 'CVAR1=intspersec; return $r." ".$CVAR1;',
+					#},
+          #
+					#'totalswap' => {
+					#	title => "total swap in bytes",
+					#	# not necessary if there is a query in -common-
+					#	# query => 'select allocatedbasesize from Win32_pagefileusage',
+					#	field => 'AllocatedBaseSize',
+					#	calculate => 'return $r*(1<<20);',
+					#},
+
+					#'usedswap' => {
+					#	title => "used swap in bytes",
+					#	# again, not necessary if there is a query in -common-
+					#	# query => 'select currentusage from win32_pagefileusage',
+					#	field => 'CurrentUsage',
+					#	calculate => 'return $r*(1<<20);',
+					#},
+          # this one i only want to collect, but not save
+          #intspersec => {
+          #  query => 'select * from win32_perfformatteddata_PerfOS_Processor where name = "_Total"',
+          #  field => 'InterruptsPersec',
+          #  option => "nosave",
+					#},					
+				},
+      },
+	},
+	## This overrides SNMP collected TCP data - DO NOT use with SNMP enabled devices. For WMI Only devices
+	'rrd' => {
+	  'tcp' => {
+        'graphtype' => 'tcp-conn,tcp-segs',
+        'wmi' => {
+          "-common-" => {
+            'query' => 'select * from Win32_PerfFormattedData_Tcpip_TCPv4',
+		# ConnectionFailures	Win32_PerfFormattedData_Tcpip_TCPv4	19 [uint32]
+		# ConnectionsActive	Win32_PerfFormattedData_Tcpip_TCPv4	19 [uint32]
+		# ConnectionsEstablished	Win32_PerfFormattedData_Tcpip_TCPv4	19 [uint32]
+		# ConnectionsPassive	Win32_PerfFormattedData_Tcpip_TCPv4	19 [uint32]
+		# ConnectionsReset	Win32_PerfFormattedData_Tcpip_TCPv4	19 [uint32]
+          },
+          'tcpActiveOpens' => {
+            'field' => 'ConnectionsActive',
+            'option' => 'counter,0:U'
+          },
+          'tcpPassiveOpens' => {
+            'field' => 'ConnectionsPassive',
+            'option' => 'counter,0:U'
+          },
+          'tcpAttemptFails' => {
+            'field' => 'ConnectionFailures',
+            'option' => 'counter,0:U'
+          },
+          'tcpEstabResets' => {
+            'field' => 'ConnectionsReset',
+            'option' => 'counter,0:U'
+          },
+          'tcpCurrEstab' => {
+            'field' => 'ConnectionsEstablished',
+            'option' => 'gauge,0:U'
+          },
+        #   'tcpInSegs' => {
+        #     'oid' => 'tcpInSegs',
+        #     'option' => 'counter,0:U'
+        #   },
+        #   'tcpOutSegs' => {
+        #     'oid' => 'tcpOutSegs',
+        #     'option' => 'counter,0:U'
+        #   },
+        #   'tcpRetransSegs' => {
+        #     'oid' => 'tcpRetransSegs',
+        #     'option' => 'counter,0:U'
+        #   },
+        #   'tcpInErrs' => {
+        #     'oid' => 'tcpInErrs',
+        #     'option' => 'counter,0:U'
+        #   },
+        #   'tcpOutRsts' => {
+        #     'oid' => 'tcpOutRsts',
+        #     'option' => 'counter,0:U'
+        #   }
+        },
+      },
+	},
+  },
+
+);

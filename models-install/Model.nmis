@@ -79,6 +79,14 @@
           'Windows2012' => 'Windows Version 6\.3'
         },
         '40' => {
+          'Windows2016-wmi' => 'Server 2016 Datacenter Windows Version 10\.0'
+        },
+       # '45' => {
+       #   'Windows2016' => 'Windows Version 10\.0'
+       # },
+       #Windows have not updated the sysDescr for 2016 from 2012 - 
+       # it reads "Software: Windows Version 6.3 (Build 14393 Multiprocessor Free)"
+        '50' => {
           'Windows2000' => 'Windows (2000 )?Version 5\.0',
 		    }
       }
@@ -95,7 +103,13 @@
          'order' => {
         '10' => {
           'DellSwitch' => 'Ethernet Switch',
-          },
+        },
+        '20' => {
+          'sdeDell' => '.',
+        },
+        '21' => {
+          'sdeDell' => '',
+        },
        }
      },
       
@@ -106,16 +120,14 @@
         }
       }
     },
-    'Foundry Networks, Inc.' => {
+    'Foundry Networks' => {
       'order' => {
         '10' => {
           'FoundrySwitch' => 'IronWare|ServerIron'
         }
-        '20' => {
-          'Ruckus-ICX7150' => 'ICX7150'
-        }
       }
-    }
+    },
+
     'Juniper Networks/Unisphere' => {
       'order' => {
         '10' => {
@@ -181,14 +193,8 @@
         '34' => {
           'CiscoIOSXR' => 'IOS XR Software'
         },
-        '35' => {
-          'CatalystIOSXE' => 'Catalyst L3 Switch Software \(CAT9K_IOSXE\)|Catalyst L3 Switch Software \(CAT3K'
-        },
         '40' => {
           'CatalystIOS' => 'C29[0-9]0|C35[0-9]0|C37[0-9]0|CAT2948G|IOS Software, ME380x|IOS Software ME380x|IOS \(tm\) CIGESM Software'
-        },
-        '41' => {
-          'CatalystIOS' => 'Cisco IOS Software, IE'
         },
         '45' => {
           'CatalystIOS' => 'IOS Software, s2t54|Cisco IOS Software, s720|IOS \(tm\) s72033_rp|IOS \(tm\) s3223_rp|IOS \(tm\) s222_rp Software|IOS \(tm\) c6sup2_rp|Cisco IOS Software, Catalyst 4500|Cisco IOS Software, Catalyst 4000|Cisco IOS Software, Catalyst L3 Switch'
@@ -289,6 +295,13 @@
       'order' => {
         '10' => {
           'ExtremeXOS' => 'ExtremeXOS'
+        }
+      }
+    },
+    'Fujitsu Limited' => {
+      'order' => {
+        '10' => {
+          'S100' => 'S100'
         }
       }
     },
@@ -483,10 +496,7 @@
       'order' => {
         '10' => {
           'Ericsson-PPX' => 'Ericsson PPX'
-        },
-				'20' => {
-					'EricssonRouter' => 'Ericsson Router'
-				}
+        }
       }
     },
     'Acme Packet' => {
@@ -550,38 +560,6 @@
         },
       },
     },
-     'TELDAT, S.A.' => {
-      'order' => {
-        '11' => {
-          'Teldat150' => 'ATLAS150'
-        },
-        '12' => {
-          'TELDATL1' => 'L1+'
-        },
-        '13' => {
-          'TeldatM1-uses-common' => 'M1',
-          #'TeldatM1' => 'M1'
-        },
-        '14' => {
-          'TELDATC4G' => 'Router model C4G'
-        },
-        '15' => {
-          'Teldati60' => 'ATLAS60'
-        },
-        '16' => {
-          'TELDAT200' => 'T200'
-        },
-        #'17' => {
-        #  'TeldatM1ppp' => 'M1 1GEWAN 4GESW'
-        #},
-        #'18' => {
-        #  'TELDAT' => 'TELDAT|M1 4GESW'
-        #},
-        '99' => {
-          'Default-HC' => '.'
-        }
-      }
-    },
     'HUAWEI Technology Co.,Ltd' => {
       'order' => {
         '10' => {
@@ -596,10 +574,9 @@
         #'40' => {
         #  'HuaweiSwitches' => 'S5700|S7700'
         #},
-        '50' => {
-          'HuaweiRouterAR2240-uses-common' => 'AR2240'
-          #'HuaweiRouterAR2240' => 'AR2240'
-        },
+        #'50' => {
+        #  'HuaweiRouterAR2240' => 'AR2240'
+        #},
         '99' => {
           'Default-HC' => '.'
         }
@@ -669,47 +646,6 @@
       'order' => {
         '10' => {
           'NetVanta' => 'NetVanta'
-        },
-        '20' => {
-          'Adtran-TA5000' => 'TA5000'
-        }
-      }
-    },
-    'Meraki Networks, Inc.' => {
-      'order' => {
-        '10' => {
-          'CiscoMerakiController' => 'Cisco Meraki Cloud Controller'
-        }
-      }
-    },
-    'Opengear Inc.' => {
-      'order' => {
-        '99' => {
-          'Default-HC' => '.'
-        }
-      }
-    },
-    'CacheFlow Inc.' => {
-      'order' => {
-        '10' => {
-          'BlueCoat' => 'Blue Coat SG-VA Series'
-        },
-        '99' => {
-          'BlueCoat' => '.'
-        }
-      }
-    },
-    'Vyatta, Inc.' => {
-      'order' => {
-        '10' => {
-          'VyOS' => '.'
-        }
-      }
-    },
-    'FireEye Inc.' => {
-      'order' => {
-        '10' => {
-          'FireEye' => '.'
         }
       }
     },
@@ -741,7 +677,6 @@
           },
           'sysName' => {
             'oid' => 'sysName',
-            'title' => 'System Name',
           },
           'sysContact' => {
             'oid' => 'sysContact',
