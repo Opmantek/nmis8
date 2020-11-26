@@ -539,7 +539,7 @@ models/Model.nmis will need to updated for autodiscovery for example:
       'order' => {
         '10' => {
           '$newModelName' => '$nodeSummary{sysDescr}'
-        }
+        },
       }
     },
 

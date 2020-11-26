@@ -395,9 +395,6 @@
           'ifHighSpeed' => {
             'oid' => 'ifHighSpeed'
           },
-          'ldescr' => {
-            'oid' => 'enterprises.9.2.2.1.1.28'
-          },
           'Description' => {
             'oid' => 'ifAlias',
             'title' => ' Description'
