@@ -494,7 +494,7 @@
   		'pkts_hc' => {
   			'indexed' => 'true',
         'threshold' => 'pkt_errors_in,pkt_errors_out',
-        'graphtype' => 'pkts_hc,errpkts_hc,broadcast,multicast',
+        'graphtype' => 'pkts_hc,errpkts_hc',
   			'snmp' => {
   				'ifHCInOctets' => {
   					'oid' => 'ifHCInOctets',
