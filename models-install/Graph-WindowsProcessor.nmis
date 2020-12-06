@@ -84,12 +84,40 @@
 			'--upper-limit','100',
 			'--lower-limit','0',
 			'--rigid',
+'--upper-limit','100',
+			'--lower-limit','0',
+			'--rigid',
 			'DEF:percentProcessor=$database:percentProcessor:AVERAGE',
+			'DEF:percentInterrupt=$database:percentInterrupt:AVERAGE',
+			'DEF:percentPrivileged=$database:percentPrivileged:AVERAGE',
+			'DEF:percentUser=$database:percentUser:AVERAGE',
+			'DEF:percentDpc=$database:percentDpc:AVERAGE',
+			'DEF:percentIdle=$database:percentIdle:AVERAGE',
 
 			'LINE2:percentProcessor#ffa500: Percent Processor\\t',
 			'GPRINT:percentProcessor:LAST:Last %6.2lf',
 			'GPRINT:percentProcessor:AVERAGE:Average %6.2lf',
 			'GPRINT:percentProcessor:MAX:Max %6.2lf\\n',
+
+			'AREA:percentUser#CD5C5C: Percent User\\t\\t',
+			'GPRINT:percentUser:AVERAGE:Avg %6.3lf%%',
+
+			'STACK:percentInterrupt#0000ff: Percent Interrupt\\t',
+			'GPRINT:percentInterrupt:AVERAGE:Avg %6.3lf%%',
+
+			'STACK:percentPrivileged#00a5ff: Percent Privileged\\t',
+			'GPRINT:percentPrivileged:AVERAGE:Avg %6.3lf%%',
+
+
+			'STACK:percentDpc#00ffff: Percent DPC\\t\\t',
+			'GPRINT:percentDpc:AVERAGE:Avg %6.3lf%%',
+
+
+			#'STACK:percentIdle#00FF7F: Percent Idle\\t',
+			#'GPRINT:percentIdle:LAST:Last %6.2lf',
+			#'GPRINT:percentIdle:AVERAGE:Average %6.2lf',
+			#'GPRINT:percentIdle:MAX:Max %6.2lf\\n',
+
 		]
 	}
 );

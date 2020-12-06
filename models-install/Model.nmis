@@ -95,7 +95,13 @@
          'order' => {
         '10' => {
           'DellSwitch' => 'Ethernet Switch',
-          },
+        },
+        '20' => {
+          'sdeDell' => '.',
+        },
+        '21' => {
+          'sdeDell' => '',
+        },
        }
      },
       
@@ -289,6 +295,13 @@
       'order' => {
         '10' => {
           'ExtremeXOS' => 'ExtremeXOS'
+        }
+      }
+    },
+    'Fujitsu Limited' => {
+      'order' => {
+        '10' => {
+          'S100' => 'S100'
         }
       }
     },
@@ -706,6 +719,13 @@
         }
       }
     },
+    'FireEye Inc.' => {
+      'order' => {
+        '10' => {
+          'FireEye' => '.'
+        }
+      }
+    },
     'Accedian Networks' => {
       'order' => {
         '10' => {
@@ -716,13 +736,13 @@
         },
       }
     },
-    'Siklu Communication LTD' => {
-      'order' => {
-        '10' => {
+   'Siklu Communication LTD' => {
+       'order' => {
+         '10' => {
           'Siklu-EH-600' => 'EH-600TX'
-        }
-      }
-    },
+         }
+       }
+     },
   },
   'system' => {
     'nodeModel' => 'Default',

@@ -69,6 +69,8 @@
       'Host_Memory' => '/nodes/$node/health/hrMemory.rrd',
       'Host_Processor' => '/nodes/$node/health/hrProcessorLoad-$index.rrd',
       'Host_Storage' => '/nodes/$node/health/hrStorage-$index.rrd',
+      'hwMusaBoard' => '/nodes/$node/health/hwMusaBoard-$index.rrd',
+      'hwGponStats' => '/nodes/$node/interface/hwGponStats-$index.rrd',
       'Juniper_CoS' => '/nodes/$node/interface/Juniper_CoSstats-$index.rrd',
       'LinkRate' => '/nodes/$node/health/ubnt-linkrate-$index.rrd',
       'LogicalDisk' => '/nodes/$node/health/LogicalDisk-$index.rrd',
@@ -83,6 +85,13 @@
       'Sat-Demodulate' => '/nodes/$node/health/Sat-Demodulate-$index.rrd',
       'SignalStatus' => '/nodes/$node/health/signalstatus-$index.rrd',
       'Station' => '/nodes/$node/health/ubnt-tab-$index.rrd',
+
+
+      'mtxrWlRtab' => '/nodes/$node/interface/mtxrWlRtab-$index.rrd',
+      'mtxrWlAp' => '/nodes/$node/interface/mtxrWlAp-$index.rrd',
+      'HBS-Util' => '/nodes/$node/health/hbs.rrd',
+
+
       'Stream' => '/nodes/$node/health/Stream-$index.rrd',
       'TeldatBRSStat' => '/nodes/$node/interface/tdbrs-$index.rrd',
       'TeldatQoSStat' => '/nodes/$node/interface/tdqos-$index.rrd',
@@ -159,6 +168,10 @@
       'pkts_hc' => '/nodes/$node/interface/$ifDescr-pkts_hc.rrd',
       'power' => '/nodes/$node/health/power.rrd',
       'ppxAtm' => '/nodes/$node/interface/ppxAtm-$index.rrd',
+
+      'ppxCardCPU' => '/nodes/$node/health/ppxCardCPU-$index.rrd',
+      'ppxCardMEM' => '/nodes/$node/health/ppxCardMEM-$index.rrd',
+
       'psuStatus' => '/nodes/$node/health/psustatus-$index.rrd',
       'pvc' => '/nodes/$node/interface/pvc-$item.rrd',
       'radio' => '/nodes/$node/health/radio.rrd',
@@ -175,6 +188,7 @@
       'systemStats' => '/nodes/$node/health/systemstats.rrd',
       'systemStatsMulti' => '/nodes/$node/health/systemStatsMulti-$index.rrd',
       'tcp' => '/nodes/$node/health/tcp.rrd',
+      'FEemailhandling' => '/nodes/$node/health/FEemailhandling.rrd',
       'tempStatus' => '/nodes/$node/health/tempstatus-$index.rrd',
       'tempValue' => '/nodes/$node/health/tempvalue-$index.rrd',
       'upsbat' => '/nodes/$node/misc/apc-ups-bat.rrd',
