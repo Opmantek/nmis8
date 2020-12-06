@@ -574,6 +574,7 @@ EOT
 			}
 
 			if ( $discoveryResults->{$key}{File} =~ /Common/ ) {
+				print "Found a common model to include $discoveryResults->{$key}{File}\n";
 				my $common_name = $discoveryResults->{$key}{File};
 				$common_name =~ s|^Common-([\w\-]+)\.nmis$|$1|;
 				if ( not grep ($_ eq $common_name, @common_things) ) {

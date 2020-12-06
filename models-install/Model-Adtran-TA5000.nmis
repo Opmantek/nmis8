@@ -218,6 +218,9 @@
           },
           'ifSpeed' => {
             'oid' => 'ifSpeed',
+            'replace' => {
+              '4294967295' => '10000000000',
+            },
             'title' => 'Bandwidth'
           },
           'ifType' => {

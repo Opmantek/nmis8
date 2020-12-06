@@ -18,9 +18,26 @@
       },
       'threshold' => {
         'common-model' => 'threshold'
+      },
+      'lldp' => {
+        'common-model' => 'lldp'
+      },
+      'Siklu' => {
+        'common-model' => 'Siklu'
       }
     }
   },
+  'database' => {
+    'type' => {
+      'Siklu_Radio' => '/nodes/$node/health/Siklu_Radio-$index.rrd',
+    }
+  },  
+  'heading' => {
+    'graphtype' => {
+      'Siklu_Radio' => 'Siklu Radio',
+    }
+  },
+
   'interface' => {
     'collect' => {
       'Description' => '(CNOC|Collection)'
@@ -305,6 +322,8 @@
     }
   },
   'systemHealth' => {
-    'sections' => 'Model:systemHealth/sys/ifTable'
+    'sections' => 'Siklu_Radio,lldp,lldpLocal',
   }
 );
+
+
