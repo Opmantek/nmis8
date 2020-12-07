@@ -116,7 +116,7 @@
       'order' => {
         '10' => {
           'Ruckus-ICX7150' => 'ICX7150'
-        }
+        },
         '20' => {
           'FoundrySwitch' => 'IronWare|ServerIron'
         },
