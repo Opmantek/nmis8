@@ -258,8 +258,10 @@
         'CDEF:perIFreeMem=MemIFree,totalIMem,/,100,*',
         'PRINT:avgBusy1:AVERAGE:avgBusy1min=%1.2lf',
         'PRINT:avgBusy5:AVERAGE:avgBusy5min=%1.2lf',
+        'PRINT:avgBusy5:AVERAGE:cpuLoad=%1.2lf',
         'PRINT:bufferElFree:AVERAGE:bufferElFree=%1.2lf',
         'PRINT:perPUsedMem:AVERAGE:ProcMemUsed=%1.2lf',
+        'PRINT:perPUsedMem:AVERAGE:memoryUtil=%1.2lf',
         'PRINT:perPFreeMem:AVERAGE:ProcMemFree=%1.2lf',
         'PRINT:perIUsedMem:AVERAGE:IOMemUsed=%1.2lf',
         'PRINT:perIFreeMem:AVERAGE:IOMemFree=%1.2lf'
@@ -354,6 +356,7 @@
         'CDEF:ssCpuRawNiceP=ssCpuRawNice,ssCpuTotal,/,100,*',
         'CDEF:ssCpuRawSystemP=ssCpuRawSystem,ssCpuTotal,/,100,*',
         'CDEF:ssCpuRawIdleP=ssCpuRawIdle,ssCpuTotal,/,100,*',
+        'CDEF:cpuLoad=100,ssCpuRawIdleP,-',
         'CDEF:ssCpuRawWaitP=ssCpuRawWait,ssCpuTotal,/,100,*',
         'CDEF:ssCpuRawKernelP=ssCpuRawKernel,ssCpuTotal,/,100,*',
         'CDEF:ssCpuRawInterruptP=ssCpuRawInterrupt,ssCpuTotal,/,100,*',
@@ -365,6 +368,8 @@
         'PRINT:ssCpuRawWaitP:AVERAGE:ssCpuRawWait=%1.2lf',
         'PRINT:ssCpuRawKernelP:AVERAGE:ssCpuRawKernel=%1.2lf',
         'PRINT:ssCpuRawInterruptP:AVERAGE:ssCpuRawInterrupt=%1.2lf',
+        'PRINT:ssCpuRawSoftIRQP:AVERAGE:ssCpuRawSoftIRQ=%1.2lf',
+        'PRINT:cpuLoad:AVERAGE:cpuLoad=%1.2lf',
         'PRINT:ssCpuRawSoftIRQP:AVERAGE:ssCpuRawSoftIRQ=%1.2lf'
       ],
       'RouteNumber' => [

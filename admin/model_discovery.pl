@@ -163,7 +163,8 @@ my $schemaMasks = {
 	'indexed' => [ 1, 24, 25 ],
 	'info' => [ 3 ],
 	'item' => [ 27 ],
-	'level' => [ 23 ],
+	'level' => [ 23, 50 ],
+	'logging' => [ 50 ],
 	'nocollect' => [ 1 ],
 	'oid' => [ 3, 20, 22, 24 ],
 	'option' => [ 3, 24 ],
@@ -173,6 +174,7 @@ my $schemaMasks = {
 	'snmpObject' => [ 3, 20, 23, 24 ],
 	'snmpObjectName' => [ 1, 3, 20, 23 ],
 	'sysObjectName' => [ 3, 20, 23 ],
+	'syslog' => [ 50 ],
 
 	'sections' => [ 10 ],
 	'select' => [ 27 ],
@@ -214,6 +216,8 @@ my $keywordSchemaMasks = {
 	#summary/statstype/nodehealth
 	#summary/statstype/health/sumname/reachable
 	45 => qr/^(summary\/statstype\/[\w\-]+|summary\/statstype\/[\w\-]+\/sumname\/[\w\-]+)$/,
+	#event/event/service down/core
+	50 => qr/^event\/event\/[\w\ ]+\/(core|distribution|access)$/,
 };
 
 # these classes can have user defined terms
@@ -374,6 +378,8 @@ sub processNode {
 
 	$nodeSummary{node} = $node;
 	$nodeSummary{sysDescr} = $NI->{system}{sysDescr};
+	$nodeSummary{sysObjectID} = $NI->{system}{sysObjectID};
+	$nodeSummary{nodeVendor} = $NI->{system}{nodeVendor};
 	$nodeSummary{nodeModel} = $NI->{system}{nodeModel};
 
 	my %nodeconfig = %{$NC->{node}}; # copy required because we modify it...
@@ -493,10 +499,67 @@ sub printDiscoverySummary {
 	$nodeSummary{sysDescr} =~ s/\r\n/\\n/g;
 	print "node:\t$nodeSummary{node}\n";
 	print "sysDescr:\t$nodeSummary{sysDescr}\n";
+	print "sysObjectID:\t$nodeSummary{sysObjectID}\n";
+	print "nodeVendor:\t$nodeSummary{nodeVendor}\n";
 	print "nodeModel:\t$nodeSummary{nodeModel}\n";
-
 	print "\n";
 
+	my $useVendor = "YOU NEED TO GET THE NAME FROM IANA";
+
+	if ( $nodeSummary{nodeVendor} eq "Universal" ) {
+		# get the Enterprise ID
+		my @x = split(/\./,$nodeSummary{sysObjectID});
+		my $i = $x[6];
+
+		print <<EOT
+No Enterprise was found for sysObjectID $nodeSummary{sysObjectID}
+
+conf/Enterprise.nmis will need to be updated with an entry for Enterprise ID $i
+IANA https://www.iana.org/assignments/enterprise-numbers/enterprise-numbers
+e.g. 
+
+  '$i' => {
+    'Enterprise' => '$useVendor',
+    'OID' => '$i'
+  },
+
+EOT
+	}
+	else {
+		$useVendor = $nodeSummary{nodeVendor};
+	}
+
+	if ( $nodeSummary{nodeModel} eq "Default" ) {
+		print <<EOT
+Node using the default Model, you might need some autodiscovery.
+
+models/Model.nmis will need to updated for autodiscovery for example:
+
+    '$useVendor' => {
+      'order' => {
+        '10' => {
+          '$newModelName' => '$nodeSummary{sysDescr}'
+        },
+      }
+    },
+
+Likely you will need to refine the regular expression used in the model discovery.    
+EOT
+	}
+
+#	#Does an enterprise exist for this node?
+#	loadEnterpriseTable();
+#	my $enterpriseTable = loadEnterpriseTable();
+#
+#
+#	# Special handling for devices with bad sysObjectID, e.g. Trango
+#	if ( not $i ) {
+#		$i = $NI->{system}{sysObjectID};
+#	}
+#
+#( $enterpriseTable->{$i}{Enterprise} ne "" )
+#1895:					$NI->{system}{nodeVendor} = $enterpriseTable->{$i}{Enterprise};
+#
 	my @sections = ();
 	my @common_things = ();
 	# loop through the data
@@ -511,6 +574,7 @@ sub printDiscoverySummary {
 			}
 
 			if ( $discoveryResults->{$key}{File} =~ /Common/ ) {
+				print "Found a common model to include $discoveryResults->{$key}{File}\n";
 				my $common_name = $discoveryResults->{$key}{File};
 				$common_name =~ s|^Common-([\w\-]+)\.nmis$|$1|;
 				if ( not grep ($_ eq $common_name, @common_things) ) {
@@ -552,8 +616,14 @@ EO_TEXT
 	print "\n";
 
 	print "System Health Sections:\n";
-	@sections = sort { $a cmp $b } (@sections);
-	my $sections_list = join(",",@sections);
+	my @short_sections;
+	foreach my $section (@sections) {
+		my @parts = split("\/",$section);
+		push(@short_sections,$parts[$#parts]);
+	}
+
+	@short_sections = sort { $a cmp $b } (@short_sections);
+	my $sections_list = join(",",@short_sections);
 	print "'sections' => '$sections_list',\n";
 
     $newModel->{'systemHealth'}{'sections'} = $sections_list if defined $newModelName;

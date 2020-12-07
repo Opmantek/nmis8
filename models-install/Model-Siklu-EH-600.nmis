@@ -1,9 +1,6 @@
 %hash = (
   '-common-' => {
     'class' => {
-      'Cisco-neighbor' => {
-        'common-model' => 'Cisco-neighbor'
-      },
       'database' => {
         'common-model' => 'database'
       },
@@ -13,9 +10,6 @@
       'heading' => {
         'common-model' => 'heading'
       },
-      'mib2ip' => {
-        'common-model' => 'mib2ip'
-      },
       'stats' => {
         'common-model' => 'stats'
       },
@@ -24,20 +18,26 @@
       },
       'threshold' => {
         'common-model' => 'threshold'
+      },
+      'lldp' => {
+        'common-model' => 'lldp'
+      },
+      'Siklu' => {
+        'common-model' => 'Siklu'
       }
     }
   },
-  'custom' => {
-    'interface' => {
-      'ifAdminStatus' => 'false', # default = true
-      'ifNumber' => 'false', # default = true
-      'ifLastChange' => 'false', # default = false
-      'ifTableLastChange' => 'false', # default = false
-      'skipIfComment' => 'This is used for mega devices to get rid of unwanted interfaces.  Big SP switches for example.  If skipIfType or skipIfDescr regex is matched, then just skip this interface all together. Must be used with ifNumber = false, ifAdminStatus = false, ifLastChange = false, ifTableLastChange = false',
-      'skipIfType' => 'noskiponifttype',
-      'skipIfDescr' => 'noSuchInstance'
+  'database' => {
+    'type' => {
+      'Siklu_Radio' => '/nodes/$node/health/Siklu_Radio-$index.rrd',
+    }
+  },  
+  'heading' => {
+    'graphtype' => {
+      'Siklu_Radio' => 'Siklu Radio',
     }
   },
+
   'interface' => {
     'collect' => {
       'Description' => '(CNOC|Collection)'
@@ -74,14 +74,6 @@
           'ifDescr' => {
             'oid' => 'ifDescr'
           },
-          'ifHCInOctets' => {
-            'oid' => 'ifHCInOctets',
-            'option' => 'counter,0:U'
-          },
-          'ifHCOutOctets' => {
-            'oid' => 'ifHCOutOctets',
-            'option' => 'counter,0:U'
-          },
           'ifInOctets' => {
             'oid' => 'ifInOctets',
             'option' => 'counter,0:U'
@@ -106,75 +98,62 @@
         },
         'threshold' => 'util_in,util_out'
       },
-      'pkts_hc' => {
-        'graphtype' => 'pkts_hc,errpkts_hc',
+      'pkts' => {
         'indexed' => 'true',
         'snmp' => {
-          'ifHCInBcastPkts' => {
-            'oid' => 'ifHCInBroadcastPkts',
+          'ifOutUcastPkts' => {
+            'oid' => 'ifOutUcastPkts',
             'option' => 'counter,0:U'
           },
-          'ifHCInMcastPkts' => {
-            'oid' => 'ifHCInMulticastPkts',
-            'option' => 'counter,0:U'
-          },
-          'ifHCInOctets' => {
-            'oid' => 'ifHCInOctets',
-            'option' => 'counter,0:U'
-          },
-          'ifHCInUcastPkts' => {
-            'oid' => 'ifHCInUcastPkts',
-            'option' => 'counter,0:U'
-          },
-          'ifHCOutBcastPkts' => {
-            'oid' => 'ifHCOutBroadcastPkts',
-            'option' => 'counter,0:U'
-          },
-          'ifHCOutMcastPkts' => {
-            'oid' => 'ifHCOutMulticastPkts',
-            'option' => 'counter,0:U'
-          },
-          'ifHCOutOctets' => {
-            'oid' => 'ifHCOutOctets',
-            'option' => 'counter,0:U'
-          },
-          'ifHCOutUcastPkts' => {
-            'oid' => 'ifHCOutUcastPkts',
+          'ifInUcastPkts' => {
+            'oid' => 'ifInUcastPkts',
             'option' => 'counter,0:U'
           },
           'ifInDiscards' => {
             'oid' => 'ifInDiscards',
             'option' => 'counter,0:U'
           },
-          'ifInErrors' => {
-            'oid' => 'ifInErrors',
+          'ifInUcastPkts' => {
+            'oid' => 'ifInUcastPkts',
+            'option' => 'counter,0:U'
+          },
+          'ifOutErrors' => {
+            'oid' => 'ifOutErrors',
+            'option' => 'counter,0:U'
+          },
+          'ifInNUcastPkts' => {
+            'oid' => 'ifInNUcastPkts',
             'option' => 'counter,0:U'
           },
           'ifOutDiscards' => {
             'oid' => 'ifOutDiscards',
             'option' => 'counter,0:U'
           },
-          'ifOutErrors' => {
-            'oid' => 'ifOutErrors',
+          'ifInErrors' => {
+            'oid' => 'ifInErrors',
             'option' => 'counter,0:U'
-          }
+          },
+          'ifOutNUcastPkts' => {
+            'oid' => 'ifOutNUcastPkts',
+            'option' => 'counter,0:U'
+          },
+          'ifOutUcastPkts' => {
+            'oid' => 'ifOutUcastPkts',
+            'option' => 'counter,0:U'
+          },
+          'ifInOctets' => {
+            'oid' => 'ifInOctets',
+            'option' => 'counter,0:U'
+          },
+          'ifOutOctets' => {
+            'oid' => 'ifOutOctets',
+            'option' => 'counter,0:U'
+          },
         },
-        'threshold' => 'pkt_errors_in,pkt_errors_out'
-      }
+        'graphtype' => 'pkts,errpkts'
+      },
     },
     'sys' => {
-      'extra' => {
-        'indexed' => 'true',
-        'snmp' => {
-          'Description' => {
-            'oid' => 'ifAlias',
-            'title' => 'Description (ifAlias)'
-          },
-          'ifHighSpeed' => {
-            'oid' => 'ifHighSpeed'
-          }
-        }
-      },
       'standard' => {
         'indexed' => 'true',
         'snmp' => {
@@ -218,9 +197,6 @@
           },
           'ifSpeed' => {
             'oid' => 'ifSpeed',
-            'replace' => {
-              '4294967295' => '10000000000',
-            },
             'title' => 'Bandwidth'
           },
           'ifType' => {
@@ -232,7 +208,7 @@
     }
   },
   'system' => {
-    'nodeModel' => 'Adtran-TA5000',
+    'nodeModel' => 'Siklu-EH-600',
     'nodeModelComment' => 'Auto Generated Model by model_discovery.pl',
     'nodeType' => 'generic',
     'nodegraph' => 'health,response,ip',
@@ -346,6 +322,8 @@
     }
   },
   'systemHealth' => {
-    'sections' => 'Common:systemHealth/sys/addressTable,Model:systemHealth/sys/ifTable'
+    'sections' => 'Siklu_Radio,lldp,lldpLocal',
   }
 );
+
+
