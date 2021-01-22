@@ -60,6 +60,22 @@ sub update_plugin
 		my $entry = $NI->{lldp}{$key};
 		my @parts;
 
+		# make the addresses pretty if they are 0xABCDE
+		if ( $entry->{lldpRemPortIdSubtype} eq "macAddress" and $entry->{lldpRemPortId} =~ /^0x/ ) {
+			$entry->{lldpRemPortId} = beautify_physaddress($entry->{lldpRemPortId});
+		}
+		elsif ( $entry->{lldpRemPortIdSubtype} eq "interfaceName" and $entry->{lldpRemPortId} =~ /^0x/ ) {
+			$entry->{lldpRemPortId} = join( '', map { sprintf "%x", $_ } unpack( 'C*', $entry->{lldpRemPortId} ) );
+		}
+
+		if ( $entry->{lldpRemChassisIdSubtype} eq "macAddress" and $entry->{lldpRemChassisId} =~ /^0x/ ) {
+			$entry->{lldpRemChassisId} = beautify_physaddress($entry->{lldpRemChassisId});
+		}
+		elsif ( $entry->{lldpRemChassisIdSubtype} eq "networkAddress" and $entry->{lldpRemChassisId} =~ /^0x/ ) {
+			$entry->{lldpRemChassisId} = join( '.', unpack( 'C4', $entry->{lldpRemChassisId}));
+		}
+
+		# deal with remote neighbours
 		my $lldpNeighbour = $entry->{lldpRemSysName};
 
 		my @possibleNames;
@@ -163,5 +179,14 @@ sub update_plugin
 
 	return ($changesweremade,undef); # report if we changed anything
 }	
+
+sub munge_mac {
+    my $mac = shift;
+    return unless defined $mac;
+    return unless length $mac;
+    $mac = join( ':', map { sprintf "%02x", $_ } unpack( 'C*', $mac ) );
+    return $mac if $mac =~ /^([0-9A-F][0-9A-F]:){5}[0-9A-F][0-9A-F]$/i;
+    return;
+}
 
 1;
