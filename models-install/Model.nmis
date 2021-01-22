@@ -115,13 +115,13 @@
     'Foundry Networks, Inc.' => {
       'order' => {
         '10' => {
-          'FoundrySwitch' => 'IronWare|ServerIron'
-        }
-        '20' => {
           'Ruckus-ICX7150' => 'ICX7150'
-        }
+        },
+        '20' => {
+          'FoundrySwitch' => 'IronWare|ServerIron'
+        },
       }
-    }
+    },
     'Juniper Networks/Unisphere' => {
       'order' => {
         '10' => {
