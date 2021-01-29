@@ -6644,7 +6644,7 @@
         'eriRtrSseDiskUsed',
         'eriRtrSubsActSes',
         'eriRtrMemIndex',
-        'eriRouterPvcMibCap1',
+        'eriRtrPvcMibCap1',
         '1.3.6.1.4.1.193.218.2.22.1.1.1.5',
         '1.3.6.1.4.1.193.218.2.22.1.1.1.1',
         '1.3.6.1.4.1.193.218.2.22.1.1.1.7',
