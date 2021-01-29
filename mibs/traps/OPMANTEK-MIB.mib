@@ -33,6 +33,10 @@ opmantek MODULE-IDENTITY
 
  -- Revision log, in reverse chronological order
 
+	REVISION      "202101290000Z"
+	DESCRIPTION
+		"Added omkNodeLocation to send through either NMIS Location or the SNMP sysLocation."
+
 	REVISION      "201705080000Z"
 	DESCRIPTION
 		"Added three new object to the trap omkNodeGroup, omkNodeRole, omkNodeCountry and omkNodeProperty."
@@ -63,7 +67,7 @@ omkObjects OBJECT-IDENTITY
 	::= { opmantek 2 }
 
 omkEvent NOTIFICATION-TYPE
-	OBJECTS     { omkId, omkTime, omkDate, omkNode, omkHost, omkEventName, omkElement, omkState, omkStateful, omkDetails, omkType, omkPriority, omkLevel, omkProbableCause, omkAlarmId, omkNodeGroup, omkNodeRole, omkNodeCountry, omkNodeProperty }
+	OBJECTS     { omkId, omkTime, omkDate, omkNode, omkHost, omkEventName, omkElement, omkState, omkStateful, omkDetails, omkType, omkPriority, omkLevel, omkProbableCause, omkAlarmId, omkNodeGroup, omkNodeRole, omkNodeCountry, omkNodeProperty, omkNodeLocation }
 	STATUS      current
 	DESCRIPTION 
 		"The Opmantek Event coming from opEvents with rich data about state and priority."
@@ -96,7 +100,8 @@ omkEventGroup OBJECT-GROUP
 		omkNodeGroup,
 		omkNodeRole,
 		omkNodeCountry,
-		omkNodeProperty
+		omkNodeProperty,
+		omkNodeLocation
 	} 
 	STATUS current
 	DESCRIPTION
@@ -254,6 +259,14 @@ omkNodeProperty OBJECT-TYPE
 	DESCRIPTION 
 		"The name of the property for the node related to this event"
 	::= { omkEventGroup 19 }
+
+omkNodeLocation OBJECT-TYPE
+	SYNTAX      DisplayString
+	MAX-ACCESS  read-only
+	STATUS      current
+	DESCRIPTION 
+		"The name of the location for the node related to this event, this could be the NMIS Location or the NMIS sysLocation from SNMP"
+	::= { omkEventGroup 20 }
 
 nmisEventGroup OBJECT-GROUP
 	OBJECTS {
