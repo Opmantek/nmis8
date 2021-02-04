@@ -28,21 +28,21 @@
 #
 # *****************************************************************************
 
+# This script will syncronise the fields listed in @syncFields from NMIS 
+# node data to the opEvents/opConfig node database.
+
+# set these variables.
+my @syncFields = qw(sysLocation location group);
+
+use strict;
 use FindBin;
 use lib "$FindBin::Bin/../lib";
-
-# Include for reference
-#use lib "/usr/local/nmis8/lib";
-
-# 
-use strict;
+ 
 use Fcntl qw(:DEFAULT :flock);
 use func;
 use NMIS;
 use NMIS::Timing;
 
-# set these variables.
-my @syncFields = qw(sysLocation location group);
 
 my $t = NMIS::Timing->new();
 
