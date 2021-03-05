@@ -72,6 +72,8 @@ use MIME::Base64;
 use Digest::SHA;								# for cookie_flavour omk
 use Data::Dumper;
 use CGI qw(:standard);					# needed for current url lookup, http header, plus td/tr/bla_field helpery
+#use CGI;
+use CGI::Session;
 use Time::ParseDate;
 use File::Basename;
 use Crypt::PasswdMD5;						# for the apache-specific md5 crypt flavour
@@ -282,7 +284,9 @@ sub verify_id
 	my $self = shift;
 
 	# retrieve the right cookie
-	my $cookie = CGI::cookie($self->get_cookie_name());
+	#my $cookie = CGI::cookie($self->get_cookie_name());
+	
+	my $cookie = CGI::cookie("CGISESSID");
 	if(!defined($cookie) )
 	{
 		logAuth("verify_id: cookie not defined");
@@ -365,6 +369,9 @@ sub generate_cookie
 	my ($self, %args) = @_;
 
 	my $authuser = $args{user_name};
+	my $name = (exists ($args{name}) ? $args{name} : $self->get_cookie_name);
+	my $value = $args{value};
+	
 	return "" if (!defined $authuser or $authuser eq '');
 
 	my $expires = ($args{expires} // $self->{config}->{auth_expire}) || '+60min';
@@ -373,7 +380,7 @@ sub generate_cookie
 	# cookie flavor determines the ingredients
 	if ($self->{cookie_flavour} eq "nmis")
 	{
-		return CGI::cookie( -name => $self->get_cookie_name,
+		return CGI::cookie( -name => $name,
 												-domain => $cookiedomain,
 												-expires => $expires,
 												-value => (exists($args{value}) ?
@@ -412,10 +419,12 @@ sub generate_cookie
 		logAuth("generated OMK cookie for $authuser: $value--$signature")
 				if ($self->{debug});
 
-		return  CGI::cookie( { -name => $self->get_cookie_name,
+		return  CGI::cookie( -name => $name,
 													 -domain => $cookiedomain,
-													 -value => "$value--$signature",
-													 -expires => $expires } );
+													 -value => (exists($args{value}) ?
+																	 $args{value}
+																	 :"$value--$signature"),
+													 -expires => $expires );
 	}
 	else
 	{
@@ -946,6 +955,7 @@ EOHTML
 	}
 	my $cookie = $self->generate_cookie(user_name => "remove", expires => "now", value => "remove" );
 	logAuth("DEBUG: do_login: sending cookie to remove existing cookies=$cookie") if $self->{debug};
+	$self->update_live_session_counter(user => $self->{user}, action => 'dec', cookei => $cookie);
 	print CGI::header(-target=>"_top", -type=>"text/html", -expires=>'now', -cookie=>[$cookie]);
 
 	print qq
@@ -988,30 +998,30 @@ EOHTML
 
 	print CGI::Tr(CGI::td({class=>'infolft Plain',colspan=>'2'},$motd));
 
-	print CGI::Tr(CGI::td({class=>'info Plain'},"Username") . CGI::td({class=>'info Plain'},textfield({name=>'auth_username'})));
-	print CGI::Tr(CGI::td({class=>'info Plain'},"Password") . CGI::td({class=>'info Plain'},password_field({name=>'auth_password'}) ));
-	print CGI::Tr(CGI::td({class=>'info Plain'},"&nbsp;") . CGI::td({class=>'info Plain'},submit({name=>'login',value=>'Login'}) ));
+	print CGI::Tr(CGI::td({class=>'info Plain'},"Username") . CGI::td({class=>'info Plain'},CGI::textfield({name=>'auth_username'})));
+	print CGI::Tr(CGI::td({class=>'info Plain'},"Password") . CGI::td({class=>'info Plain'},CGI::password_field({name=>'auth_password'}) ));
+	print CGI::Tr(CGI::td({class=>'info Plain'},"&nbsp;") . CGI::td({class=>'info Plain'},CGI::submit({name=>'login',value=>'Login'}) ));
 
 
 	if ( $self->{config}->{'auth_sso_domain'} ne "" and $self->{config}->{'auth_sso_domain'} ne ".domain.com" ) {
 		print CGI::Tr(CGI::td({class=>"info",colspan=>'2'}, "Single Sign On configured with \"$self->{config}->{'auth_sso_domain'}\""));
 	}
 
-	print CGI::Tr(CGI::td({colspan=>'2'},p({style=>"color: red"}, "&nbsp;$msg&nbsp;"))) if $msg ne "";
+	print CGI::Tr(CGI::td({colspan=>'2'},CGI::p({style=>"color: red"}, "&nbsp;$msg&nbsp;"))) if $msg ne "";
 
 	print CGI::end_table;
 
-	print hidden(-name=>'conf', -default=>$config, -override=>'1');
+	print CGI::hidden(-name=>'conf', -default=>$config, -override=>'1');
 	
 	# put query string parameters into the form so that they are picked up by Vars (because it only takes get or post not both)
-	my @qs_params = param();
+	my @qs_params = CGI::param();
 	foreach my $key (@qs_params) {
 		# logAuth("adding $key ".param($key)."\n";  
 		# do not do this for login param.
 		# escapeHTML all other param's so stoopid people don't break it.
 		if( $key !~ /conf|auth_type|auth_username|auth_password|login/ ) {
-			my $param = escapeHTML(param($key));
-			print hidden(-name=>$key, -default=>$param,-override=>'1');
+			my $param = CGI::escapeHTML(CGI::param($key));
+			print CGI::hidden(-name=>$key, -default=>$param,-override=>'1');
 		}
 	}
 
@@ -1123,7 +1133,10 @@ sub do_logout {
 	my $cookie = $self->generate_cookie(user_name => $self->{user}, expires => "now", value => "" );
 
 	logAuth("INFO logout of user=$self->{user} conf=$config");
-
+	
+	# and reset the session counter
+	$self->update_live_session_counter(user => $self->{user}, action => 'dec', cookie => $cookie);
+	
 	print CGI::header({ -target=>'_top', -expires=>"5s", -cookie=>[$cookie] })."\n";
 	#print start_html({
 	#	-title =>"Logout complete",
@@ -1259,6 +1272,8 @@ sub _pam_verify
 			. $pamhandle->pam_strerror($res));
 	return 0;
  }
+
+ 
 sub _radius_verify {
 	my $self = shift;
 	my($user, $pswd) = @_;
@@ -1394,7 +1409,8 @@ sub loginout {
 
 	my $headeropts = $args{headeropts};
 	my @cookies = ();
-
+my $session;
+my $session_dir = $self->{config}->{'<nmis_var>'}."/nmis_system/user_session";
 	logAuth("DEBUG: loginout type=$type username=$username")
 			if $self->{debug};
 
@@ -1413,7 +1429,10 @@ sub loginout {
 	}
 
 	my $maxtries = $self->{config}->{auth_lockout_after};
-
+    my $max_sessions = $self->get_max_sessions(user => $username);
+# TODO: Set by default. Add to conf
+	my $max_sessions_enabled = $self->{config}->{auth_lockout_after};
+	
 	if (defined($username) && $username ne '')
 	{
 		# someone is trying to log in
@@ -1425,6 +1444,17 @@ sub loginout {
 				logAuth("Account $username remains locked after $failures login failures.");
 				$self->do_login(listmodules => $listmodules,
 												msg => "Too many failed attempts, account disabled");
+				return 0;
+			}
+		}
+		if ($max_sessions)
+		{
+			my ($error, $sessions) = $self->get_live_session_counter(user => $username);
+			if ($sessions > $max_sessions)
+			{
+				logAuth("Account $username max sessions $max_sessions reached.");
+				$self->do_login(listmodules => $listmodules,
+												msg => "Too many sessions open, login not allowed");
 				return 0;
 			}
 		}
@@ -1449,6 +1479,8 @@ sub loginout {
 
 			logAuth("user=$self->{user} logged in");
 			logAuth("DEBUG: loginout user=$self->{user} logged in") if $self->{debug};
+# Create session
+#$session = CGI::Session->new(undef, undef, {Directory=>$session_dir});
 		}
 		else
 		{ # bad login: try again, up to N times
@@ -1535,8 +1567,15 @@ To re-enable this account visit $self->{config}->{nmis_host_protocol}://$self->{
 
 	# generate the cookie if $self->user is set
 	if ($self->{user}) {
-    push @cookies, $self->generate_cookie(user_name => $self->{user});
-  	logAuth("DEBUG: loginout made cookie $cookies[0]") if $self->{debug};
+		# Create session
+$session = CGI::Session->new(undef, undef, {Directory=>$session_dir});
+		my $cookie = $self->generate_cookie(user_name => $self->{user}, name => $session->name, value => $session->id);
+		push @cookies, $cookie;
+		logAuth("DEBUG: loginout made cookie $cookies[0]") if $self->{debug};
+		# update the session counter
+		#my ($error, $newcount) = $self->update_live_session_counter(user => $username, action => 'inc', cookie => $cookie);
+		#logAuth("DEBUG: loginout error $error creating session file for user=$self->{user}") if ($error);
+		#logAuth("DEBUG: Update $newcount sessions for user=$self->{user}") if !($error);
 	}
 	$headeropts->{-cookie} = [@cookies];
 	return 1; # all oke
@@ -1589,6 +1628,55 @@ sub update_failure_counter
 	return (undef, $userdata->{count});
 }
 
+# increments or resets the number of open sessions for a given user
+# args: user, action (inc or reset), both required
+# returns error message or (undef,new counter value)
+sub update_live_session_counter
+{
+	my ($self, %args) = @_;
+	my ($user, $action, $cookie) = @args{"user","action", "cookie"};
+
+	return "cannot update session counter without valid user argument!" if (!$user);
+	return "cannot update session counter without valid action argument!" if (!$action or $action !~ /^(inc|dec)$/);
+
+	my $statedir = $self->{config}->{'<nmis_var>'}."/nmis_system/user_session";
+	createDir($statedir) if (!-d $statedir);
+logAuth("Auth::update_live_session_counter ". ref($cookie) . " " . Dumper($cookie));
+	#my $userdata = { count => 0 };
+	my $userdata;
+	my $userstatefile = "$statedir/$user.json";
+	if (-f $userstatefile)
+	{
+		open(F, $userstatefile) or return "cannot read $userstatefile: $!";
+		$userdata = eval { decode_json(join("", <F>)); };
+		close F;
+		if ($@ or ref($userdata) ne "HASH")
+		{
+			unlink($userstatefile);		# broken, get rid of it
+		}
+	}
+
+	my $value = @{$cookie->{value}}[0];
+	
+	if ($action eq "dec")
+	{
+		delete $userdata->{$value};
+	}
+	else
+	{
+		$userdata->{$value} = $cookie->{expires};
+	}
+
+	open(F,">$userstatefile") or return "cannot write $userstatefile: $!";
+	print F encode_json($userdata);
+	close(F);
+	setFileProtDiag(file => $userstatefile, username => $self->{config}->{nmis_user},
+									groupname => $self->{config}->{nmis_group},
+									permission => $self->{config}->{os_fileperm}); # ignore problems with that
+
+	return (undef, $userdata->{count});
+}
+
 # returns the current failure counter for the given user
 # args: user, required.
 # returns: (undef,counter) or error message
@@ -1616,7 +1704,32 @@ sub get_failure_counter
 	return (undef, $userdata->{count});
 }
 
+# returns the current session counter for the given user
+# args: user, required.
+# returns: (undef,counter) or error message
+sub get_live_session_counter
+{
+	my ($self, %args) = @_;
+	my $user = $args{"user"};
+	return "cannot get failure counter without valid user argument!" if (!$user);
 
+	my $statedir = $self->{config}->{'<nmis_var>'}."/nmis_system/user_session";
+	createDir($statedir) if (!-d $statedir);
+
+	my $userdata = { count => 0 };
+	my $userstatefile = "$statedir/$user.json";
+	if (-f $userstatefile)
+	{
+		open(F, $userstatefile) or return "cannot read $userstatefile: $!";
+		$userdata = eval { decode_json(join("", <F>)); };
+		close F;
+		if ($@ or ref($userdata) ne "HASH")
+		{
+			unlink($userstatefile);		# broken, get rid of it
+		}
+	}
+	return (undef, $userdata->{count});
+}
 
 # check if user logged in
 
@@ -1645,6 +1758,16 @@ sub SetUser {
 	else {
 		return 0;
 	}
+}
+
+#----------------------------------
+
+# check if the group is in the user's group list
+#
+sub get_max_sessions {
+	my $self = shift;
+	# TODO: Read table users first, conf item, default
+	return 2;
 }
 
 #----------------------------------
