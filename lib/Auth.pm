@@ -1026,9 +1026,7 @@ EOHTML
     print $json_data;
     return;
 	}
-	#my $cookie = $self->generate_cookie(user_name => "remove", expires => "now", value => "remove" );
-	#logAuth("DEBUG: do_login: sending cookie to remove existing cookies=$cookie") if $self->{debug};
-	#$self->update_live_session_counter(user => $self->{user}, action => 'dec', cookie => $cookie);
+
 	print CGI::header(-target=>"_top", -type=>"text/html");
 
 	print qq
@@ -1203,19 +1201,18 @@ sub do_logout {
 	$url =~ s!^[^:]+://!//!;
 
 	my $javascript = "function redir() { window.location = '" . $url ."'; }";
-# TODO
-my $cgi = new CGI;  
-my $session_dir = $self->{config}->{'<nmis_var>'}."/nmis_system/user_session";
-my $sid = $cgi->cookie('CGISESSID') || $cgi->param('CGISESSID') || undef;
-my $session = load CGI::Session(undef, $sid, {Directory=>$session_dir});   
-$session->delete();
-$session->flush(); 
+	
+	# Remove session
+	my $cgi = new CGI;  
+	my $session_dir = $self->{config}->{'<nmis_var>'}."/nmis_system/user_session";
+	my $sid = $cgi->cookie('CGISESSID') || $cgi->param('CGISESSID') || undef;
+	my $session = load CGI::Session(undef, $sid, {Directory=>$session_dir});   
+	$session->delete();
+	$session->flush();
+	
 	my $cookie = $self->generate_cookie(user_name => $self->{user}, expires => "now", value => "" );
 
 	logAuth("INFO logout of user=$self->{user} conf=$config");
-	
-	# and reset the session counter
-	$self->update_live_session_counter(user => $self->{user}, action => 'dec', cookie => $cookie);
 	
 	print CGI::header({ -target=>'_top', -expires=>"5s", -cookie=>[$cookie] })."\n";
 	#print start_html({
@@ -1509,9 +1506,7 @@ my $session_dir = $self->{config}->{'<nmis_var>'}."/nmis_system/user_session";
 	}
 
 	my $maxtries = $self->{config}->{auth_lockout_after};
-    my $max_sessions = $self->get_max_sessions(user => $username);
-# TODO: Set by default. Add to conf
-	my $max_sessions_enabled = $self->{config}->{auth_lockout_after};
+	my $max_sessions_enabled = $self->{config}->{max_sessions_enabled};
 	
 	if (defined($username) && $username ne '')
 	{
@@ -1527,8 +1522,9 @@ my $session_dir = $self->{config}->{'<nmis_var>'}."/nmis_system/user_session";
 				return 0;
 			}
 		}
-		if ($max_sessions)
+		if ($max_sessions_enabled)
 		{
+			my $max_sessions = $self->get_max_sessions(user => $username);
 			my ($error, $sessions) = $self->get_live_session_counter(user => $username);
 			if ($sessions >= $max_sessions)
 			{
@@ -1708,55 +1704,6 @@ sub update_failure_counter
 	return (undef, $userdata->{count});
 }
 
-# increments or resets the number of open sessions for a given user
-# args: user, action (inc or reset), both required
-# returns error message or (undef,new counter value)
-sub update_live_session_counter
-{
-	my ($self, %args) = @_;
-	my ($user, $action, $cookie) = @args{"user","action", "cookie"};
-
-	return "cannot update session counter without valid user argument!" if (!$user);
-	return "cannot update session counter without valid action argument!" if (!$action or $action !~ /^(inc|dec)$/);
-
-	my $statedir = $self->{config}->{'<nmis_var>'}."/nmis_system/user_session";
-	createDir($statedir) if (!-d $statedir);
-logAuth("Auth::update_live_session_counter ". ref($cookie) . " " . Dumper($cookie));
-	#my $userdata = { count => 0 };
-	my $userdata;
-	my $userstatefile = "$statedir/$user.json";
-	if (-f $userstatefile)
-	{
-		open(F, $userstatefile) or return "cannot read $userstatefile: $!";
-		$userdata = eval { decode_json(join("", <F>)); };
-		close F;
-		if ($@ or ref($userdata) ne "HASH")
-		{
-			unlink($userstatefile);		# broken, get rid of it
-		}
-	}
-
-	my $value = @{$cookie->{value}}[0];
-	
-	if ($action eq "dec")
-	{
-		delete $userdata->{$value};
-	}
-	else
-	{
-		$userdata->{$value} = $cookie->{expires};
-	}
-
-	open(F,">$userstatefile") or return "cannot write $userstatefile: $!";
-	print F encode_json($userdata);
-	close(F);
-	setFileProtDiag(file => $userstatefile, username => $self->{config}->{nmis_user},
-									groupname => $self->{config}->{nmis_group},
-									permission => $self->{config}->{os_fileperm}); # ignore problems with that
-
-	return (undef, $userdata->{count});
-}
-
 # returns the current failure counter for the given user
 # args: user, required.
 # returns: (undef,counter) or error message
@@ -1811,9 +1758,15 @@ sub get_live_session_counter
 					logAuth("ERROR $@");
 			}
 
-		   if ($hash->{username} eq $user && ($self->not_expired(time_exp => $hash->{_SESSION_ATIME}) == 1)) {
-			 $count++;
-			 logAuth("Increment counter $count for user $user") if ($self->{debug});;
+		   if ($hash->{username} eq $user) {
+			 if ($self->not_expired(time_exp => $hash->{_SESSION_ATIME}) == 1) {
+				$count++;
+				logAuth("Increment counter $count for user $user") if ($self->{debug});
+			 } else {
+				# Clean up
+				unlink "$session_dir/$filename";
+			 }
+			 
 		   }
 		}	
 		close(FH);
@@ -1878,9 +1831,15 @@ sub SetUser {
 # check if the group is in the user's group list
 #
 sub get_max_sessions {
-	my $self = shift;
-	# TODO: Read table users first, conf item, default
-	return 2;
+	my ($self, %args) = @_;
+	my $user = $args{user};
+	my $max_sessions = $self->{config}->{max_sessions};
+
+	my $UT = loadUsersTable();
+	if ( exists $UT->{$user}{max_sessions} ) {
+		return $UT->{$user}{max_sessions};
+	}
+	return $max_sessions;
 }
 
 #----------------------------------
