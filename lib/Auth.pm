@@ -285,12 +285,25 @@ sub verify_id
 
 	# retrieve the right cookie
 	#my $cookie = CGI::cookie($self->get_cookie_name());
+	my $cgi = new CGI;                       
+   #try to retrieve cookie.
+   my $session_dir = $self->{config}->{'<nmis_var>'}."/nmis_system/user_session";
+    my $sid = $cgi->cookie('CGISESSID') || $cgi->param('CGISESSID') || undef;
+    my $session = load CGI::Session(undef, $sid, {Directory=>$session_dir});                       
+    my $username = $session->param("username");
 	
 	my $cookie = CGI::cookie("CGISESSID");
+	logAuth("verify_id: username: ". $username);
+	
 	if(!defined($cookie) )
 	{
 		logAuth("verify_id: cookie not defined");
 		return ''; # not defined
+	} elsif (!defined($username)) {
+		logAuth("verify_id: cookie invalid");
+		return ''; # not defined
+	} else {
+		return $username;
 	}
 
 	if ($self->{cookie_flavour} eq "nmis")
@@ -1568,7 +1581,9 @@ To re-enable this account visit $self->{config}->{nmis_host_protocol}://$self->{
 	# generate the cookie if $self->user is set
 	if ($self->{user}) {
 		# Create session
+
 $session = CGI::Session->new(undef, undef, {Directory=>$session_dir});
+$session->param('username', $self->{user});
 		my $cookie = $self->generate_cookie(user_name => $self->{user}, name => $session->name, value => $session->id);
 		push @cookies, $cookie;
 		logAuth("DEBUG: loginout made cookie $cookies[0]") if $self->{debug};
