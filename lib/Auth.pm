@@ -282,33 +282,15 @@ sub get_cookie_name
 sub verify_id
 {
 	my $self = shift;
-	
-	# TODO: Use $self->get_cookie_name
-	my $cookie_name = "CGISESSID";
-	
-    #try to retrieve cookie.
-	my $cgi = new CGI;
-    my $session_dir = $self->{config}->{'<nmis_var>'}."/nmis_system/user_session";
-    my $sid = $cgi->cookie($cookie_name) || $cgi->param($cookie_name) || undef;
-    my $session = load CGI::Session(undef, $sid, {Directory=>$session_dir});                       
-    my $username = $session->param("username");	
-	my $cookie = CGI::cookie($cookie_name);
 
-	logAuth("verify_id username: ". $username) if ($self->{debug});
+	my $cookie = CGI::cookie($self->get_cookie_name());
 
 	if(!defined($cookie) )
 	{
 		logAuth("verify_id: cookie not defined");
 		return ''; # not defined
-	} elsif (!defined($username)) {
-		logAuth("verify_id: cookie invalid");
-		return ''; # not defined
-	} else {
-		# TODO: Verify next if, not return yet
-		return $username;
 	}
 
-	# TODO
 	if ($self->{cookie_flavour} eq "nmis")
 	{
 		# nmis-style cookies: username:numeric weak checksum
@@ -1026,8 +1008,9 @@ EOHTML
     print $json_data;
     return;
 	}
-
-	print CGI::header(-target=>"_top", -type=>"text/html");
+	my $cookie = $self->generate_cookie(user_name => "remove", expires => "now", value => "remove" );
+	logAuth("DEBUG: do_login: sending cookie to remove existing cookies=$cookie") if $self->{debug};
+	print CGI::header(-target=>"_top", -type=>"text/html", -expires=>'now', -cookie=>[$cookie]);
 
 	print qq
 |<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN" "http://www.w3.org/TR/html4/loose.dtd">
@@ -1486,8 +1469,9 @@ sub loginout {
 
 	my $headeropts = $args{headeropts};
 	my @cookies = ();
-my $session;
-my $session_dir = $self->{config}->{'<nmis_var>'}."/nmis_system/user_session";
+	my $session;
+	my $session_dir = $self->{config}->{'<nmis_var>'}."/nmis_system/user_session";
+	
 	logAuth("DEBUG: loginout type=$type username=$username")
 			if $self->{debug};
 
@@ -1649,8 +1633,11 @@ To re-enable this account visit $self->{config}->{nmis_host_protocol}://$self->{
 		if (!$session) {
 			$session = CGI::Session->load(undef, undef, {Directory=>$session_dir});
 		}
+		
+		# This is the session cookie
 		my $cookie = $self->generate_cookie(user_name => $self->{user}, name => $session->name, value => $session->id);
 		push @cookies, $cookie;
+		push @cookies, $self->generate_cookie(user_name => $self->{user});
 		logAuth("DEBUG: loginout made cookie $cookies[0]") if $self->{debug};
 	}
 	$headeropts->{-cookie} = [@cookies];
