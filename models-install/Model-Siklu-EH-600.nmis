@@ -20,7 +20,7 @@
         'common-model' => 'threshold'
       },
       'lldp' => {
-        'common-model' => 'lldp'
+        'common-model' => 'lldpv2'
       },
       'Siklu' => {
         'common-model' => 'Siklu'
