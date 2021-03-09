@@ -200,7 +200,7 @@
 
   'system' => {
     'nodegraph' => 'health,f5Memory,f5Connection,response',
-    'nodeModel' => 'F5',
+    'nodeModel' => 'F5-BigIP',
     'nodeType' => 'Server',
     'nodeVendor' => 'F5 Labs, Inc.',
     'sys' => {
