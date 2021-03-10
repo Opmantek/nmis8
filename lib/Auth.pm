@@ -459,14 +459,14 @@ sub generate_session {
 			my ($offset, $unit) = ($1, $2);
 			# the last two are clearly imprecise
 			my %factors = ( s => 1, m => 60, 'min' => 60, h => 3600, d => 86400, M => 31*86400, y => 365 * 86400 );
-
+	
 			$expires_ts = time + ($offset * $factors{$unit});
 		}
 		else # assume it's something absolute and parsable
 		{
 			$expires_ts = func::parseDateTime($expires) || func::getUnixTime($expires);
 		}
-
+	
 		# create session data structure, encode as base64 (but - instead of =), sign with key and combine
 		my $sessiondata = encode_json( { auth_data => $user,
 																		 expires => $expires_ts } );
@@ -478,10 +478,12 @@ sub generate_session {
 		$token = $self->get_cookie_token($signature);
 	}
 	# Generate sesssion
-	logAuth("INFO Generating session $name for user $user and $token") if ($self->{debug});
+	#logAuth("INFO Generating session $name for user $user and $token") if ($self->{debug});
 	# TODO: Update session name and token
 	#CGI::Session->name($name);
 	my $session = CGI::Session->new(undef, $token, {Directory=>$session_dir});
+	logAuth("INFO Generating session $name for user $user") if ($self->{debug});
+	#my $session = CGI::Session->new(undef, undef, {Directory=>$session_dir});
 	#$session->name($name);
 	#$session->param('name', $name);
 	$session->param('username', $user);
@@ -1189,9 +1191,11 @@ sub do_logout {
 	my $cgi = new CGI;  
 	my $session_dir = $self->{config}->{'<nmis_var>'}."/nmis_system/user_session";
 	my $sid = $cgi->cookie('CGISESSID') || $cgi->param('CGISESSID') || undef;
-	my $session = load CGI::Session(undef, $sid, {Directory=>$session_dir});   
-	$session->delete();
-	$session->flush();
+	my $session = load CGI::Session(undef, $sid, {Directory=>$session_dir});
+	if ($session) {
+		$session->delete();
+		$session->flush();
+	}
 	
 	my $cookie = $self->generate_cookie(user_name => $self->{user}, expires => "now", value => "" );
 
@@ -1635,8 +1639,11 @@ To re-enable this account visit $self->{config}->{nmis_host_protocol}://$self->{
 		}
 		
 		# This is the session cookie
-		my $cookie = $self->generate_cookie(user_name => $self->{user}, name => $session->name, value => $session->id);
-		push @cookies, $cookie;
+		if ($session) {
+			my $cookie = $self->generate_cookie(user_name => $self->{user}, name => $session->name, value => $session->id);
+			push @cookies, $cookie;
+		}
+		
 		push @cookies, $self->generate_cookie(user_name => $self->{user});
 		logAuth("DEBUG: loginout made cookie $cookies[0]") if $self->{debug};
 	}
