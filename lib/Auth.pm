@@ -1176,7 +1176,8 @@ sub do_logout {
 
 	# that's the NAME not the config data
 	my $config = $args{conf} || $self->{confname};
-
+	my $max_sessions_enabled = $self->{config}->{max_sessions_enabled};
+	
 	# Javascript that sets window.location to login URL
 	### fixing the logout so it can be reverse proxied
 	# ensure the  conf argument is kept
@@ -1186,15 +1187,18 @@ sub do_logout {
 	$url =~ s!^[^:]+://!//!;
 
 	my $javascript = "function redir() { window.location = '" . $url ."'; }";
-	
-	# Remove session
-	my $cgi = new CGI;  
-	my $session_dir = $self->{config}->{'<nmis_var>'}."/nmis_system/user_session";
-	my $sid = $cgi->cookie($self->get_session_cookie_name()) || $cgi->param($self->get_session_cookie_name()) || undef;
-	my $session = load CGI::Session(undef, $sid, {Directory=>$session_dir});
-	if ($session) {
-		$session->delete();
-		$session->flush();
+
+	if ($max_sessions_enabled)
+	{
+		# Remove session
+		my $cgi = new CGI;  
+		my $session_dir = $self->{config}->{'<nmis_var>'}."/nmis_system/user_session";
+		my $sid = $cgi->cookie($self->get_session_cookie_name()) || $cgi->param($self->get_session_cookie_name()) || undef;
+		my $session = load CGI::Session(undef, $sid, {Directory=>$session_dir});
+		if ($session) {
+			$session->delete();
+			$session->flush();
+		}
 	}
 	
 	my $cookie = $self->generate_cookie(user_name => $self->{user}, expires => "now", value => "" );
@@ -1632,16 +1636,20 @@ To re-enable this account visit $self->{config}->{nmis_host_protocol}://$self->{
 
 	# generate the cookie if $self->user is set
 	if ($self->{user}) {
-		# Create session
-		# Load session
-		if (!$session) {
-			$session = CGI::Session->load(undef, undef, {Directory=>$session_dir});
-		}
 		
-		# This is the session cookie
-		if ($session) {
-			my $cookie = $self->generate_cookie(user_name => $self->{user}, name => $session->name, value => $session->id);
-			push @cookies, $cookie;
+		if ($max_sessions_enabled)
+		{
+			# Create session
+			# Load session
+			if (!$session) {
+				$session = CGI::Session->load(undef, undef, {Directory=>$session_dir});
+			}
+			
+			# This is the session cookie
+			if ($session) {
+				my $cookie = $self->generate_cookie(user_name => $self->{user}, name => $session->name, value => $session->id);
+				push @cookies, $cookie;
+			}
 		}
 		
 		push @cookies, $self->generate_cookie(user_name => $self->{user});
