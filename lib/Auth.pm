@@ -1732,6 +1732,8 @@ sub get_live_session_counter
 {
 	my ($self, %args) = @_;
 	my $user = $args{"user"};
+	my $remove_all = $args{"remove_all"};
+
 	return "cannot get failure counter without valid user argument!" if (!$user);
 
 	my $session_dir = $self->{config}->{'<nmis_var>'}."/nmis_system/user_session";
@@ -1756,14 +1758,19 @@ sub get_live_session_counter
 			}
 
 		   if ($hash->{username} eq $user) {
-			 if ($self->not_expired(time_exp => $hash->{_SESSION_ATIME}) == 1) {
-				$count++;
-				logAuth("Increment counter $count for user $user") if ($self->{debug});
-			 } else {
-				# Clean up
+			 if ($remove_all) {
+				# Remove all files for the given user
 				unlink "$session_dir/$filename";
-			 }
-			 
+			 } else {
+				# Remove expired sessions
+				if (not_expired(time_exp => $hash->{_SESSION_ATIME}) == 1) {
+					$count++;
+					logAuth("Increment counter $count for user $user") if ($self->{debug});
+				 } else {
+					# Clean up
+					unlink "$session_dir/$filename";
+				 }
+			 } 
 		   }
 		}	
 		close(FH);

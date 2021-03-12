@@ -56,6 +56,7 @@ use NMIS::UUID;
 use csv;
 use rrdfunc; 			# main entry point is updateRRD
 use func;
+use Auth;
 use ip;
 use sapi;
 use ping;
@@ -103,6 +104,9 @@ my $wantsystemcron = getbool($cmdargs->{system}); # for printCrontab
 my $mthread	= (exists $cmdargs->{mthread}? $cmdargs->{mthread} : $C->{nmis_mthread}) || 0;
 my $maxThreads = (exists $cmdargs->{maxthreads}? $cmdargs->{maxthreads} : $C->{nmis_maxthreads}) || 1;
 my $mthreadDebug=$cmdargs->{mthreaddebug}; # cmdline only for this debugging flag
+
+# clean sessions
+my $user		= $cmdargs->{user};
 
 # park the list of collect/update plugins globally
 my @active_plugins;
@@ -193,6 +197,7 @@ elsif ( $type eq "links" ) { runLinks(); } # included in type=update
 elsif ( $type eq "apache" ) { printApache(); }
 elsif ( $type eq "apache24" ) { printApache24(); }
 elsif ( $type eq "crontab" ) { printCrontab(); }
+elsif ( $type eq "clean_sessions" ) { clean_sessions(user => $user); }
 elsif ( $type eq "summary" )  {
 	# both of these internally enforce at most one concurrent run
 	nmisSummary(); # MIGHT be included in type=collect
@@ -9278,6 +9283,7 @@ command line options are:
       rme       Read and generate a node.csv file from a Ciscoworks RME file
       groupsync Check all nodes and add any missing groups to the configuration
       purge     Remove old files, or print them if simulate=true
+	  clean_sessions	Remove all sessions file for a user
   [conf=<file name>]     Optional alternate configuation file in conf directory
   [node=name1 node=name2...] Run operations on specific nodes only
   [group=name1 group=name2...]  Run operations on nodes in the named groups only
@@ -10306,6 +10312,19 @@ sub diag_log
 		openlog("nmis", "ndelay,pid,nofatal", $facility);
 		syslog($priority, $message);
 	}
+}
+
+# Clean user sessions
+sub clean_sessions
+{
+	my %args = @_;
+	my $user = $args{user};
+	
+	die "Needs a user to remove the sessions!\n" if (!$user);
+	my $auth = new Auth;
+	my ($error, $count) = $auth->get_live_session_counter(user => $user, remove_all => 1);
+	print "$error \n" if ($error);
+	print "$count sessions left for $user \n" if ($count);
 }
 
 # *****************************************************************************
