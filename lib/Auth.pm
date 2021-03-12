@@ -1499,6 +1499,7 @@ sub loginout {
 
 	my $maxtries = $self->{config}->{auth_lockout_after};
 	my $max_sessions_enabled = $self->{config}->{max_sessions_enabled};
+	my $expire_users = $self->{config}->{expire_users};
 	
 	if (defined($username) && $username ne '')
 	{
@@ -1526,6 +1527,14 @@ sub loginout {
 				return 0;
 			}
 		}
+		if ($expire_users) {
+			my $expire_after = $self->get_expire_at(user => $username);
+			my $last_login = $self->get_last_login(user => $username);
+			logAuth("DEBUG: verifying expire after $expire_after < last login $last_login");
+			if ($expire_after < $last_login) {
+				# TODO
+			} 
+		}
 		logAuth("DEBUG: verifying $username") if $self->{debug};
 		if( $self->user_verify($username,$password))
 		{
@@ -1549,7 +1558,9 @@ sub loginout {
 			logAuth("DEBUG: loginout user=$self->{user} logged in") if $self->{debug};
 			
 			# Create session
-			$session = $self->generate_session(user_name => $self->{user});
+			if ($max_sessions_enabled or $expire_users) {
+				$session = $self->generate_session(user_name => $self->{user});
+			}
 		}
 		else
 		{ # bad login: try again, up to N times
@@ -1994,5 +2005,56 @@ sub get_session_cookie_name
 	# This is the CGI::Session default name
 	return 'CGISESSID';
 }
+
+# Get the session cookie name 
+sub get_expire_at
+{
+	my ($self, %args) = @_;
+	my $user = $args{user};
+	my $expire_at = $self->{config}->{expire_users_after};
+
+	my $UT = loadUsersTable();
+	if ( exists $UT->{$user}{expire_after} ) {
+		return $UT->{$user}{expire_after};
+	}
+	return $expire_at;
+}
+
+# Get the session cookie name 
+sub get_last_login
+{
+	my ($self, %args) = @_;
+	my $user = $args{user};
+	
+	my $session_dir = $self->{config}->{'<nmis_var>'}."/nmis_system/user_session";
+	my $count = 0;
+
+	# CGI:: Session does not have a max concurrent sessions
+	# Or get session by user
+	# So we will get all the session files, filter by user and calculate if they are expired
+	opendir(DIR, $session_dir) or logAuth("Could not open $session_dir\n");
+	
+	# TODO: Improve this
+	while (my $filename = readdir(DIR)) {
+		open(FH, '<', "$session_dir/$filename") or logAuth($!);
+		while(<FH>) {
+		   #$_ =~ /(\$D = (.*);;\$D)/;
+		   #my $s = $2;
+		   my $s = $_;
+		   $s =~ s/\$D = //;
+		   $s  =~ s/;;\$D//;
+		   my $hash = eval $s;
+		   if ($@) {
+					logAuth("ERROR $@");
+			}
+
+		   if ($hash->{username} eq $user) {
+				return $hash->{_SESSION_ATIME};
+		   }
+		}	
+		close(FH);
+	}
+}
+
 
 1;
