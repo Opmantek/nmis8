@@ -1190,7 +1190,7 @@ sub do_logout {
 	# Remove session
 	my $cgi = new CGI;  
 	my $session_dir = $self->{config}->{'<nmis_var>'}."/nmis_system/user_session";
-	my $sid = $cgi->cookie('CGISESSID') || $cgi->param('CGISESSID') || undef;
+	my $sid = $cgi->cookie($self->get_session_cookie_name()) || $cgi->param($self->get_session_cookie_name()) || undef;
 	my $session = load CGI::Session(undef, $sid, {Directory=>$session_dir});
 	if ($session) {
 		$session->delete();
@@ -1763,7 +1763,7 @@ sub get_live_session_counter
 				unlink "$session_dir/$filename";
 			 } else {
 				# Remove expired sessions
-				if (not_expired(time_exp => $hash->{_SESSION_ATIME}) == 1) {
+				if ($self->not_expired(time_exp => $hash->{_SESSION_ATIME}) == 1) {
 					$count++;
 					logAuth("Increment counter $count for user $user") if ($self->{debug});
 				 } else {
@@ -1785,7 +1785,7 @@ sub not_expired {
 	my $time_exp = $args{time_exp};
 	
 	my $expires = ($args{expires} // $self->{config}->{auth_expire}) || '+60min';
-	my $expires_ts;
+	my $expires_ts = $expires;
 	if ($expires =~ /^([+-]?\d+)\s*(\{s|m|min|h|d|M|y})$/)
 		{
 			my ($offset, $unit) = ($1, $2);
@@ -1979,5 +1979,12 @@ sub _GetPrivs {
 	return 1;
 }
 
+# Get the session cookie name 
+sub get_session_cookie_name
+{
+	my ($self) = @_;
+	# This is the CGI::Session default name
+	return 'CGISESSID';
+}
 
 1;
