@@ -1745,8 +1745,11 @@ sub get_live_session_counter
 	while (my $filename = readdir(DIR)) {
 		open(FH, '<', "$session_dir/$filename") or logAuth($!);
 		while(<FH>) {
-		   $_ =~ /(\$D = (.*);;\$D)/;
-		   my $s = $2;
+		   #$_ =~ /(\$D = (.*);;\$D)/;
+		   #my $s = $2;
+		   my $s = $_;
+		   $s =~ s/\$D = //;
+		   $s  =~ s/;;\$D//;
 		   my $hash = eval $s;
 		   if ($@) {
 					logAuth("ERROR $@");
