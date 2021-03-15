@@ -439,7 +439,7 @@ sub generate_session {
 	my $token;
 	my $user = $args{user_name};
 	my $name = $self->get_cookie_name;
-	my $session_dir = $self->{config}->{'<nmis_var>'}."/nmis_system/user_session";
+	my $session_dir = $self->{config}->{'session_dir'} // $self->{config}->{'<nmis_var>'}."/nmis_system/user_session";
 	my $expires = ($args{expires} // $self->{config}->{auth_expire}) || '+60min';
 	my $cookiedomain = $self->get_cookie_domain;
 	
@@ -1192,7 +1192,7 @@ sub do_logout {
 	{
 		# Remove session
 		my $cgi = new CGI;  
-		my $session_dir = $self->{config}->{'<nmis_var>'}."/nmis_system/user_session";
+		my $session_dir = $self->{config}->{'session_dir'} // $self->{config}->{'<nmis_var>'}."/nmis_system/user_session";
 		my $sid = $cgi->cookie($self->get_session_cookie_name()) || $cgi->param($self->get_session_cookie_name()) || undef;
 		my $session = load CGI::Session(undef, $sid, {Directory=>$session_dir});
 		if ($session) {
@@ -1478,7 +1478,8 @@ sub loginout {
 	my $headeropts = $args{headeropts};
 	my @cookies = ();
 	my $session;
-	my $session_dir = $self->{config}->{'<nmis_var>'}."/nmis_system/user_session";
+	my $session_dir = $self->{config}->{'session_dir'} // $self->{config}->{'<nmis_var>'}."/nmis_system/user_session";
+	my $last_login_dir = $self->{config}->{'last_login_dir'} // $self->{config}->{'<nmis_var>'}."/nmis_system";
 	
 	logAuth("DEBUG: loginout type=$type username=$username")
 			if $self->{debug};
@@ -1530,10 +1531,17 @@ sub loginout {
 		if ($expire_users) {
 			my $expire_after = $self->get_expire_at(user => $username);
 			my $last_login = $self->get_last_login(user => $username);
-			logAuth("DEBUG: verifying expire after $expire_after < last login $last_login");
-			if ($expire_after < $last_login) {
-				# TODO
-			} 
+		
+			if ($expire_after != 0 and defined($last_login)) {
+				my $t = time - $last_login;
+				logAuth("DEBUG: verifying expire after $expire_after < last login $last_login");
+				if ($t > $expire_after) {
+					logAuth("DEBUG: $t < $expire_after. User is locked.");
+					$self->do_login(listmodules => $listmodules,
+													msg => "User expired, login not allowed");
+					return 0;
+				} 
+			}	
 		}
 		logAuth("DEBUG: verifying $username") if $self->{debug};
 		if( $self->user_verify($username,$password))
@@ -1627,7 +1635,7 @@ To re-enable this account visit $self->{config}->{nmis_host_protocol}://$self->{
 			$self->do_login(msg=>"", listmodules => $listmodules);
 			return 0;
 		}
-
+		
 		$self->SetUser( $username );
 		logAuth("DEBUG: cookie OK") if $self->{debug};
 	}
@@ -1662,6 +1670,9 @@ To re-enable this account visit $self->{config}->{nmis_host_protocol}://$self->{
 				push @cookies, $cookie;
 			}
 		}
+		
+		# Update last login
+		$self->update_last_login(user => $self->{user});
 		
 		push @cookies, $self->generate_cookie(user_name => $self->{user});
 		logAuth("DEBUG: loginout made cookie $cookies[0]") if $self->{debug};
@@ -1755,7 +1766,7 @@ sub get_live_session_counter
 
 	return "cannot get failure counter without valid user argument!" if (!$user);
 
-	my $session_dir = $self->{config}->{'<nmis_var>'}."/nmis_system/user_session";
+	my $session_dir = $self->{config}->{'session_dir'} // $self->{config}->{'<nmis_var>'}."/nmis_system/user_session";
 	my $count = 0;
 
 	# CGI:: Session does not have a max concurrent sessions
@@ -2014,6 +2025,7 @@ sub get_expire_at
 	my $expire_at = $self->{config}->{expire_users_after};
 
 	my $UT = loadUsersTable();
+
 	if ( exists $UT->{$user}{expire_after} ) {
 		return $UT->{$user}{expire_after};
 	}
@@ -2025,36 +2037,68 @@ sub get_last_login
 {
 	my ($self, %args) = @_;
 	my $user = $args{user};
-	
-	my $session_dir = $self->{config}->{'<nmis_var>'}."/nmis_system/user_session";
-	my $count = 0;
+	my $last_login_dir = $self->{config}->{'last_login_dir'} // $self->{config}->{'<nmis_var>'}."/nmis_system";
+	my $last_login_file = $last_login_dir . "/users_login.json";
+	my $userdata;
 
+	return (0, "User is required") if (!$user);
 	# CGI:: Session does not have a max concurrent sessions
 	# Or get session by user
 	# So we will get all the session files, filter by user and calculate if they are expired
-	opendir(DIR, $session_dir) or logAuth("Could not open $session_dir\n");
-	
-	# TODO: Improve this
-	while (my $filename = readdir(DIR)) {
-		open(FH, '<', "$session_dir/$filename") or logAuth($!);
-		while(<FH>) {
-		   #$_ =~ /(\$D = (.*);;\$D)/;
-		   #my $s = $2;
-		   my $s = $_;
-		   $s =~ s/\$D = //;
-		   $s  =~ s/;;\$D//;
-		   my $hash = eval $s;
-		   if ($@) {
-					logAuth("ERROR $@");
-			}
+	opendir(DIR, $last_login_dir) or logAuth("Could not open $last_login_dir\n");
 
-		   if ($hash->{username} eq $user) {
-				return $hash->{_SESSION_ATIME};
-		   }
-		}	
-		close(FH);
+	if (-f $last_login_file)
+	{
+		open(F, $last_login_file) or return "cannot read $last_login_file: $!";
+		$userdata = eval { decode_json(join("", <F>)); };
+		close F;
+		if ($@ or ref($userdata) ne "HASH")
+		{
+			logAuth("Could not open $last_login_dir\n");		# broken, get rid of it
+			return (0, "Could not open $last_login_dir\n");
+		}
 	}
+
+	return $userdata->{$user};
 }
 
+# Update last login for user
+sub update_last_login
+{
+	my ($self, %args) = @_;
+	my $user = $args{user};
+	
+	my $last_login_dir = $self->{config}->{'last_login_dir'} // $self->{config}->{'<nmis_var>'}."/nmis_system";
+	my $last_login_file = $last_login_dir . "/users_login.json";
+	my $userdata;
+
+	return (0, "User is required") if (!$user);
+	# CGI:: Session does not have a max concurrent sessions
+	# Or get session by user
+	# So we will get all the session files, filter by user and calculate if they are expired
+	opendir(DIR, $last_login_dir) or logAuth("Could not open $last_login_dir\n");
+	
+	createDir($last_login_dir) if (!-d $last_login_dir);
+
+	if (-f $last_login_file)
+	{
+		open(F, $last_login_file) or return (0, "cannot read $last_login_file: $!");
+		$userdata = eval { decode_json(join("", <F>)); };
+		close F;
+		if ($@ or ref($userdata) ne "HASH")
+		{
+			logAuth("Could not open $last_login_dir\n");		# broken, get rid of it
+			return (0, "Could not open $last_login_dir\n");
+		}
+	}
+
+	$userdata->{$user} = time;
+
+	open(F,">$last_login_file") or return "cannot write $last_login_file: $!";
+	print F encode_json($userdata);
+	close(F);
+
+	return 1;
+}
 
 1;
