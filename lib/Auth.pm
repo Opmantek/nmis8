@@ -2067,6 +2067,7 @@ sub update_last_login
 {
 	my ($self, %args) = @_;
 	my $user = $args{user};
+	my $lastlogin = $args{lastlogin};
 	
 	my $last_login_dir = $self->{config}->{'last_login_dir'} // $self->{config}->{'<nmis_var>'}."/nmis_system";
 	my $last_login_file = $last_login_dir . "/users_login.json";
@@ -2092,9 +2093,9 @@ sub update_last_login
 		}
 	}
 
-	$userdata->{$user} = time;
+	$userdata->{$user} = $lastlogin // time;
 
-	open(F,">$last_login_file") or return "cannot write $last_login_file: $!";
+	open(F,">$last_login_file") or return (0, "cannot write $last_login_file: $!");
 	print F encode_json($userdata);
 	close(F);
 

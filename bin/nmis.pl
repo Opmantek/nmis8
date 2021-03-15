@@ -107,6 +107,7 @@ my $mthreadDebug=$cmdargs->{mthreaddebug}; # cmdline only for this debugging fla
 
 # clean sessions
 my $user		= $cmdargs->{user};
+my $lastLogin	= $cmdargs->{lastlogin};
 
 # park the list of collect/update plugins globally
 my @active_plugins;
@@ -198,6 +199,7 @@ elsif ( $type eq "apache" ) { printApache(); }
 elsif ( $type eq "apache24" ) { printApache24(); }
 elsif ( $type eq "crontab" ) { printCrontab(); }
 elsif ( $type eq "clean_sessions" ) { clean_sessions(user => $user); }
+elsif ( $type eq "set_last_login" ) { set_last_login(user => $user, lastlogin => $lastLogin); }
 elsif ( $type eq "summary" )  {
 	# both of these internally enforce at most one concurrent run
 	nmisSummary(); # MIGHT be included in type=collect
@@ -9284,6 +9286,7 @@ command line options are:
       groupsync Check all nodes and add any missing groups to the configuration
       purge     Remove old files, or print them if simulate=true
 	  clean_sessions	Remove all sessions file for a user
+	  set_last_login	Update last login for an user [user=username lastlogin=epochtime]
   [conf=<file name>]     Optional alternate configuation file in conf directory
   [node=name1 node=name2...] Run operations on specific nodes only
   [group=name1 group=name2...]  Run operations on nodes in the named groups only
@@ -10323,10 +10326,33 @@ sub clean_sessions
 	die "Needs a user to remove the sessions!\n" if (!$user);
 	my $auth = new Auth;
 	my ($error, $count) = $auth->get_live_session_counter(user => $user, remove_all => 1);
-	print "$error \n" if ($error);
-	print "$count sessions left for $user \n" if ($count);
+	info("$error \n") if ($error);
+	info("$count sessions left for $user ") if ($count);
 }
 
+# Set last login
+sub set_last_login
+{
+	my %args = @_;
+	my $user = $args{user};
+	my $lastlogin = $args{lastlogin};
+	
+	die "Needs a user or last login to set last login!\n" if (!$user or !$lastlogin);
+	
+	my $auth = new Auth;
+	my ($success, $error) = $auth->update_last_login(user => $user, lastlogin => $lastlogin);
+	if ($error) {
+		if ($error =~ /Permission/) {
+			info("Must be run as root");
+		} else {
+			info( "$error"); 
+		}
+		
+	} else {
+		info( "set_last_login. Done "); 
+	}
+	
+}
 # *****************************************************************************
 # Copyright (C) Opmantek Limited (www.opmantek.com)
 # This program comes with ABSOLUTELY NO WARRANTY;
