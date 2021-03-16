@@ -200,6 +200,7 @@ elsif ( $type eq "apache24" ) { printApache24(); }
 elsif ( $type eq "crontab" ) { printCrontab(); }
 elsif ( $type eq "clean_sessions" ) { clean_sessions(user => $user); }
 elsif ( $type eq "set_last_login" ) { set_last_login(user => $user, lastlogin => $lastLogin); }
+elsif ( $type eq "unlock_user" ) { unlock_user(user => $user); }
 elsif ( $type eq "summary" )  {
 	# both of these internally enforce at most one concurrent run
 	nmisSummary(); # MIGHT be included in type=collect
@@ -9287,6 +9288,7 @@ command line options are:
       purge     Remove old files, or print them if simulate=true
 	  clean_sessions	Remove all sessions file for a user
 	  set_last_login	Update last login for an user [user=username lastlogin=epochtime]
+	  unlock_user		Reset last login for an user [user=username]
   [conf=<file name>]     Optional alternate configuation file in conf directory
   [node=name1 node=name2...] Run operations on specific nodes only
   [group=name1 group=name2...]  Run operations on nodes in the named groups only
@@ -10350,6 +10352,29 @@ sub set_last_login
 		
 	} else {
 		info( "set_last_login. Done "); 
+	}
+	
+}
+
+# Set last login
+sub unlock_user
+{
+	my %args = @_;
+	my $user = $args{user};
+	my $lastlogin = $args{lastlogin};	
+	die "Needs a user or last login to set last login!\n" if (!$user);
+	
+	my $auth = new Auth;
+	my ($success, $error) = $auth->update_last_login(user => $user, remove => 1);
+	if ($error) {
+		if ($error =~ /Permission/) {
+			info("Must be run as root");
+		} else {
+			info( "$error"); 
+		}
+		
+	} else {
+		info( "unlock_user $user. Done "); 
 	}
 	
 }
