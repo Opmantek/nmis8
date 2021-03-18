@@ -1176,7 +1176,7 @@ sub do_logout {
 
 	# that's the NAME not the config data
 	my $config = $args{conf} || $self->{confname};
-	my $max_sessions_enabled = $self->{config}->{max_sessions_enabled};
+	my $max_sessions_enabled = getbool($self->{config}->{max_sessions_enabled});
 	
 	# Javascript that sets window.location to login URL
 	### fixing the logout so it can be reverse proxied
@@ -1499,8 +1499,8 @@ sub loginout {
 	}
 
 	my $maxtries = $self->{config}->{auth_lockout_after};
-	my $max_sessions_enabled = $self->{config}->{max_sessions_enabled};
-	my $expire_users = $self->{config}->{expire_users};
+	my $max_sessions_enabled = getbool($self->{config}->{max_sessions_enabled});
+	my $expire_users = getbool($self->{config}->{expire_users});
 	
 	if (defined($username) && $username ne '')
 	{
@@ -1520,7 +1520,7 @@ sub loginout {
 		{
 			my $max_sessions = $self->get_max_sessions(user => $username);
 			my ($error, $sessions) = $self->get_live_session_counter(user => $username);
-			if ($sessions >= $max_sessions)
+			if (($max_sessions != 0) && ($sessions >= $max_sessions))
 			{
 				logAuth("Account $username max sessions $max_sessions reached.");
 				$self->do_login(listmodules => $listmodules,
@@ -1567,7 +1567,14 @@ sub loginout {
 			
 			# Create session
 			if ($max_sessions_enabled or $expire_users) {
-				$session = $self->generate_session(user_name => $self->{user});
+				if ($max_sessions_enabled) {
+					my $max_sessions = $self->get_max_sessions(user => $username);
+					if ($max_sessions != 0) {
+						$session = $self->generate_session(user_name => $self->{user});
+					}
+				} else {
+					$session = $self->generate_session(user_name => $self->{user});
+				}	
 			}
 		}
 		else
@@ -1763,7 +1770,7 @@ sub get_live_session_counter
 	my ($self, %args) = @_;
 	my $user = $args{"user"};
 	my $remove_all = $args{"remove_all"};
-
+	
 	return "cannot get failure counter without valid user argument!" if (!$user);
 
 	my $session_dir = $self->{config}->{'session_dir'} // $self->{config}->{'<nmis_var>'}."/nmis_system/user_session";
@@ -1787,7 +1794,7 @@ sub get_live_session_counter
 					logAuth("ERROR $@");
 			}
 
-		   if ($hash->{username} eq $user) {
+		   if (($hash->{username} eq $user) or ($user eq "ALL")) {
 			 if ($remove_all) {
 				# Remove all files for the given user
 				unlink "$session_dir/$filename";
@@ -1806,7 +1813,55 @@ sub get_live_session_counter
 		close(FH);
 	}
 	logAuth("** $count sessions open for user $user") if ($self->{debug});
+	
 	return (undef, $count);
+}
+
+# returns the current session counter for the given user
+# args: user, required.
+# returns: (undef,counter) or error message
+sub get_all_live_session_counter
+{
+	my ($self, %args) = @_;
+	my $all;
+
+	my $session_dir = $self->{config}->{'session_dir'} // $self->{config}->{'<nmis_var>'}."/nmis_system/user_session";
+
+	# CGI:: Session does not have a max concurrent sessions
+	# Or get session by user
+	# So we will get all the session files, filter by user and calculate if they are expired
+	opendir(DIR, $session_dir) or logAuth("Could not open $session_dir\n");
+	
+	# Get users, init counter
+	while (my $filename = readdir(DIR)) {
+		open(FH, '<', "$session_dir/$filename") or logAuth($!);
+		while(<FH>) {
+		   my $s = $_;
+		   $s =~ s/\$D = //;
+		   $s  =~ s/;;\$D//;
+		   my $hash = eval $s;
+		   if ($@) {
+					logAuth("ERROR $@");
+			}
+		   my $user = $hash->{username};
+		   
+		   if ($self->not_expired(time_exp => $hash->{_SESSION_ATIME}) == 1) {
+			  if (defined ($all->{$user}->{sessions})) {
+				 $all->{$user}->{sessions} = $all->{$user}->{sessions} + 1;
+			   } else {
+				$all->{$user}->{sessions} = 1;
+			   }
+			} else {
+					# Clean up
+					unlink "$session_dir/$filename";
+			}
+		   
+		  
+		}	
+		close(FH);
+	}
+
+	return $all;
 }
 
 # check if session is expired
@@ -2096,6 +2151,10 @@ sub update_last_login
 
 	if ($remove) {
 		delete $userdata->{$user};
+	} elsif ( $user eq "ALL" )  {
+		foreach my $u (keys %{$userdata}) {
+			$userdata->{$u} = $lastlogin // time;
+		}
 	} else {
 		$userdata->{$user} = $lastlogin // time;
 	}

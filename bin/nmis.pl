@@ -199,6 +199,7 @@ elsif ( $type eq "apache" ) { printApache(); }
 elsif ( $type eq "apache24" ) { printApache24(); }
 elsif ( $type eq "crontab" ) { printCrontab(); }
 elsif ( $type eq "clean_sessions" ) { clean_sessions(user => $user); }
+elsif ( $type eq "get_sessions" ) { get_sessions(user => $user); }
 elsif ( $type eq "set_last_login" ) { set_last_login(user => $user, lastlogin => $lastLogin); }
 elsif ( $type eq "unlock_user" ) { unlock_user(user => $user); }
 elsif ( $type eq "summary" )  {
@@ -9286,9 +9287,10 @@ command line options are:
       rme       Read and generate a node.csv file from a Ciscoworks RME file
       groupsync Check all nodes and add any missing groups to the configuration
       purge     Remove old files, or print them if simulate=true
-	  clean_sessions	Remove all sessions file for a user
-	  set_last_login	Update last login for an user [user=username lastlogin=epochtime]
-	  unlock_user		Reset last login for an user [user=username]
+      clean_sessions	Remove all sessions file for a user
+	  get_sessions		Report all users sessions
+      set_last_login	Update last login for an user [user=username lastlogin=epochtime]
+      unlock_user		Reset last login for an user [user=username]
   [conf=<file name>]     Optional alternate configuation file in conf directory
   [node=name1 node=name2...] Run operations on specific nodes only
   [group=name1 group=name2...]  Run operations on nodes in the named groups only
@@ -10330,6 +10332,18 @@ sub clean_sessions
 	my ($error, $count) = $auth->get_live_session_counter(user => $user, remove_all => 1);
 	info("$error \n") if ($error);
 	info("$count sessions left for $user ") if ($count);
+}
+
+# Get user sessions
+sub get_sessions
+{
+	my %args = @_;
+
+	my $auth = new Auth;
+	my $all = $auth->get_all_live_session_counter();
+	foreach my $user (keys %{$all}) {
+		print " $user: ". $all->{$user}->{sessions} . "\n"; 
+	}
 }
 
 # Set last login
