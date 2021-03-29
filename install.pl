@@ -1752,6 +1752,10 @@ EOF
 	$nmisModules->{"ExtUtils::ParseXS"} = { file => "MODULE NOT FOUND", type  => "use",
 																		 by => "lib/Auth.pm", minversion => "3.18",
 																		 priority => 100 };
+	# Used by security
+	$nmisModules->{"CGI::Session"} = { file => "MODULE NOT FOUND", type  => "use",
+																		 by => "lib/Auth.pm", minversion => "4.48",
+																		 priority => 100 };
 
 	# now determine if installed or not.
 	# sort by the required cpan sequencing (no priority is last)
