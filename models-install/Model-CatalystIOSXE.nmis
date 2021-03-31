@@ -730,10 +730,11 @@
             'replace' => {
               '' => 'default'
             },
-            'title' => 'Location'
+            'title' => 'SNMP Location'
           },
           'sysName' => {
-            'oid' => 'sysName'
+            'oid' => 'sysName',
+            'title' => 'System Name',
           },
           'sysObjectID' => {
             'oid' => 'sysObjectID'
