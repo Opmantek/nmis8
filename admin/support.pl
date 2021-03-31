@@ -27,11 +27,12 @@
 #  http://support.opmantek.com/users/
 #
 # *****************************************************************************
-our $VERSION = "1.9.2";
+our $VERSION = "1.9.3";
 use strict;
 use Data::Dumper;
 use File::Basename;
 use File::Temp;
+use File::Copy qw(cp);
 use File::Path;
 use POSIX qw();
 use Cwd;
@@ -361,6 +362,18 @@ sub collect_evidence
 
 	system("crontab -u root -l > $targetdir/system_status/cron/crontab.root 2>/dev/null");
 	system("crontab -u nmis -l > $targetdir/system_status/cron/crontab.nmis 2>/dev/null");
+
+	# capture the cpanm build logs
+	File::Path::make_path("$targetdir/system_status/cpanm", { chmod => 0755 });
+	if (-d "/root/.cpanm/work/")
+	{
+		for my $x (glob('/root/.cpanm/work/*/build.log'))
+		{
+			my $y = $x;
+			$y =~ s![\\/]!_!g;
+			cp($x, "$targetdir/system_status/cpanm/$y");
+		}
+	}
 
 	# capture the apache configs
 	my $apachehome = -d "/etc/apache2"? "/etc/apache2": -d "/etc/httpd"? "/etc/httpd" : undef;

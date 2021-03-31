@@ -72,6 +72,8 @@ use MIME::Base64;
 use Digest::SHA;								# for cookie_flavour omk
 use Data::Dumper;
 use CGI qw(:standard);					# needed for current url lookup, http header, plus td/tr/bla_field helpery
+#use CGI;
+use CGI::Session;
 use Time::ParseDate;
 use File::Basename;
 use Crypt::PasswdMD5;						# for the apache-specific md5 crypt flavour
@@ -281,8 +283,8 @@ sub verify_id
 {
 	my $self = shift;
 
-	# retrieve the right cookie
 	my $cookie = CGI::cookie($self->get_cookie_name());
+
 	if(!defined($cookie) )
 	{
 		logAuth("verify_id: cookie not defined");
@@ -365,6 +367,9 @@ sub generate_cookie
 	my ($self, %args) = @_;
 
 	my $authuser = $args{user_name};
+	my $name = (exists ($args{name}) ? $args{name} : $self->get_cookie_name);
+	my $value = $args{value};
+	
 	return "" if (!defined $authuser or $authuser eq '');
 
 	my $expires = ($args{expires} // $self->{config}->{auth_expire}) || '+60min';
@@ -373,12 +378,12 @@ sub generate_cookie
 	# cookie flavor determines the ingredients
 	if ($self->{cookie_flavour} eq "nmis")
 	{
-		return CGI::cookie( -name => $self->get_cookie_name,
-												-domain => $cookiedomain,
-												-expires => $expires,
-												-value => (exists($args{value}) ?
-																	 $args{value}
-																	 : ("$authuser:" . $self->get_cookie_token($authuser)) )); # weak checksum
+		return CGI::cookie( -name => $name,
+							-domain => $cookiedomain,
+							-expires => $expires,
+							-value => (exists($args{value}) ?
+										$args{value}
+										: ("$authuser:" . $self->get_cookie_token($authuser)) )); # weak checksum
 	}
 	elsif ($self->{cookie_flavour} eq "omk")
 	{
@@ -412,10 +417,12 @@ sub generate_cookie
 		logAuth("generated OMK cookie for $authuser: $value--$signature")
 				if ($self->{debug});
 
-		return  CGI::cookie( { -name => $self->get_cookie_name,
+		return  CGI::cookie( -name => $name,
 													 -domain => $cookiedomain,
-													 -value => "$value--$signature",
-													 -expires => $expires } );
+													 -value => (exists($args{value}) ?
+																	 $args{value}
+																	 :"$value--$signature"),
+													 -expires => $expires );
 	}
 	else
 	{
@@ -424,7 +431,66 @@ sub generate_cookie
 	}
 }
 
-
+# Generate a session to track user login state in the server side
+sub generate_session {
+	
+	my ($self, %args) = @_;
+	
+	my $token;
+	my $user = $args{user_name};
+	my $name = $self->get_cookie_name;
+	my $session_dir = $self->{config}->{'session_dir'} // $self->{config}->{'<nmis_var>'}."/nmis_system/user_session";
+	my $expires = ($args{expires} // $self->{config}->{auth_expire}) || '+60min';
+	my $cookiedomain = $self->get_cookie_domain;
+	
+	if ($self->{cookie_flavour} eq "nmis")
+	{
+		$token = $self->get_cookie_token($user);
+	}
+	elsif ($self->{cookie_flavour} eq "omk")
+	{
+		my $expires_ts;
+		if ($expires eq "now")
+		{
+			$expires_ts = time();
+		}
+		elsif ($expires =~ /^([+-]?\d+)\s*(\{s|m|min|h|d|M|y})$/)
+		{
+			my ($offset, $unit) = ($1, $2);
+			# the last two are clearly imprecise
+			my %factors = ( s => 1, m => 60, 'min' => 60, h => 3600, d => 86400, M => 31*86400, y => 365 * 86400 );
+	
+			$expires_ts = time + ($offset * $factors{$unit});
+		}
+		else # assume it's something absolute and parsable
+		{
+			$expires_ts = func::parseDateTime($expires) || func::getUnixTime($expires);
+		}
+	
+		# create session data structure, encode as base64 (but - instead of =), sign with key and combine
+		my $sessiondata = encode_json( { auth_data => $user,
+																		 expires => $expires_ts } );
+		my $value = encode_base64($sessiondata, ''); # no end of line separator please
+		$value =~ y/=/-/;
+		my $web_key = $self->{config}->{auth_web_key} // $CHOCOLATE_CHIP;
+		my $signature = Digest::SHA::hmac_sha1_hex($value, $web_key);
+		
+		$token = $self->get_cookie_token($signature);
+	}
+	# Generate sesssion
+	#logAuth("INFO Generating session $name for user $user and $token") if ($self->{debug});
+	# TODO: Update session name and token
+	#CGI::Session->name($name);
+	my $session = CGI::Session->new(undef, $token, {Directory=>$session_dir});
+	logAuth("INFO Generating session $name for user $user") if ($self->{debug});
+	#my $session = CGI::Session->new(undef, undef, {Directory=>$session_dir});
+	#$session->name($name);
+	#$session->param('name', $name);
+	$session->param('username', $user);
+	my $exp = $expires =~ s/min/m/gr; 
+	$session->expire($exp);
+	return $session;
+}
 #----------------------------------
 
 # call appropriate verification routine
@@ -988,30 +1054,30 @@ EOHTML
 
 	print CGI::Tr(CGI::td({class=>'infolft Plain',colspan=>'2'},$motd));
 
-	print CGI::Tr(CGI::td({class=>'info Plain'},"Username") . CGI::td({class=>'info Plain'},textfield({name=>'auth_username'})));
-	print CGI::Tr(CGI::td({class=>'info Plain'},"Password") . CGI::td({class=>'info Plain'},password_field({name=>'auth_password'}) ));
-	print CGI::Tr(CGI::td({class=>'info Plain'},"&nbsp;") . CGI::td({class=>'info Plain'},submit({name=>'login',value=>'Login'}) ));
+	print CGI::Tr(CGI::td({class=>'info Plain'},"Username") . CGI::td({class=>'info Plain'},CGI::textfield({name=>'auth_username'})));
+	print CGI::Tr(CGI::td({class=>'info Plain'},"Password") . CGI::td({class=>'info Plain'},CGI::password_field({name=>'auth_password'}) ));
+	print CGI::Tr(CGI::td({class=>'info Plain'},"&nbsp;") . CGI::td({class=>'info Plain'},CGI::submit({name=>'login',value=>'Login'}) ));
 
 
 	if ( $self->{config}->{'auth_sso_domain'} ne "" and $self->{config}->{'auth_sso_domain'} ne ".domain.com" ) {
 		print CGI::Tr(CGI::td({class=>"info",colspan=>'2'}, "Single Sign On configured with \"$self->{config}->{'auth_sso_domain'}\""));
 	}
 
-	print CGI::Tr(CGI::td({colspan=>'2'},p({style=>"color: red"}, "&nbsp;$msg&nbsp;"))) if $msg ne "";
+	print CGI::Tr(CGI::td({colspan=>'2'},CGI::p({style=>"color: red"}, "&nbsp;$msg&nbsp;"))) if $msg ne "";
 
 	print CGI::end_table;
 
-	print hidden(-name=>'conf', -default=>$config, -override=>'1');
+	print CGI::hidden(-name=>'conf', -default=>$config, -override=>'1');
 	
 	# put query string parameters into the form so that they are picked up by Vars (because it only takes get or post not both)
-	my @qs_params = param();
+	my @qs_params = CGI::param();
 	foreach my $key (@qs_params) {
 		# logAuth("adding $key ".param($key)."\n";  
 		# do not do this for login param.
 		# escapeHTML all other param's so stoopid people don't break it.
 		if( $key !~ /conf|auth_type|auth_username|auth_password|login/ ) {
-			my $param = escapeHTML(param($key));
-			print hidden(-name=>$key, -default=>$param,-override=>'1');
+			my $param = CGI::escapeHTML(CGI::param($key));
+			print CGI::hidden(-name=>$key, -default=>$param,-override=>'1');
 		}
 	}
 
@@ -1110,20 +1176,35 @@ sub do_logout {
 
 	# that's the NAME not the config data
 	my $config = $args{conf} || $self->{confname};
-
+	my $max_sessions_enabled = getbool($self->{config}->{max_sessions_enabled});
+	
 	# Javascript that sets window.location to login URL
 	### fixing the logout so it can be reverse proxied
 	# ensure the  conf argument is kept
 	param(conf=>$config) if ($config);
-	CGI::delete('auth_type'); 		# but don't keep that one
+	CGI::delete('auth_type'); 		# but don't keep that one 
 	my $url = CGI::url(-full=>1, -query=>1);
 	$url =~ s!^[^:]+://!//!;
 
 	my $javascript = "function redir() { window.location = '" . $url ."'; }";
+
+	if ($max_sessions_enabled)
+	{
+		# Remove session
+		my $cgi = new CGI;  
+		my $session_dir = $self->{config}->{'session_dir'} // $self->{config}->{'<nmis_var>'}."/nmis_system/user_session";
+		my $sid = $cgi->cookie($self->get_session_cookie_name()) || $cgi->param($self->get_session_cookie_name()) || undef;
+		my $session = load CGI::Session(undef, $sid, {Directory=>$session_dir});
+		if ($session) {
+			$session->delete();
+			$session->flush();
+		}
+	}
+	
 	my $cookie = $self->generate_cookie(user_name => $self->{user}, expires => "now", value => "" );
 
 	logAuth("INFO logout of user=$self->{user} conf=$config");
-
+	
 	print CGI::header({ -target=>'_top', -expires=>"5s", -cookie=>[$cookie] })."\n";
 	#print start_html({
 	#	-title =>"Logout complete",
@@ -1259,6 +1340,8 @@ sub _pam_verify
 			. $pamhandle->pam_strerror($res));
 	return 0;
  }
+
+ 
 sub _radius_verify {
 	my $self = shift;
 	my($user, $pswd) = @_;
@@ -1394,7 +1477,10 @@ sub loginout {
 
 	my $headeropts = $args{headeropts};
 	my @cookies = ();
-
+	my $session;
+	my $session_dir = $self->{config}->{'session_dir'} // $self->{config}->{'<nmis_var>'}."/nmis_system/user_session";
+	my $last_login_dir = $self->{config}->{'last_login_dir'} // $self->{config}->{'<nmis_var>'}."/nmis_system";
+	
 	logAuth("DEBUG: loginout type=$type username=$username")
 			if $self->{debug};
 
@@ -1413,7 +1499,9 @@ sub loginout {
 	}
 
 	my $maxtries = $self->{config}->{auth_lockout_after};
-
+	my $max_sessions_enabled = getbool($self->{config}->{max_sessions_enabled});
+	my $expire_users = getbool($self->{config}->{expire_users});
+	
 	if (defined($username) && $username ne '')
 	{
 		# someone is trying to log in
@@ -1427,6 +1515,33 @@ sub loginout {
 												msg => "Too many failed attempts, account disabled");
 				return 0;
 			}
+		}
+		if ($max_sessions_enabled)
+		{
+			my $max_sessions = $self->get_max_sessions(user => $username);
+			my ($error, $sessions) = $self->get_live_session_counter(user => $username);
+			if (($max_sessions != 0) && ($sessions >= $max_sessions))
+			{
+				logAuth("Account $username max sessions $max_sessions reached.");
+				$self->do_login(listmodules => $listmodules,
+												msg => "Too many open sessions ($sessions), login not allowed");
+				return 0;
+			}
+		}
+		if ($expire_users) {
+			my $expire_after = $self->get_expire_at(user => $username);
+			my $last_login = $self->get_last_login(user => $username);
+		
+			if ($expire_after != 0 and defined($last_login)) {
+				my $t = time - $last_login;
+				logAuth("DEBUG: verifying expire after $expire_after < last login $last_login");
+				if ($t > $expire_after) {
+					logAuth("DEBUG: $t < $expire_after. User is locked.");
+					$self->do_login(listmodules => $listmodules,
+													msg => "User expired, login not allowed");
+					return 0;
+				} 
+			}	
 		}
 		logAuth("DEBUG: verifying $username") if $self->{debug};
 		if( $self->user_verify($username,$password))
@@ -1449,6 +1564,18 @@ sub loginout {
 
 			logAuth("user=$self->{user} logged in");
 			logAuth("DEBUG: loginout user=$self->{user} logged in") if $self->{debug};
+			
+			# Create session
+			if ($max_sessions_enabled or $expire_users) {
+				if ($max_sessions_enabled) {
+					my $max_sessions = $self->get_max_sessions(user => $username);
+					if ($max_sessions != 0) {
+						$session = $self->generate_session(user_name => $self->{user});
+					}
+				} else {
+					$session = $self->generate_session(user_name => $self->{user});
+				}	
+			}
 		}
 		else
 		{ # bad login: try again, up to N times
@@ -1515,7 +1642,7 @@ To re-enable this account visit $self->{config}->{nmis_host_protocol}://$self->{
 			$self->do_login(msg=>"", listmodules => $listmodules);
 			return 0;
 		}
-
+		
 		$self->SetUser( $username );
 		logAuth("DEBUG: cookie OK") if $self->{debug};
 	}
@@ -1535,8 +1662,27 @@ To re-enable this account visit $self->{config}->{nmis_host_protocol}://$self->{
 
 	# generate the cookie if $self->user is set
 	if ($self->{user}) {
-    push @cookies, $self->generate_cookie(user_name => $self->{user});
-  	logAuth("DEBUG: loginout made cookie $cookies[0]") if $self->{debug};
+		
+		if ($max_sessions_enabled)
+		{
+			# Create session
+			# Load session
+			if (!$session) {
+				$session = CGI::Session->load(undef, undef, {Directory=>$session_dir});
+			}
+			
+			# This is the session cookie
+			if ($session) {
+				my $cookie = $self->generate_cookie(user_name => $self->{user}, name => $session->name, value => $session->id);
+				push @cookies, $cookie;
+			}
+		}
+		
+		# Update last login
+		$self->update_last_login(user => $self->{user});
+		
+		push @cookies, $self->generate_cookie(user_name => $self->{user});
+		logAuth("DEBUG: loginout made cookie $cookies[0]") if $self->{debug};
 	}
 	$headeropts->{-cookie} = [@cookies];
 	return 1; # all oke
@@ -1616,10 +1762,132 @@ sub get_failure_counter
 	return (undef, $userdata->{count});
 }
 
+# returns the current session counter for the given user
+# args: user, required.
+# returns: (undef,counter) or error message
+sub get_live_session_counter
+{
+	my ($self, %args) = @_;
+	my $user = $args{"user"};
+	my $remove_all = $args{"remove_all"};
+	
+	return "cannot get failure counter without valid user argument!" if (!$user);
 
+	my $session_dir = $self->{config}->{'session_dir'} // $self->{config}->{'<nmis_var>'}."/nmis_system/user_session";
+	my $count = 0;
+
+	# CGI:: Session does not have a max concurrent sessions
+	# Or get session by user
+	# So we will get all the session files, filter by user and calculate if they are expired
+	opendir(DIR, $session_dir) or logAuth("Could not open $session_dir\n");
+	
+	while (my $filename = readdir(DIR)) {
+		open(FH, '<', "$session_dir/$filename") or logAuth($!);
+		while(<FH>) {
+		   #$_ =~ /(\$D = (.*);;\$D)/;
+		   #my $s = $2;
+		   my $s = $_;
+		   $s =~ s/\$D = //;
+		   $s  =~ s/;;\$D//;
+		   my $hash = eval $s;
+		   if ($@) {
+					logAuth("ERROR $@");
+			}
+
+		   if (($hash->{username} eq $user) or ($user eq "ALL")) {
+			 if ($remove_all) {
+				# Remove all files for the given user
+				unlink "$session_dir/$filename";
+			 } else {
+				# Remove expired sessions
+				if ($self->not_expired(time_exp => $hash->{_SESSION_ATIME}) == 1) {
+					$count++;
+					logAuth("Increment counter $count for user $user") if ($self->{debug});
+				 } else {
+					# Clean up
+					unlink "$session_dir/$filename";
+				 }
+			 } 
+		   }
+		}	
+		close(FH);
+	}
+	logAuth("** $count sessions open for user $user") if ($self->{debug});
+	
+	return (undef, $count);
+}
+
+# returns the current session counter for the given user
+# args: user, required.
+# returns: (undef,counter) or error message
+sub get_all_live_session_counter
+{
+	my ($self, %args) = @_;
+	my $all;
+
+	my $session_dir = $self->{config}->{'session_dir'} // $self->{config}->{'<nmis_var>'}."/nmis_system/user_session";
+
+	# CGI:: Session does not have a max concurrent sessions
+	# Or get session by user
+	# So we will get all the session files, filter by user and calculate if they are expired
+	opendir(DIR, $session_dir) or logAuth("Could not open $session_dir\n");
+	
+	# Get users, init counter
+	while (my $filename = readdir(DIR)) {
+		open(FH, '<', "$session_dir/$filename") or logAuth($!);
+		while(<FH>) {
+		   my $s = $_;
+		   $s =~ s/\$D = //;
+		   $s  =~ s/;;\$D//;
+		   my $hash = eval $s;
+		   if ($@) {
+					logAuth("ERROR $@");
+			}
+		   my $user = $hash->{username};
+		   
+		   if ($self->not_expired(time_exp => $hash->{_SESSION_ATIME}) == 1) {
+			  if (defined ($all->{$user}->{sessions})) {
+				 $all->{$user}->{sessions} = $all->{$user}->{sessions} + 1;
+			   } else {
+				$all->{$user}->{sessions} = 1;
+			   }
+			} else {
+					# Clean up
+					unlink "$session_dir/$filename";
+			}
+		   
+		  
+		}	
+		close(FH);
+	}
+
+	return $all;
+}
+
+# check if session is expired
+sub not_expired {
+	my ($self, %args) = @_;
+	my $time_exp = $args{time_exp};
+	
+	my $expires = ($args{expires} // $self->{config}->{auth_expire}) || '+60min';
+	my $expires_ts = $expires;
+	if ($expires =~ /^([+-]?\d+)\s*(\{s|m|min|h|d|M|y})$/)
+		{
+			my ($offset, $unit) = ($1, $2);
+			# the last two are clearly imprecise
+			my %factors = ( s => 1, m => 60, 'min' => 60, h => 3600, d => 86400, M => 31*86400, y => 365 * 86400 );
+
+			$expires_ts = ($offset * $factors{$unit});
+		}
+		logAuth("Expires: ".(time - $time_exp)." and expire at $expires_ts") if ($self->{debug});
+	if ((time - $time_exp) < $expires_ts) {
+		return 1;
+	}
+	
+ 	return 0;
+}
 
 # check if user logged in
-
 sub User {
 	my $self = shift;
 	return $self->{user};
@@ -1645,6 +1913,22 @@ sub SetUser {
 	else {
 		return 0;
 	}
+}
+
+#----------------------------------
+
+# check if the group is in the user's group list
+#
+sub get_max_sessions {
+	my ($self, %args) = @_;
+	my $user = $args{user};
+	my $max_sessions = $self->{config}->{max_sessions};
+
+	my $UT = loadUsersTable();
+	if ( exists $UT->{$user}{max_sessions} ) {
+		return $UT->{$user}{max_sessions};
+	}
+	return $max_sessions;
 }
 
 #----------------------------------
@@ -1780,5 +2064,106 @@ sub _GetPrivs {
 	return 1;
 }
 
+# Get the session cookie name 
+sub get_session_cookie_name
+{
+	my ($self) = @_;
+	# This is the CGI::Session default name
+	return 'CGISESSID';
+}
+
+# Get the session cookie name 
+sub get_expire_at
+{
+	my ($self, %args) = @_;
+	my $user = $args{user};
+	my $expire_at = $self->{config}->{expire_users_after};
+
+	my $UT = loadUsersTable();
+
+	if ( exists $UT->{$user}{expire_after} ) {
+		return $UT->{$user}{expire_after};
+	}
+	return $expire_at;
+}
+
+# Get the session cookie name 
+sub get_last_login
+{
+	my ($self, %args) = @_;
+	my $user = $args{user};
+	my $last_login_dir = $self->{config}->{'last_login_dir'} // $self->{config}->{'<nmis_var>'}."/nmis_system";
+	my $last_login_file = $last_login_dir . "/users_login.json";
+	my $userdata;
+
+	return (0, "User is required") if (!$user);
+	# CGI:: Session does not have a max concurrent sessions
+	# Or get session by user
+	# So we will get all the session files, filter by user and calculate if they are expired
+	opendir(DIR, $last_login_dir) or logAuth("Could not open $last_login_dir\n");
+
+	if (-f $last_login_file)
+	{
+		open(F, $last_login_file) or return "cannot read $last_login_file: $!";
+		$userdata = eval { decode_json(join("", <F>)); };
+		close F;
+		if ($@ or ref($userdata) ne "HASH")
+		{
+			logAuth("Could not open $last_login_dir\n");		# broken, get rid of it
+			return (0, "Could not open $last_login_dir\n");
+		}
+	}
+
+	return $userdata->{$user};
+}
+
+# Update last login for user
+sub update_last_login
+{
+	my ($self, %args) = @_;
+	my $user = $args{user};
+	my $lastlogin = $args{lastlogin};
+	my $remove = $args{remove};
+	
+	my $last_login_dir = $self->{config}->{'last_login_dir'} // $self->{config}->{'<nmis_var>'}."/nmis_system";
+	my $last_login_file = $last_login_dir . "/users_login.json";
+	my $userdata;
+
+	return (0, "User is required") if (!$user);
+	# CGI:: Session does not have a max concurrent sessions
+	# Or get session by user
+	# So we will get all the session files, filter by user and calculate if they are expired
+	opendir(DIR, $last_login_dir) or logAuth("Could not open $last_login_dir\n");
+	
+	createDir($last_login_dir) if (!-d $last_login_dir);
+
+	if (-f $last_login_file)
+	{
+		open(F, $last_login_file) or return (0, "cannot read $last_login_file: $!");
+		$userdata = eval { decode_json(join("", <F>)); };
+		close F;
+		if ($@ or ref($userdata) ne "HASH")
+		{
+			logAuth("Could not open $last_login_dir\n");		# broken, get rid of it
+			return (0, "Could not open $last_login_dir\n");
+		}
+	}
+
+	if ($remove) {
+		delete $userdata->{$user};
+	} elsif ( $user eq "ALL" )  {
+		foreach my $u (keys %{$userdata}) {
+			$userdata->{$u} = $lastlogin // time;
+		}
+	} else {
+		$userdata->{$user} = $lastlogin // time;
+	}
+	
+	open(F,">$last_login_file") or return (0, "cannot write $last_login_file: $!");
+	print F encode_json($userdata);
+	close(F);
+
+	return 1;
+}
 
 1;

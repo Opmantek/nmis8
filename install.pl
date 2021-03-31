@@ -772,7 +772,8 @@ if (!input_yn("OK to start installation/upgrade to $site?"))
 }
 
 ###************************************************************************###
-if ( -d $site )
+# detect 'conf/Config.nmis' as proof nmis8 installed
+if ( -f "$site/conf/Config.nmis" or -l "$site/conf/Config.nmis" )
 {
 	printBanner("Existing NMIS8 Installation detected");
 
@@ -801,11 +802,21 @@ If you say No here, the existing installation will be REMOVED and OVERWRITTEN!\n
 		$mustmovelog = 1;
 	}
 }
+else
+{
+	logInstall("Completely new NMIS8 Installation detected");
+}
 
-my $isnewinstall;
-if (!-d $site )
+my $isnewinstall=0;
+# detect 'conf/Config.nmis' as proof nmis8 installed
+if ( ! -f "$site/conf/Config.nmis" and ! -l "$site/conf/Config.nmis" )
 {
 	$isnewinstall=1;
+}
+logInstall("NMIS8 Installation \$isnewinstall=$isnewinstall");
+
+if (!-d $site )
+{
 	safemkdir($site);
 }
 
@@ -815,6 +826,20 @@ if ($mustmovelog)
 	my $newlog = "$site/install.log";
 	system("mv $installLog $newlog");
 	$installLog = $newlog;
+}
+
+if (! $isnewinstall)
+{
+	# move debug.pl
+	my $debug_src="$site/cgi-bin/debug.pl";
+	if ( -f $debug_src or -l $debug_src )
+	{
+		my $debug_tgt="$site/admin/debug.pl";
+
+		echolog("Moving '$debug_src' to '$debug_tgt'");
+		safemkdir("$site/admin");
+		execPrint("mv -f '$debug_src' '$debug_tgt'");
+	}
 }
 
 # before copying anything, kill fpingd and lock nmis (fpingd doesn't even start if locked out)
@@ -1726,6 +1751,10 @@ EOF
 	# and time::moment doesn't install cleanly if extutils::parsexs isn't fully installed first
 	$nmisModules->{"ExtUtils::ParseXS"} = { file => "MODULE NOT FOUND", type  => "use",
 																		 by => "lib/Auth.pm", minversion => "3.18",
+																		 priority => 100 };
+	# Used by security
+	$nmisModules->{"CGI::Session"} = { file => "MODULE NOT FOUND", type  => "use",
+																		 by => "lib/Auth.pm", minversion => "4.48",
 																		 priority => 100 };
 
 	# now determine if installed or not.

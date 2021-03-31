@@ -56,6 +56,7 @@ use NMIS::UUID;
 use csv;
 use rrdfunc; 			# main entry point is updateRRD
 use func;
+use Auth;
 use ip;
 use sapi;
 use ping;
@@ -103,6 +104,10 @@ my $wantsystemcron = getbool($cmdargs->{system}); # for printCrontab
 my $mthread	= (exists $cmdargs->{mthread}? $cmdargs->{mthread} : $C->{nmis_mthread}) || 0;
 my $maxThreads = (exists $cmdargs->{maxthreads}? $cmdargs->{maxthreads} : $C->{nmis_maxthreads}) || 1;
 my $mthreadDebug=$cmdargs->{mthreaddebug}; # cmdline only for this debugging flag
+
+# clean sessions
+my $user		= $cmdargs->{user};
+my $lastLogin	= $cmdargs->{lastlogin};
 
 # park the list of collect/update plugins globally
 my @active_plugins;
@@ -193,6 +198,10 @@ elsif ( $type eq "links" ) { runLinks(); } # included in type=update
 elsif ( $type eq "apache" ) { printApache(); }
 elsif ( $type eq "apache24" ) { printApache24(); }
 elsif ( $type eq "crontab" ) { printCrontab(); }
+elsif ( $type eq "clean_sessions" ) { clean_sessions(user => $user); }
+elsif ( $type eq "get_sessions" ) { get_sessions(user => $user); }
+elsif ( $type eq "set_last_login" ) { set_last_login(user => $user, lastlogin => $lastLogin); }
+elsif ( $type eq "unlock_user" ) { unlock_user(user => $user); }
 elsif ( $type eq "summary" )  {
 	# both of these internally enforce at most one concurrent run
 	nmisSummary(); # MIGHT be included in type=collect
@@ -9278,6 +9287,10 @@ command line options are:
       rme       Read and generate a node.csv file from a Ciscoworks RME file
       groupsync Check all nodes and add any missing groups to the configuration
       purge     Remove old files, or print them if simulate=true
+      clean_sessions	Remove all sessions file for a user
+	  get_sessions		Report all users sessions
+      set_last_login	Update last login for an user [user=username lastlogin=epochtime]
+      unlock_user		Reset last login for an user [user=username]
   [conf=<file name>]     Optional alternate configuation file in conf directory
   [node=name1 node=name2...] Run operations on specific nodes only
   [group=name1 group=name2...]  Run operations on nodes in the named groups only
@@ -10308,6 +10321,77 @@ sub diag_log
 	}
 }
 
+# Clean user sessions
+sub clean_sessions
+{
+	my %args = @_;
+	my $user = $args{user};
+	
+	die "Needs a user to remove the sessions!\n" if (!$user);
+	my $auth = new Auth;
+	my ($error, $count) = $auth->get_live_session_counter(user => $user, remove_all => 1);
+	info("$error \n") if ($error);
+	info("$count sessions left for $user ") if ($count);
+}
+
+# Get user sessions
+sub get_sessions
+{
+	my %args = @_;
+
+	my $auth = new Auth;
+	my $all = $auth->get_all_live_session_counter();
+	foreach my $user (keys %{$all}) {
+		print " $user: ". $all->{$user}->{sessions} . "\n"; 
+	}
+}
+
+# Set last login
+sub set_last_login
+{
+	my %args = @_;
+	my $user = $args{user};
+	my $lastlogin = $args{lastlogin};
+	
+	die "Needs a user or last login to set last login!\n" if (!$user or !$lastlogin);
+	
+	my $auth = new Auth;
+	my ($success, $error) = $auth->update_last_login(user => $user, lastlogin => $lastlogin);
+	if ($error) {
+		if ($error =~ /Permission/) {
+			info("Must be run as root");
+		} else {
+			info( "$error"); 
+		}
+		
+	} else {
+		info( "set_last_login. Done "); 
+	}
+	
+}
+
+# Set last login
+sub unlock_user
+{
+	my %args = @_;
+	my $user = $args{user};
+	my $lastlogin = $args{lastlogin};	
+	die "Needs a user or last login to set last login!\n" if (!$user);
+	
+	my $auth = new Auth;
+	my ($success, $error) = $auth->update_last_login(user => $user, remove => 1);
+	if ($error) {
+		if ($error =~ /Permission/) {
+			info("Must be run as root");
+		} else {
+			info( "$error"); 
+		}
+		
+	} else {
+		info( "unlock_user $user. Done "); 
+	}
+	
+}
 # *****************************************************************************
 # Copyright (C) Opmantek Limited (www.opmantek.com)
 # This program comes with ABSOLUTELY NO WARRANTY;
