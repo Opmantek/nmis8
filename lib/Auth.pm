@@ -478,17 +478,12 @@ sub generate_session {
 		$token = $self->get_cookie_token($signature);
 	}
 	# Generate sesssion
-	#logAuth("INFO Generating session $name for user $user and $token") if ($self->{debug});
-	# TODO: Update session name and token
-	#CGI::Session->name($name);
 	my $session = CGI::Session->new(undef, $token, {Directory=>$session_dir});
 	logAuth("INFO Generating session $name for user $user") if ($self->{debug});
-	#my $session = CGI::Session->new(undef, undef, {Directory=>$session_dir});
-	#$session->name($name);
-	#$session->param('name', $name);
+	
 	$session->param('username', $user);
-	my $exp = $expires =~ s/min/m/gr; 
-	$session->expire($exp);
+	$expires =~ s/min/m/g; 
+	$session->expire($expires);
 	return $session;
 }
 #----------------------------------
@@ -1531,7 +1526,6 @@ sub loginout {
 		if ($expire_users) {
 			my $expire_after = $self->get_expire_at(user => $username);
 			my $last_login = $self->get_last_login(user => $username);
-		
 			if ($expire_after != 0 and defined($last_login)) {
 				my $t = time - $last_login;
 				logAuth("DEBUG: verifying expire after $expire_after < last login $last_login");
