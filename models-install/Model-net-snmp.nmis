@@ -698,7 +698,7 @@
     },
     'nocollect' => {
       'ifOperStatus' => 'other',
-      'ifDescr' => 'sublayer|null',
+      'ifDescr' => 'sublayer|null|veth',
       'Description' => '^#',
       'noDescription' => 'false',
       'ifType' => 'other|softwareloopback|isdn'
