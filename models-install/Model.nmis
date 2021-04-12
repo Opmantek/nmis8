@@ -743,13 +743,20 @@
         },
       }
     },
-   'Siklu Communication LTD' => {
-       'order' => {
-         '10' => {
+    'Siklu Communication LTD' => {
+      'order' => {
+          '10' => {
           'Siklu-EH-600' => 'EH-600TX'
-         }
-       }
-     },
+        }
+      }
+    },
+    'Calix Networks' => {
+      'order' => {
+        '10' => {
+          'Calix' => '(E3|E5|E7)'
+        }
+      }
+    },    
   },
   'system' => {
     'nodeModel' => 'Default',
