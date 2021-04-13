@@ -191,7 +191,7 @@ sub collect_plugin
 			# check for RRD update errors
 			if (!$updatedrrdfileref) { info("Update RRD failed!") };
 
-			info("Host_Memory total=$Host_Memory->{physical_total} physical=$Host_Memory->{physical_used} available=$Host_Memory->{available_used} cached=$Host_Memory->{cached_used} buffers=$Host_Memory->{buffers_used} to $updatedrrdfileref");
+			info("Host_Memory total=$Host_Memory->{physical_total} physical=$Host_Memory->{physical_used} available=$Host_Memory->{available_used} cached=$Host_Memory->{cached_used} buffers=$Host_Memory->{buffers_used} to $updatedrrdfileref") if ($updatedrrdfileref);
 			dbg("Host_Memory Object: ". Dumper($Host_Memory),1);
 		}
 	}
