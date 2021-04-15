@@ -32,7 +32,7 @@ package Host_Resources;
 our $VERSION = "1.0.0";
 
 use strict;
-use warnings;
+#use warnings;
 use func;	# for the conf table extras
 use NMIS;
 use rrdfunc;
@@ -166,7 +166,7 @@ sub collect_plugin
 			$Host_Memory->{available_units} = $Host_Memory->{physical_units};
 
 			# available used is the physical used but subtract the cached and buffer memory which is available for use.
-			$Host_Memory->{available_used} = $Host_Memory->{physical_used} - $Host_Memory->{cached_used} - $Host_Memory->{buffers_used};
+			$Host_Memory->{available_used} = $Host_Memory->{physical_used} - $Host_Memory->{cached_used} - $Host_Memory->{buffers_used} if defined $Host_Memory->{physical_used} and $Host_Memory->{buffers_used};
 			# we don't need total for cache, buffers and available as it is really physical
 			# the units all appear to be the same so just keeping physical
 			my $rrddata = {
