@@ -30,7 +30,7 @@
 # a small update plugin for discovering interfaces on netgear 108 and 723 devices
 # which requires custom snmp accesses
 package AdtranInterface;
-our $VERSION = "1.0.2";
+our $VERSION = "1.0.3";
 use strict;
 
 use func;												# for the conf table extras
@@ -105,6 +105,7 @@ sub update_plugin
 	my $ifSpeedOid = "1.3.6.1.2.1.2.2.1.5";
 	my $ifAdminStatusOid = "1.3.6.1.2.1.2.2.1.7";
 	my $ifOperStatusOid = "1.3.6.1.2.1.2.2.1.8";
+	#my $ifLastChangeOid = "1.3.6.1.2.1.2.2.1.9";
 
 	foreach my $index (@ifIndexNum) 
 	{
@@ -114,6 +115,7 @@ sub update_plugin
 			"$ifSpeedOid.$index",
 			"$ifAdminStatusOid.$index",
 			"$ifOperStatusOid.$index",
+			#"$ifLastChangeOid.$index",
 		);
 		
 		# Store them straight into the results
@@ -126,6 +128,9 @@ sub update_plugin
 		my $ifSpeed = $snmpData->{"$ifSpeedOid.$index"};
 		my $ifAdminStatus = ifStatus($snmpData->{"$ifAdminStatusOid.$index"});
 		my $ifOperStatus = ifStatus($snmpData->{"$ifOperStatusOid.$index"});
+        my $setlimits = $NI->{interface}->{$index}->{setlimits} // "normal";
+        
+		#my $ifLastChange = $snmpData->{"$ifLastChangeOid.$index"};
 
 		$ifSpeed = 10000000000 if ( $ifDescr =~ /ten-gigabit-ethernet/ );
 		$ifSpeed = 10000000000 if ( $ifSpeed == 4294967295 );
@@ -138,12 +143,15 @@ sub update_plugin
 			'ifAdminStatus' => $ifAdminStatus,
 			'ifDescr' => $ifDescr,
 			'ifIndex' => $index,
+			#'ifLastChange' => convUpTime($ifLastChange = int($ifLastChange/100)),
+			#'ifLastChangeSec' => $ifLastChange,
 			'ifOperStatus' => $ifOperStatus,
 			'ifSpeed' => $ifSpeed,
 			'ifSpeedIn' => $ifSpeed,
 			'ifSpeedOut' => $ifSpeed,
 			'ifType' => $ifType,
 			'interface' => convertIfName($ifDescr),
+            'setlimits' => $setlimits
 		};
 
 		my $intDump = Dumper $S->{info}{interface}{$index};
@@ -288,12 +296,65 @@ sub update_plugin
 		$V->{interface}{"${index}_ifSpeed_title"} = 'Bandwidth';
 		$V->{interface}{"${index}_ifType_title"} = 'Type';
 		$V->{interface}{"${index}_ifAdminStatus_title"} = 'Admin Status';
-		$V->{interface}{"${index}_ifLastChange_title"} = 'Last Change';
+		#$V->{interface}{"${index}_ifLastChange_title"} = 'Last Change';
 		$V->{interface}{"${index}_Description_title"} = 'Description';
 		
 		# index number of interface
 		$V->{interface}{"${index}_ifIndex_value"} = $index;
 		$V->{interface}{"${index}_ifIndex_title"} = 'ifIndex';
+
+		my $desiredlimit = $S->{info}{interface}{$index}{setlimits};
+		# info("Desiredlimit: $desiredlimit" );
+		# info("ifSpeed: " . $S->{info}{interface}{$index}{ifSpeed});
+		# info("collect: " . $S->{info}{interface}{$index}{collect});
+		# no limit or dud limit or dud speed or non-collected interface?
+		if ($desiredlimit && $desiredlimit =~ /^(normal|strict|off)$/
+				&& $S->{info}{interface}{$index}{ifSpeed}
+				&& getbool($S->{info}{interface}{$index}{collect})
+				)
+		{
+			info("performing rrd speed limit tuning for $ifDescr, limit enforcement: $desiredlimit, interface speed is ".convertIfSpeed($S->{info}{interface}{$index}{ifSpeed})." ($S->{info}{interface}{$index}{ifSpeed})");
+
+			# speed is in bits/sec, normal limit: 2*reported speed (in bytes), strict: exactly reported speed (in bytes)
+			my $maxbytes = 	$desiredlimit eq "off"? "U": $desiredlimit eq "normal"?
+					int($S->{info}{interface}{$index}{ifSpeed}/4) : int($S->{info}{interface}{$index}{ifSpeed}/8);
+			my $maxpkts = $maxbytes eq "U"? "U" : int($maxbytes/50); # this is a dodgy heuristic
+
+			for (["interface", qr/(ifInOctets|ifHCInOctets|ifOutOctets|ifHCOutOctets)/],
+					 ["pkts", qr/(ifInOctets|ifHCInOctets|ifOutOctets|ifHCOutOctets|ifInUcastPkts|ifInNUcastPkts|ifInDiscards|ifInErrors|ifOutUcastPkts|ifOutNUcastPkts|ifOutDiscards|ifOutErrors)/ ],
+					 ["pkts_hc", qr/(ifInOctets|ifHCInOctets|ifOutOctets|ifHCOutOctets|ifInUcastPkts|ifInNUcastPkts|ifInDiscards|ifInErrors|ifOutUcastPkts|ifOutNUcastPkts|ifOutDiscards|ifOutErrors)/ ], )
+			{
+				my ($datatype, $dsregex) = @$_;
+
+				# rrd file exists and readable?
+				if (-r (my $rrdfile = $S->getDBName(graphtype => $datatype, index => $index)))
+				{
+					my $fileinfo = RRDs::info($rrdfile);
+					for my $matching (grep /^ds\[.+\]\.max$/, keys %$fileinfo)
+					{
+						# only touch relevant and known datasets
+						next if ($matching !~ /($dsregex)/);
+						my $dsname = $1;
+
+						my $curval = $fileinfo->{$matching};
+						$curval = "U" if (!defined $curval or $curval eq "");
+
+						# the pkts, discards, errors DS are packet based; the octets ones are bytes
+						my $desiredval = $dsname =~ /octets/i? $maxbytes : $maxpkts;
+
+						if ($curval ne $desiredval)
+						{
+							info("rrd section $datatype, ds $dsname, current limit $curval, desired limit $desiredval: adjusting limit");
+							RRDs::tune($rrdfile, "--maximum", "$dsname:$desiredval");
+						}
+						else
+						{
+							info("rrd section $datatype, ds $dsname, current limit $curval is correct");
+						}
+					}
+				}
+			}
+		}
 	}
 
 	return ($changesweremade,undef);							# happy, and changes were made so save view and nodes file
@@ -314,4 +375,3 @@ sub ifStatus {
 }	
 
 1;
-
