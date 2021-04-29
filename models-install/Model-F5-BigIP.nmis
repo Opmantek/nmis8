@@ -59,11 +59,25 @@
     }
   },
 
+  'alerts' => {
+    'VirtualServTable' => {
+      'VirtualServTableState' => {
+        'element' => 'index',
+        'event' => 'LTM Server Down',
+        'level' => 'Major',
+        'test' => 'CVAR1=ltmVsStatusAvailState;$CVAR1 ne 100',
+        'type' => 'test',
+				'title' => "LTM Server Status",
+        'unit' => '',
+        'value' => 'CVAR1=ltmVsStatusAvailState;int($CVAR1)'
+      }
+    }
+  },
  'systemHealth' => {
     'sections' => 'F5_Temperature,F5_CPU,VirtualServTable',
     'sys' => {
       'VirtualServTable' => {
-        'headers' => 'ltmVirtualServName,ltmVirtualServAddr,ltmVirtualServPort,ltmVirtualServIpProto,ltmVirtualServConnLimit',
+        'headers' => 'ltmVirtualServName,ltmVirtualServAddr,ltmVirtualServIpProto,ltmVirtualServConnLimit',
         'indexed' => 'ltmVirtualServName',
         'index_oid' => '1.3.6.1.4.1.3375.2.2.10.1.2.1.1',
         'index_regex' => '3375\.2\.2\.10\.1\.2\.1\.1\.([\d\.]+)$',
@@ -73,6 +87,7 @@
               'oid' => '1.3.6.1.4.1.3375.2.2.10.1.2.1.1',
               'sysObjectName' => 'ltmVirtualServName',
               'title' => 'Server Name',
+              'calculate' => '$r =~s/[\\\/:"*?<>|]/--/g;return $r;'
               },
           'ltmVirtualServAddr' => {
               'oid' => '1.3.6.1.4.1.3375.2.2.10.1.2.1.3',
@@ -103,6 +118,26 @@
                 'sysObjectName' => 'ltmVirtualServConnLimit',
                 'title' => 'ConnLimit',
                 },
+            
+            'ltmVsStatusAvailStateText' => {
+            'oid' => '1.3.6.1.4.1.3375.2.2.10.13.2.1.2',
+            # SYNTAX INTEGER {none(0),green(1), yellow(2),red(3), blue(4), gray(5) }
+		#none - error;
+    # green - available in some capacity;
+		# yellow - not currently available;
+		# red - not available;
+		# blue - availability is unknown;
+		# gray - unlicensed."
+            'replace' => {
+              '0' => 'none->error',
+              '1' => 'green->available',
+              '2' => 'yellow->not currently available',
+              '3' => 'red-not available',
+              '4' => 'blue-unknown availability',
+              '5' => 'gray-unlicensed'
+            },
+            'title' => 'LTM State'
+          }
             },
         },
       'F5_Temperature' => {
@@ -166,6 +201,48 @@
       },
     },
     'rrd' => {
+      'VirtualServTable' => {
+        'graphtype' => 'f5LTM-Connections,f5LTM-state',
+        'indexed' => 'true',
+        'snmp' => {
+          'ltmStatClientCurConns' => {
+            'oid' => '1.3.6.1.4.1.3375.2.2.10.2.3.1.12',
+            'option' => 'counter,0:U',
+            'sysObjectName' => 'ltmVirtualServStatClientCurConns'
+          },
+          'ltmVsStatusAvailState' => {
+            'oid' => '1.3.6.1.4.1.3375.2.2.10.13.2.1.2',
+            'replace' => {
+              '0' => '10',
+              '1' => '100',
+              '2' => '10',
+              '3' => '0',
+              '4' => '50',
+              '5' => '50'
+            },
+            'title' => 'LTM VS State'
+          },
+          'ltmVsStatusAvailStateText' => {
+            'oid' => '1.3.6.1.4.1.3375.2.2.10.13.2.1.2',
+            # SYNTAX INTEGER {none(0),green(1), yellow(2),red(3), blue(4), gray(5) }
+		#none - error;
+    # green - available in some capacity;
+		# yellow - not currently available;
+		# red - not available;
+		# blue - availability is unknown;
+		# gray - unlicensed."
+            'replace' => {
+              '0' => 'none->error',
+              '1' => 'green->available',
+              '2' => 'yellow->not currently available',
+              '3' => 'red-not available',
+              '4' => 'blue-unknown availability',
+              '5' => 'gray-unlicensed'
+            },
+            'option' => 'nosave'
+          }
+        }
+      },
       'F5_Temperature' => {
         'control' => 'CVAR=f5TempName;$CVAR =~ /Blade air/',
         'indexed' => 'true',
@@ -182,7 +259,7 @@
       },
       'F5_CPU' => {
         #'control' => 'CVAR=f5CPUProcessorLoad;$CVAR =~ /\d+/',
-        'control' => 'CVAR=sysPlaneStatPlaneName;$CVAR =~ /data/',
+        #'control' => 'CVAR=sysPlaneStatPlaneName;$CVAR =~ /data/',
         'indexed' => 'true',
         'graphtype' => 'f5CPU',
         'threshold' => 'f5ProacCPU',
@@ -363,9 +440,9 @@
             'title' => 'Oper Status'
           },
           'ifDescr' => {
-            #'comment' => 'The Fortinet 80D does not populate the ifDescr object, but ifName is OK',
-            'oid' => 'ifName',
-            'title' => 'Name (ifName)'
+            #need to check it does ifDescr
+            'oid' => 'ifDescr',
+            'title' => 'Name'
           },
 					'ifPhysAddress' => {
             'oid' => 'ifPhysAddress',

@@ -94,6 +94,7 @@
          Juniper_CoS => 'false',
          jnxDestinationClassUsage => 'false',
          jnxSourceClassUsage => 'false',
+	VirtualServTable => 'false',
          
        },
        # should include all possible values
@@ -137,6 +138,7 @@
          Juniper_CoS => [ 12, "Juniper Routers jnX - CBQoS statistics" ],
          jnxDestinationClassUsage => [ 12, "Juniper Routers jnX - Juniper Destination Class Filter Usage" ],
          jnxSourceClassUsage => [ 12, "Juniper Routers jnX - Juniper Source Class Filter Usage" ],
+	VirtualServTable => [ 13, "F5 LTM Server Table loadbalancer entries - can be very large" ],
       	 },
       },
 	);
