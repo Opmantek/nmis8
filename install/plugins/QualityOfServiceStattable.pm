@@ -30,7 +30,7 @@
 # a small update plugin for getting the QualityOfServiceStat index and direction
 
 package QualityOfServiceStattable;
-our $VERSION = "1.0.1";
+our $VERSION = "1.0.2";
 
 use strict;
 
@@ -80,19 +80,21 @@ sub update_plugin
 			$entry->{ifIndex} = $first;
 			$entry->{Direction} = $direction;
 			
+			dbg("QualityOfServiceStattable.pm: Node $node updating node info QualityOfServiceStat $entry->{index} ifIndex: new '$entry->{ifIndex}'");
+			dbg("QualityOfServiceStattable.pm: Node $node updating node info QualityOfServiceStat $entry->{index} Direction: new '$entry->{Direction}'");
+
                         # Get the devices ifDescr and give it a link.
                         if ( defined $IF->{$first}{ifDescr} ) {
 				$entry->{ifDescr} = $IF->{$first}{ifDescr};
 
 				info("Found QoS Entry with interface $entry->{ifIndex} and direction '$entry->{Direction}'. 'ifDescr' = '$entry->{ifDescr}'.");
+
+				dbg("QualityOfServiceStattable.pm: Node $node updating node info QualityOfServiceStat $entry->{index} ifDescr: new '$entry->{ifDescr}'");
                         }
                         else
                         {
 				info("Found QoS Entry with interface $entry->{ifIndex} and direction '$entry->{Direction}'. 'ifDescr' could not be determined for ifIndex '$first'.");
                         }
-
-            dbg("QualityOfServiceStattable.pm: Node $node updating node info QualityOfServiceStat $entry->{index} ifIndex: new '$entry->{ifIndex}'");
-            dbg("QualityOfServiceStattable.pm: Node $node updating node info QualityOfServiceStat $entry->{index} Direction: new '$entry->{Direction}'");
 		}
 	}
 
