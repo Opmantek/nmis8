@@ -46,6 +46,7 @@ sub update_plugin
 	#my ($node,$S,$C) = @args{qw(node sys config)};
 	
 	my $NI = $S->ndinfo;
+	my $IF = $S->ifinfo;
 	# anything to do?
 
 	#my $IFD = $S->ifDescrInfo(); # interface info indexed by ifDescr
@@ -79,7 +80,16 @@ sub update_plugin
 			$entry->{ifIndex} = $first;
 			$entry->{Direction} = $direction;
 			
-			info("Found QoS Entry with interface $entry->{ifIndex} and direction '$entry->{Direction}'");
+                        # Get the devices ifDescr and give it a link.
+                        if ( defined $IF->{$first}{ifDescr} ) {
+				$entry->{ifDescr} = $IF->{$first}{ifDescr};
+
+				info("Found QoS Entry with interface $entry->{ifIndex} and direction '$entry->{Direction}'. 'ifDescr' = '$entry->{ifDescr}'.");
+                        }
+                        else
+                        {
+				info("Found QoS Entry with interface $entry->{ifIndex} and direction '$entry->{Direction}'. 'ifDescr' could not be determined for ifIndex '$first'.");
+                        }
 
             dbg("QualityOfServiceStattable.pm: Node $node updating node info QualityOfServiceStat $entry->{index} ifIndex: new '$entry->{ifIndex}'");
             dbg("QualityOfServiceStattable.pm: Node $node updating node info QualityOfServiceStat $entry->{index} Direction: new '$entry->{Direction}'");
