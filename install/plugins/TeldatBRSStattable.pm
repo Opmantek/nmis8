@@ -30,7 +30,7 @@
 # a small update plugin for getting the TeldatBRSStat ifDescr
 
 package TeldatBRSStattable;
-our $VERSION = "1.0.1";
+our $VERSION = "1.0.2";
 
 use strict;
 
@@ -46,44 +46,43 @@ sub update_plugin
 	#my ($node,$S,$C) = @args{qw(node sys config)};
 	
 	my $NI = $S->ndinfo;
-	my $IF = $S->ifinfo;
+
 	# anything to do?
-
-	#my $IFD = $S->ifDescrInfo(); # interface info indexed by ifDescr
-
 	return (0,undef) if (ref($NI->{TeldatBRSStat}) ne "HASH");
+
+	my $IF = $S->ifinfo;
+
 	my $changesweremade = 0;
 
-	
 	info("Working on $node TeldatBRSStattable");
 
- 
-      
 
 	for my $key (keys %{$NI->{TeldatBRSStat}})
 	{
 		my $entry = $NI->{TeldatBRSStat}->{$key};
-		if ( defined($entry->{ifIndex}) ) {
-			$changesweremade = 1;
-
+		if ( defined($entry->{ifIndex}) )
+		{
 			my $ifindex = $entry->{ifIndex};
 			
                         # Get the devices ifDescr.
-                        if ( defined $IF->{$ifindex}{ifDescr} ) {
+                        if ( defined $IF->{$ifindex}{ifDescr} )
+			{
+				$changesweremade = 1;
+
                                 $entry->{ifDescr} = $IF->{$ifindex}{ifDescr};
 
 				info("Found BRS Entry with interface $entry->{ifIndex}. 'ifDescr' = '$entry->{ifDescr}'.");
-				dbg("TeldatBRSStattable.pm: Node $node updating node info QualityOfServiceStat $entry->{index}: new '$entry->{ifDescr}'");
+				dbg("TeldatBRSStattable.pm: Node $node updating node info TeldatBRSStat $entry->{index}: new '$entry->{ifDescr}'");
                         }
                         else
                         {
 				info("'ifDescr' could not be determined for ifIndex '$ifindex'.");
                         }
 		}
-                else 
-                {
-                        info("\$entry->{ifIndex} not defined. 'ifDescr' could not be determined for '$entry->{index}'");
-                }
+		else
+		{
+			info("\$entry->{ifIndex} not defined. 'ifDescr' could not be determined for '$entry->{index}'");
+		}
 	}
 
 	return ($changesweremade,undef); # report if we changed anything

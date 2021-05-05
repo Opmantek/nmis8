@@ -30,7 +30,7 @@
 # a small update plugin for getting the TeldatQoSStat ifDescr
 
 package TeldatQoSStattable;
-our $VERSION = "1.0.1";
+our $VERSION = "1.0.2";
 
 use strict;
 
@@ -46,32 +46,33 @@ sub update_plugin
 	#my ($node,$S,$C) = @args{qw(node sys config)};
 	
 	my $NI = $S->ndinfo;
-	my $IF = $S->ifinfo;
+
 	# anything to do?
-
-	#my $IFD = $S->ifDescrInfo(); # interface info indexed by ifDescr
-
 	return (0,undef) if (ref($NI->{TeldatQoSStat}) ne "HASH");
+
+	my $IF = $S->ifinfo;
+
 	my $changesweremade = 0;
 
-	
 	info("Working on $node TeldatQoSStattable");
-     
+
 
 	for my $key (keys %{$NI->{TeldatQoSStat}})
 	{
 		my $entry = $NI->{TeldatQoSStat}->{$key};
-		if ( defined($entry->{ifIndex}) ) {
-			$changesweremade = 1;
-
+		if ( defined($entry->{ifIndex}) )
+		{
 			my $ifindex = $entry->{ifIndex};
 			
                         # Get the devices ifDescr.
-                        if ( defined $IF->{$ifindex}{ifDescr} ) {
+                        if ( defined $IF->{$ifindex}{ifDescr} )
+			{
+				$changesweremade = 1;
+
                                 $entry->{ifDescr} = $IF->{$ifindex}{ifDescr};
 
 				info("Found QoS Entry with interface $entry->{ifIndex}. 'ifDescr' = '$entry->{ifDescr}'.");
-				dbg("TeldatQoSStattable.pm: Node $node updating node info QualityOfServiceStat $entry->{index}: new '$entry->{ifDescr}'");
+				dbg("TeldatQoSStattable.pm: Node $node updating node info TeldatQoSStat $entry->{index}: new '$entry->{ifDescr}'");
                         }
                         else
                         {
