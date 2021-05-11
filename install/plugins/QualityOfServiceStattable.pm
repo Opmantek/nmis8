@@ -30,7 +30,7 @@
 # a small update plugin for getting the QualityOfServiceStat index and direction
 
 package QualityOfServiceStattable;
-our $VERSION = "1.0.1";
+our $VERSION = "1.0.3";
 
 use strict;
 
@@ -46,43 +46,54 @@ sub update_plugin
 	#my ($node,$S,$C) = @args{qw(node sys config)};
 	
 	my $NI = $S->ndinfo;
+
 	# anything to do?
-
-	#my $IFD = $S->ifDescrInfo(); # interface info indexed by ifDescr
-
 	return (0,undef) if (ref($NI->{QualityOfServiceStat}) ne "HASH");
+
+	my $IF = $S->ifinfo;
+
 	my $changesweremade = 0;
 
-	
 	info("Working on $node QualityOfServiceStattable");
 
- 
-      
 
 	for my $key (keys %{$NI->{QualityOfServiceStat}})
 	{
 		my $entry = $NI->{QualityOfServiceStat}->{$key};
 		# |  +--hwCBQoSPolicyStatisticsClassifierEntry(1)
-		# |     |	hwCBQoSIfApplyPolicyIfIndex ($first) ,
+		# |     |	hwCBQoSIfApplyPolicyIfIndex ($ifindex) ,
 		#		 	hwCBQoSIfVlanApplyPolicyVlanid1 (undef),
 		#			hwCBQoSIfApplyPolicyDirection ($third),
 		#			hwCBQoSPolicyStatClassifierName ($k is the index that derives from this property)
 		# $k is a QualityOfServiceStat index provided by hwCBQoSPolicyStatClassifierName
 		#	and is a dot delimited string of integers (OID):
-		my ($first,undef,$third) = split(/\./,$entry->{index});
-		if ( defined($first) or defined ($third) ) {
-			
+		my ($ifindex,undef,$third) = split(/\./,$entry->{index});
+		if ( defined($ifindex) or defined ($third) )
+		{	
 			$changesweremade = 1;
+
 			# hwCBQoSIfApplyPolicyDirection: 1=in; 2=out; strict implementation
-			my $direction = ($third == 1? 'in': ($third == 2? 'out': undef));;
+			my $direction = ($third == 1? 'in': ($third == 2? 'out': undef));
 			
-			$entry->{ifIndex} = $first;
+			$entry->{ifIndex} = $ifindex;
 			$entry->{Direction} = $direction;
 			
-			info("Found QoS Entry with interface $entry->{ifIndex} and direction '$entry->{Direction}'");
+			dbg("QualityOfServiceStattable.pm: Node $node updating node info QualityOfServiceStat $entry->{index} ifIndex: new '$entry->{ifIndex}'");
+			dbg("QualityOfServiceStattable.pm: Node $node updating node info QualityOfServiceStat $entry->{index} Direction: new '$entry->{Direction}'");
 
-            dbg("QualityOfServiceStattable.pm: Node $node updating node info QualityOfServiceStat $entry->{index} ifIndex: new '$entry->{ifIndex}'");
-            dbg("QualityOfServiceStattable.pm: Node $node updating node info QualityOfServiceStat $entry->{index} Direction: new '$entry->{Direction}'");
+                        # Get the devices ifDescr and give it a link.
+                        if ( defined $IF->{$ifindex}{ifDescr} )
+			{
+				$entry->{ifDescr} = $IF->{$ifindex}{ifDescr};
+
+				info("Found QoS Entry with interface $entry->{ifIndex} and direction '$entry->{Direction}'. 'ifDescr' = '$entry->{ifDescr}'.");
+
+				dbg("QualityOfServiceStattable.pm: Node $node updating node info QualityOfServiceStat $entry->{index} ifDescr: new '$entry->{ifDescr}'");
+                        }
+                        else
+                        {
+				info("Found QoS Entry with interface $entry->{ifIndex} and direction '$entry->{Direction}'. 'ifDescr' could not be determined for ifIndex '$ifindex'.");
+                        }
 		}
 	}
 

@@ -756,7 +756,14 @@
           'Calix' => '(E3|E5|E7)'
         }
       }
-    },    
+    }, 
+    'Mitel, Corp.' =>  {
+      'order' => {
+        '10' => {
+          'Mitel3000' => 'VerSw:1'
+        }
+      }
+    },   
   },
   'system' => {
     'nodeModel' => 'Default',
