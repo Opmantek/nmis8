@@ -3757,8 +3757,16 @@ sub updateNodeInfo
 
 		# a new control to minimise when interfaces are added,
 		# if disabled {custom}{interface}{ifNumber} eq "false" then don't run getIntfInfo when intf changes
-		my $doIfNumberCheck = ( exists($S->{mdl}->{custom}) && exists($S->{mdl}->{custom}->{interface}) # do not autovivify
-														&& getbool($S->{mdl}->{custom}->{interface}->{ifNumber}));
+		my $customModelIfNumber = 0;
+		if ( exists($S->{mdl}->{custom}) 
+			&& exists($S->{mdl}->{custom}->{interface}) 
+			&& exists($S->{mdl}->{custom}->{interface}->{ifNumber}) 
+		) {
+			$customModelIfNumber = 1;
+		}
+		
+		my $doIfNumberCheck = 1;
+		$doIfNumberCheck = getbool($S->{mdl}->{custom}->{interface}->{ifNumber}) if $customModelIfNumber;
 
 		if ($doIfNumberCheck and $ifNumber != $NI->{system}{ifNumber})
 		{
