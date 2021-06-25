@@ -521,17 +521,19 @@ sub disable_source
 # returns: hashref
 # note: does NOT return live data, the info is shallowly cloned on conversion!
 sub ifDescrInfo
-{
+{	
 	my $self = shift;
 
 	my %ifDescrInfo;
 
 	foreach my $indx (keys %{$self->{info}{interface}})
 	{
-		my $thisentry = $self->{info}->{interface}->{$indx};
-		my $ifDescr = $thisentry->{ifDescr};
+		if ( ref($self->{info}->{interface}->{$indx}) eq "HASH" ) {
+			my $thisentry = $self->{info}->{interface}->{$indx};
+			my $ifDescr = $thisentry->{ifDescr};
 
-		$ifDescrInfo{$ifDescr} = {%$thisentry};
+			$ifDescrInfo{$ifDescr} = {%$thisentry};			
+		}
 	}
 	return \%ifDescrInfo;
 }
