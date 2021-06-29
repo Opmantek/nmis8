@@ -130,6 +130,26 @@ sub checkNode {
 		}
 
 		# how are the top level sections.
+		foreach my $indx (sort keys %{$NI->{interface}}) {
+			#print "INFO: $node has $section defined\n" if $debug;
+			if ( ref($NI->{interface}{$indx}) eq "HASH" and not (keys %{$NI->{interface}{$indx}}) ) {
+				print "FIXING: $node empty interface for index $indx\n";
+				delete $NI->{interface}{$indx};
+				$changes = 1;	
+			}
+			elsif ( ref($NI->{interface}{$indx}) ne "HASH" ) {
+				print "FIXING: $node invalid interface for index $indx\n";
+				delete $NI->{interface}{$indx};
+				$changes = 1;	
+			}
+			elsif ( $indx !~ /^\d+$/ ) {
+				print "FIXING: $node interface index is not an integer for index $indx\n";
+				delete $NI->{interface}{$indx};
+				$changes = 1;	
+			}
+		}
+
+		# checking interfaces are valid
 		foreach my $section (sort keys %{$NI}) {
 			print "INFO: $node has $section defined\n" if $debug;
 			if ( ref($NI->{$section}) eq "HASH" and not (keys %{$NI->{$section}}) ) {

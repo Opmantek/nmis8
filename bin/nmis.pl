@@ -4189,6 +4189,13 @@ sub getIntfData
 	info("Processing Interface Table");
 	foreach my $index ( sort {$a <=> $b} keys %{$IF} )
 	{
+
+		# this is record a valid interface record?
+		if ( ref($IF->{$index}) ne "HASH" ) {
+			dbg("Bad interface index for index=$index");
+			next;
+		}
+
 		# only collect on interfaces that are defined, with collection turned on globally,
 		# also don't bother with ones without ifdescr
 		if (!getbool($IF->{$index}->{collect})
@@ -5203,6 +5210,12 @@ sub getPVC
 	# and for that interface and that are Admin UP
 	foreach ( keys %{$IF} )
 	{
+		# this is record a valid interface record?
+		if ( ref($IF->{$_}) ne "HASH" ) {
+			dbg("Bad interface index for index=$_");
+			next;
+		}
+
 		if ( $IF->{$_}{ifType} =~ /framerelay/i
 				 and $IF->{$_}{ifAdminStatus} eq "up" and
 				 getbool($IF->{$_}{collect})
@@ -6898,6 +6911,13 @@ sub runReach
 			# check if interface file exists - node may not be updated as yet....
 			foreach my $index (keys %{$IF}) {
 				# Don't do any stats cause the interface is not one we collect
+
+				# this is record a valid interface record?
+				if ( ref($IF->{$index}) ne "HASH" ) {
+					dbg("Bad interface index for index=$index");
+					next;
+				}
+
 				if ( getbool($IF->{$index}{collect}) ) {
 					# Get the link availability from the local node!!!
 					my $util = getSummaryStats(sys=>$S,type=>"interface",start=>"-15 minutes",end=>time(),index=>$index);
