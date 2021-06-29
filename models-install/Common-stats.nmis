@@ -376,6 +376,10 @@
         'DEF:RouteNumber=$database:RouteNumber:AVERAGE',
         'PRINT:RouteNumber:AVERAGE:RouteNumber=%1.2lf'
       ],
+      'SmartCell' => [
+        'DEF:ruckuCSN=$database:RCSN:AVERAGE',
+        'PRINT:ruckuCSN:AVERAGE:ruckuCSN=%1.0lf',
+      ]
     }
   }
 );

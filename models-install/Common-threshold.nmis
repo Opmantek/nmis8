@@ -1,6 +1,23 @@
 %hash = (
   'threshold' => {
     'name' => {
+      'ApConnStatus' => {
+        'event' => 'Proactive Ap Connection Status',
+        'item' => 'ruckuCSN',
+        'select' => {
+          'default' => {
+            'value' => {
+              'fatal' => '-1',
+              'critical' => '0',
+              'major' => '0',
+              'minor' => '0',
+              'warning' => '0'
+            }
+          }
+        },
+        'title' => 'Ap Connection Status: Disconnected',
+        'unit' => ''
+      },
       'DiskQueueLength' => {
         'event' => 'Proactive Disk Queue Length',
         'item' => 'AvgDiskQLen',

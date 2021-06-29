@@ -1,0 +1,90 @@
+#
+## $Id: Graph-pkts_hc.nmis,v 8.1 2012/08/14 12:20:36 keiths Exp $
+#
+#  Copyright 1999-2011 Opmantek Limited (www.opmantek.com)
+#  
+#  ALL CODE MODIFICATIONS MUST BE SENT TO CODE@OPMANTEK.COM
+#  
+#  This file is part of Network Management Information System (“NMIS”).
+#  
+#  NMIS is free software: you can redistribute it and/or modify
+#  it under the terms of the GNU General Public License as published by
+#  the Free Software Foundation, either version 3 of the License, or
+#  (at your option) any later version.
+#  
+#  NMIS is distributed in the hope that it will be useful,
+#  but WITHOUT ANY WARRANTY; without even the implied warranty of
+#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+#  GNU General Public License for more details.
+#  
+#  You should have received a copy of the GNU General Public License
+#  along with NMIS (most likely in a file named LICENSE).  
+#  If not, see <http://www.gnu.org/licenses/>
+#  
+#  For further information on NMIS or for a license other than GPL please see
+#  www.opmantek.com or email contact@opmantek.com 
+#  
+#  User group details:
+#  http://support.opmantek.com/users/
+#  
+# *****************************************************************************
+
+%hash = (
+	'title' => {
+		'standard' => '$node: $ifDescr - $length from $datestamp_start to $datestamp_end',
+		'short' => '$node: $ifDescr - $length'
+	},
+	'vlabel' => {
+		'standard' => 'Packets/Second'
+	},
+	'option' => {
+		'standard' => [
+			'DEF:ifInOctets=$database:ifInOctets:AVERAGE',
+			'DEF:ifInUcastPkts=$database:ifInUcastPkts:AVERAGE',
+			'DEF:ifInMcastPkts=$database:ifInMcastPkts:AVERAGE',
+			'DEF:ifInBcastPkts=$database:ifInBcastPkts:AVERAGE',
+			'DEF:ifInDiscards=$database:ifInDiscards:AVERAGE',
+			'DEF:ifInErrors=$database:ifInErrors:AVERAGE',
+			'DEF:ifOutOctets=$database:ifOutOctets:AVERAGE',
+			'DEF:ifOutUcastPkts=$database:ifOutUcastPkts:AVERAGE',
+			'DEF:ifOutMcastPkts=$database:ifOutMcastPkts:AVERAGE',
+			'DEF:ifOutBcastPkts=$database:ifOutBcastPkts:AVERAGE',
+			'DEF:ifOutDiscards=$database:ifOutDiscards:AVERAGE',
+			'DEF:ifOutErrors=$database:ifOutErrors:AVERAGE',
+			'DEF:MifInUcastPkts=$database:ifInUcastPkts:MAX',
+			'DEF:MifInMcastPkts=$database:ifInMcastPkts:MAX',
+			'DEF:MifInBcastPkts=$database:ifInBcastPkts:MAX',
+			'DEF:MifOutUcastPkts=$database:ifOutUcastPkts:MAX',
+			'DEF:MifOutMcastPkts=$database:ifOutMcastPkts:MAX',
+			'DEF:MifOutBcastPkts=$database:ifOutBcastPkts:MAX',
+			'CDEF:inputBits=ifInOctets,8,*',
+			'CDEF:outputBits=ifOutOctets,8,*',
+			'CDEF:MifInPkts=MifInUcastPkts,MifInMcastPkts,+',
+			'CDEF:ifInPkts=ifInUcastPkts,ifInMcastPkts,ifInBcastPkts,ifInDiscards,ifInErrors,+,+,+,+',
+			'CDEF:ifOutPkts=ifOutUcastPkts,ifOutMcastPkts,ifOutBcastPkts,ifOutDiscards,ifOutErrors,+,+,+,+',
+			'CDEF:ifPkts=ifInPkts,ifOutPkts,+',
+			'CDEF:sizeInPkts=ifInOctets,ifInPkts,/',
+			'CDEF:sizeOutPkts=ifOutOctets,ifOutPkts,/',
+			'CDEF:sizeInPktsSplit=sizeInPkts,-1,*',
+			'CDEF:sizePkts=ifOutOctets,ifInOctets,+,ifPkts,/',
+			'CDEF:ifInPktsSplit=ifInPkts,-1,*',
+			'CDEF:ifInUcastPktsSplit=ifInUcastPkts,-1,*',
+			'CDEF:ifInMcastPktsSplit=ifInMcastPkts,-1,*',
+			'CDEF:ifInBcastPktsSplit=ifInBcastPkts,-1,*',
+			'CDEF:ifInDiscardsSplit=ifInDiscards,-1,*',
+			'CDEF:ifInErrorsSplit=ifInErrors,-1,*',
+			'CDEF:MifOutPkts=MifOutUcastPkts,MifOutMcastPkts,+',
+
+			'LINE1:sizeInPkts#00BFFF: Average Input Packet Size',
+			'GPRINT:sizeInPkts:AVERAGE:Avg %1.2lf%s',
+
+			'LINE1:sizeOutPkts#00AA7F: Average Output Packet Size',
+			'GPRINT:sizeOutPkts:AVERAGE:Avg %1.2lf%s',
+
+			'LINE1:sizePkts#000000: Average Packet Size',
+			'GPRINT:sizePkts:AVERAGE:Avg %1.2lf%s',
+		],
+	}
+
+);
+
