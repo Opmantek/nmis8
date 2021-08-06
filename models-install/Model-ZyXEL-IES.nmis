@@ -54,7 +54,7 @@
   	'nodeVendor' => 'ZyXEL Communications Corp.',
   	'nodegraph' => 'health,response,ip,memUtil',
   	'rrd' => {
-  		'nodehealth' => {
+  		#'nodehealth' => {
   			#'snmp' => {
   			#	'avgBusy1' => {
   			#	  'snmpObject' => 'sysMgmtCPUUsage',
@@ -67,7 +67,7 @@
   			#},
   			#'threshold' => 'cpu',
   			#'graphtype' => 'cpu'
-  		},
+  		#},
       'memUtil' => {
         'graphtype' => 'memUtil',
         'threshold' => 'memUtil',

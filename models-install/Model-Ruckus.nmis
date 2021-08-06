@@ -53,6 +53,21 @@
     }
   },
 
+  'alerts' => {
+    'SmartCell' => {
+      'apStatus' => {
+        'element' => 'ruckusSCGAPName',
+        'event' => 'AP Disconnected',
+        'level' => 'Critical',
+        'test' => 'CVAR1=RCSN;$CVAR1 < 100',
+        'type' => 'test',
+        'title' => 'AP Conn. Status',
+        'unit' => '',
+        'value' => 'CVAR1=RCSN;int($CVAR1)'
+      }
+    },
+  },
+
   'systemHealth' => {
     'sections' => 'SmartCell',
     'sys' => {
