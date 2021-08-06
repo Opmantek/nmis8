@@ -57,8 +57,8 @@
         'type' => {
             'hwMusaBoard' => '/nodes/$node/health/hwMusaBoard-$index.rrd',
             'hwGponStats' => '/nodes/$node/interface/hwGponStats-$index.rrd',
-            'Service_Port' => '/nodes/$node/interface/ServicePort-$index.rrd',
-            'GPON_Device'  => '/nodes/$node/interface/GPONDevice-$index.rrd',
+            #'Service_Port' => '/nodes/$node/interface/ServicePort-$index.rrd',
+            #'GPON_Device'  => '/nodes/$node/interface/GPONDevice-$index.rrd',
             'GponUserTraffic' => '/nodes/$node/interface/GponUserTraffic-$index.rrd',
         }
     },
@@ -67,12 +67,7 @@
             'hwCpuMem'         => 'Board CPU and Memory Usage',
             'hwTempPwr'        => 'Board Temperature and Power',
             'hwGponStats'      => 'GPON OLT Ethernet Statistics',
-            'FlowVlan'         => 'Flow Para and Vlan Id',
-            'slotportcard'     => 'DATA SLOT-PORT-CARD',
-            'EstAdmOper'       => 'Status Admin - Operation',
-            'TrafficTXRX'      => 'Traffic TX and RX',
-            'ONTPowerTXRX'     => 'ONT Power TX and RX',
-            'TempVoltCurr'     => 'Temperature - voltage - BiasCurrent',
+            'Service_Port'  => 'Service Port',
             'GponUserTraffic'  => 'GPON User Traffic',
         }
     },
@@ -87,7 +82,7 @@
         },
     },
     'systemHealth' => {
-       'sections' => 'hwMusaBoard,hwGponStats,entityMib,ifTable,GponUserTraffic,GPON_Device_IP',
+       'sections' => 'hwMusaBoard,hwGponStats,entityMib,ifTable,Service_Port,GponUserTraffic,GPON_Device,GPON_Device_IP',
         #'sections' => 'GponUserTraffic',
         #'sections' => 'GPON_Device',
         #'sections' => 'Service_Port',
@@ -120,7 +115,9 @@
                      },
                  },
              },
-             'GponUserTraffic' => {
+	
+			 
+                 'GponUserTraffic' => {
                  'indexed'   => 'true',
                  'graphtype' => 'GponUserTraffic', 
                  'snmp'      => {
@@ -135,10 +132,13 @@
                     'OutbTrafficTableN' => {
                         'oid'          => '1.3.6.1.4.1.2011.5.14.5.2.1.21',
                         'replace' => {
+                            '128KB' => '128000',
                             '256KB' => '256000',
+                            '384KB' => '384000',
                             '512KB' => '512000',
                             '768KB' => '768000',
                             '1MB' => '1000000',
+                            '1.5MB' => '1500000',
                             '2MB' => '2000000',
                             '3MB' => '3000000',
                             '4MB' => '4000000',
@@ -147,11 +147,16 @@
                             '8MB' => '8000000',
                             '10MB' => '10000000',
                             '12MB' => '12000000',
+                            '15MB' => '15000000',
                             '20MB' => '20000000',
+                            '25MB' => '25000000',
+                            '30MB' => '30000000',
                             '40MB' => '40000000',
                             '50MB' => '50000000',
+                            '60MB' => '60000000',
                             '75MB' => '75000000',
                             '100MB' => '100000000',
+                            '150MB' => '150000000',
                             '200MB' => '200000000',
                             '250MB' => '250000000',
                             '300MB' => '300000000',
@@ -162,10 +167,13 @@
                     'InbTrafficTableN' => {
                         'oid'          => '1.3.6.1.4.1.2011.5.14.5.2.1.22',
                         'replace' => {
+                            '128KB' => '128000',
                             '256KB' => '256000',
+                            '384KB' => '384000',
                             '512KB' => '512000',
                             '768KB' => '768000',
                             '1MB' => '1000000',
+                            '1.5MB' => '1500000',
                             '2MB' => '2000000',
                             '3MB' => '3000000',
                             '4MB' => '4000000',
@@ -174,11 +182,16 @@
                             '8MB' => '8000000',
                             '10MB' => '10000000',
                             '12MB' => '12000000',
+                            '15MB' => '15000000',
                             '20MB' => '20000000',
+                            '25MB' => '25000000',
+                            '30MB' => '30000000',
                             '40MB' => '40000000',
                             '50MB' => '50000000',
+                            '60MB' => '60000000',
                             '75MB' => '75000000',
                             '100MB' => '100000000',
+                            '150MB' => '150000000',
                             '200MB' => '200000000',
                             '250MB' => '250000000',
                             '300MB' => '300000000',
@@ -321,6 +334,89 @@
                     }
                 }
             },
+            'Service_Port' => {
+                'indexed' => 'hwExtSrvFlowPara2',
+                'index_regex' => '\.(\d+)$',
+                #'index_regex' => '\.(\d+.\d+)$',
+                'index_oid' => '1.3.6.1.4.1.2011.5.14.5.2.1.3',
+                'headers' => 'index,hwExtSrvFlowPara2,hwExtSrvFlowPara3,hwExtSrvFlowPara4,hwExtSrvFlowVlanid,hwExtSrvFlowReceiveTrafficDescrIndex,hwExtSrvFlowTransmitTrafficDescrIndex,hwExtSrvFlowMultiServiceUserPara,hwExtSrvFlowAdminStatus,hwExtSrvFlowOperStatus,hwExtSrvFlowDescInfo,hwExtSrvFlowOutboundTrafficTableName,hwExtSrvFlowInboundTrafficTableName',
+                    'snmp' => {
+                        'index' => {
+                            'title' => 'ServicePortIndex',
+                            'title_export' => 'ServicePortIndex',
+                        },
+                        'hwExtSrvFlowPara2' => {
+                            'oid' => '1.3.6.1.4.1.2011.5.14.5.2.1.3',
+                            'title' => 'Slot',
+                            'title_export' => 'SLOT',
+                        },
+                        'hwExtSrvFlowPara3' => {
+                            'oid' => '1.3.6.1.4.1.2011.5.14.5.2.1.4',
+                            'title' => 'Port',
+                            'title_export' => 'PORT',
+                        },
+                        'hwExtSrvFlowPara4' => {
+                            'oid' => '1.3.6.1.4.1.2011.5.14.5.2.1.5',
+                            'title' => 'Card',
+                            'title_export' => 'CARD',
+                        },
+
+                        'hwExtSrvFlowVlanid' => {
+                            'oid' => '1.3.6.1.4.1.2011.5.14.5.2.1.8',
+                            'title' => 'Vlan_Id',
+                            'title_export' => 'Vlan_Id',
+                        },
+                        'hwExtSrvFlowReceiveTrafficDescrIndex' => {
+                            'oid' => '1.3.6.1.4.1.2011.5.14.5.2.1.9',
+                            'title' => 'RX',
+                            'title_export' => 'RX',
+                        },
+                        'hwExtSrvFlowTransmitTrafficDescrIndex' => {
+                            'oid' => '1.3.6.1.4.1.2011.5.14.5.2.1.10',
+                            'title' => 'TX',
+                            'title_export' => 'TX',
+                        },
+                        'hwExtSrvFlowMultiServiceUserPara' => {
+                            'oid' => '1.3.6.1.4.1.2011.5.14.5.2.1.12',
+                            'title' => 'Flow_Para',
+                            'title_export' => 'Flow_Para',
+                        },
+                        'hwExtSrvFlowAdminStatus' => {
+                            'oid' => '1.3.6.1.4.1.2011.5.14.5.2.1.13',
+                            'title' => 'AdminStatus',
+                            'title_export' => 'AdminStatus',
+                            'replace' => {
+                              '1' => 'True',
+                              '2' => 'False',
+                            },
+                        },
+                        'hwExtSrvFlowOperStatus' => {
+                            'oid' => '1.3.6.1.4.1.2011.5.14.5.2.1.14',
+                            'title' => 'OperStatus',
+                            'title_export' => 'OperState',
+                            'replace' => {
+                              '1' => 'True',
+                              '2' => 'False',
+                            },
+                        },
+                        'hwExtSrvFlowDescInfo' => {
+                            'oid' => '1.3.6.1.4.1.2011.5.14.5.2.1.17',
+                            'title' => 'Description',
+                            'title_export' => 'Description',
+                        },
+                        'hwExtSrvFlowOutboundTrafficTableName' => {
+                            'oid' => '1.3.6.1.4.1.2011.5.14.5.2.1.21',
+                            'title' => 'OutboundTableName',
+                            'title_export' => 'OutboundTableName',
+                        },
+                        'hwExtSrvFlowInboundTrafficTableName' => {
+                            'oid' => '1.3.6.1.4.1.2011.5.14.5.2.1.22',
+                            'title' => 'InboundTableName',
+                            'title_export' => 'InboundTableName',
+                        }
+                    }
+            },
+
             'hwGponStats' => {
                 'indexed' => 'ifIndex',
                 'headers' => 'ifName,ifIndex,ifType,ifAdminStatus,ifOperStatus,ifName,hwGponDeviceOltControlStatus,hwGponOltOpticsDdmInfoTxPower',
@@ -396,7 +492,7 @@
                     }
                 }
             },
-            'GponUserTraffic' => {
+				'GponUserTraffic' => {
                 'indexed'     => 'ONTBASE',
                 'index_regex' => '\.(\d+)$',
                 'index_oid'   => '1.3.6.1.4.1.2011.5.14.5.3.1.12',
@@ -482,6 +578,133 @@
                 
                
             },
+
+			'GPON_Device' => {
+				'indexed' => 'hwGponDeviceOntSn',
+				'index_regex' => '\.(\d+\.\d+)$',
+				'index_oid' => '1.3.6.1.4.1.2011.6.128.1.1.2.43.1.3',
+				'headers' => 'hwGponDeviceOntSn,hwGponDeviceOntPassword,hwGponDeviceOntLineProfName,hwGponDeviceOntServiceProfName,hwGponDeviceOntDespt,hwGponDeviceOntEntryStatus,hwGponDeviceOntControlActive,hwGponDeviceOntMainSoftVer,hwGponDeviceOntControlRanging,hwGponDeviceOntControlLastUpTime,hwGponDeviceOntControlLastDownTime,hwGponDeviceOntControlLastDownCause,hwGponDeviceOntControlBatteryCurStatus,hwGponOntOpticalDdmTemperature,hwGponOntOpticalDdmBiasCurrent,hwGponOntOpticalDdmTxPower,hwGponOntOpticalDdmRxPower,hwGponOntOpticalDdmVoltage,hwXponOntInfoMemoryOccupation,hwXponOntInfoProductDescription',
+				'snmp' => {
+				  'hwGponDeviceOntSn' => {
+					'oid' => '1.3.6.1.4.1.2011.6.128.1.1.2.43.1.3',
+					'title' => 'ONTSerialNumber',
+					'title_export' => 'ONTSerialNumber',
+				  },
+
+				  'hwGponDeviceOntPassword' => {
+					'oid' => '1.3.6.1.4.1.2011.6.128.1.1.2.43.1.4',
+					'title' => 'OLTPassword',
+					'title_export' => 'OLTPassword',
+				  },
+				  'hwGponDeviceOntLineProfName' => {
+					'oid' => '1.3.6.1.4.1.2011.6.128.1.1.2.43.1.7',
+					'title' => 'ONTLineProfile',
+					'title_export' => 'ONTLineProfile',
+				  },
+				  'hwGponDeviceOntServiceProfName' => {
+					'oid' => '1.3.6.1.4.1.2011.6.128.1.1.2.43.1.8',
+					'title' => 'ONTVendor',
+					'title_export' => 'ONTVendor',
+				  },
+				  'hwGponDeviceOntDespt' => {
+					'oid' => '1.3.6.1.4.1.2011.6.128.1.1.2.43.1.9',
+					'title' => 'ONTDescription',
+					'title_export' => 'ONTDescription',
+				  },
+				  'hwGponDeviceOntEntryStatus' => {
+					'oid' => '1.3.6.1.4.1.2011.6.128.1.1.2.43.1.10',
+					'title' => 'Entry Status',
+					'title_export' => 'ONTEntryStatus',
+					'replace' => {
+					  '1' => 'active',
+					  '2' => 'notInService',
+					  '3' => 'notReady',
+					  '4' => 'createAndGo',
+					  '5' => 'createAndWait',
+					  '6' => 'destroy',
+					},
+				  },
+				  'hwGponDeviceOntControlActive' => {
+					'oid' => '1.3.6.1.4.1.2011.6.128.1.1.2.45.1.1',
+					'title' => 'ONTVersion',
+					'title_export' => 'ONTVersion',
+				  },
+				  'hwGponDeviceOntMainSoftVer' => {
+					'oid' => '1.3.6.1.4.1.2011.6.128.1.1.2.45.1.5',
+					'title' => 'ONTSoftwareVersion',
+					'title_export' => 'ONTSoftwareVersion',
+				  },
+				  'hwGponDeviceOntControlRanging' => {
+					'oid' => '1.3.6.1.4.1.2011.6.128.1.1.2.46.1.20',
+					'title' => 'ONTDistancia',
+					'title_export' => 'ONTDistancia',
+				  },
+				  'hwGponDeviceOntControlLastUpTime' => {
+					'oid' => '1.3.6.1.4.1.2011.6.128.1.1.2.46.1.22',
+					'title' => 'ONTUpTime',
+					'title_export' => 'ONTUpTime',
+				  },
+				  'hwGponDeviceOntControlLastDownTime' => {
+					'oid' => '1.3.6.1.4.1.2011.6.128.1.1.2.46.1.23',
+					'title' => 'ONTLastDown',
+					'title_export' => 'ONTLastDown',
+				  },
+				  'hwGponDeviceOntControlLastDownCause' => {
+					'oid' => '1.3.6.1.4.1.2011.6.128.1.1.2.46.1.24',
+					'title' => 'ONTLastDownCause',
+					'title_export' => 'ONTLastDownCause',
+				  },
+				  'hwGponDeviceOntControlBatteryCurStatus' => {
+					'oid' => '1.3.6.1.4.1.2011.6.128.1.1.2.46.1.27',
+					'title' => 'ONTBatteryStatus',
+					'title_export' => 'ONTBatteryStatus',
+					'replace' => {
+					  '0' => 'notSupport',
+					  '1' => 'charge',
+					  '2' => 'discharge',
+					  '3' => 'holding',
+					  '4' => 'supportButInvalid',
+					  '-1' => 'unknownStatus',
+					},
+				  },
+				  'hwGponOntOpticalDdmTemperature' => {
+					'oid' => '1.3.6.1.4.1.2011.6.128.1.1.2.51.1.1',
+					'title' => 'ONTTemp',
+					'title_export' => 'ONTTemp',
+				  },
+				  'hwGponOntOpticalDdmBiasCurrent' => {
+					'oid' => '1.3.6.1.4.1.2011.6.128.1.1.2.51.1.2',
+					'title' => 'ONTBiasCurrent',
+					'title_export' => 'ONTBiasCurrent',
+				  },
+				  'hwGponOntOpticalDdmTxPower' => {
+					'oid' => '1.3.6.1.4.1.2011.6.128.1.1.2.51.1.3',
+					'title' => 'ONTTxPower',
+					'title_export' => 'ONTTxPower',
+				  },
+				  'hwGponOntOpticalDdmRxPower' => {
+					'oid' => '1.3.6.1.4.1.2011.6.128.1.1.2.51.1.4',
+					'title' => 'ONTRxPower',
+					'title_export' => 'ONTRxPower',
+				  },
+				  'hwGponOntOpticalDdmVoltage' => {
+					'oid' => '1.3.6.1.4.1.2011.6.128.1.1.2.51.1.5',
+					'title' => 'ONTVoltage',
+					'title_export' => 'ONTVoltage',
+				  },
+				  'hwXponOntInfoMemoryOccupation' => {
+					'oid' => '1.3.6.1.4.1.2011.6.145.1.1.1.4.1.2',
+					'title' => 'ONTMemUsage',
+					'title_export' => 'ONTMemUsage',
+				  },
+				  
+				  'hwXponOntInfoProductDescription' => {
+					'oid' => '1.3.6.1.4.1.2011.6.145.1.1.1.4.1.5',
+					'title' => 'OntProductDescription',
+					'title_export' => 'OntProductDescription',
+				  },
+				}
+			  },
 
              'GPON_Device_IP' => {
                 'indexed'     => 'hwGponDeviceOntIpAddress',
