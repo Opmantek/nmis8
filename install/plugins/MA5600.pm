@@ -58,20 +58,28 @@ sub collect_plugin
 				my $ONT_ID = $S->{info}{GponUserTraffic}{$keys}{hwExtSrvFlowPara4};
 				my $if_index = $interfaces->{$card}{$port};
 				my $ind = "$interfaces->{$card}{$port}.$ONT_ID";
-        $S->{info}{GponUserTraffic}{$keys}{ONTBASE} = "Service_Port $card\/$port\/$ONT_ID";
+				$S->{info}{GponUserTraffic}{$keys}{ONTBASE} = "Service_Port $card\/$port\/$ONT_ID";
 
 				$S->{info}{GponUserTraffic}{$keys}{element} = $ind;
 
-				if($ONTDescr_data->{$ind} ne undef){
+				if ($ONTDescr_data->{$ind} ne undef) {
 					$S->{info}{GponUserTraffic}{$keys}{ONTDescription} = $ONTDescr_data->{$ind};
-				}else{
+				}
+				else {
 					$S->{info}{GponUserTraffic}{$keys}{ONTDescription} = "Not Found";
-				}if($ONT_SerialNumber->{$ind} ne undef){
-					$S->{info}{GponUserTraffic}{$keys}{ONTSerialNumber} = $ONT_SerialNumber->{$ind};
-				}else{
+				}
+				if ($ONT_SerialNumber->{$ind} ne undef) {
+					if ( $serial_number !~ /^0x/ ) {
+						# pack the hex into text
+						$serial_number = "0x". unpack('H*', $serial_number);	
+					}
+					$S->{info}{GponUserTraffic}{$keys}{ONTSerialNumber} = $serial_number;
+				}
+				else {
 					$S->{info}{GponUserTraffic}{$keys}{ONTSerialNumber} = "Not Found";
 				}
-			}else{
+			} 
+			else {
 				delete($S->{info}{GponUserTraffic}{$keys});
 				delete($S->{info}{graphtype}{$keys});
 			}
