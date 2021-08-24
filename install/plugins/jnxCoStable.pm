@@ -54,20 +54,28 @@ sub update_plugin
 	my $changesweremade = 0;
 
 	
-	info("Working on $node jnxCoStable");
-
- 
-      
+	info("jnxCoStable: update_plugin: Working on $node jnxCoStable");
 
 	for my $key (keys %{$NI->{Juniper_CoS}})
 	{
 		my $entry = $NI->{Juniper_CoS}->{$key};
 		
-		if ( $entry->{index} =~ /(\d+)\.\d+\.(.+)$/ ) {
+		if ( $entry->{index} =~ /(\d+)\.\d+\.(.+)$/ )
+		{
 			
 			$changesweremade = 1;
 			
 			my $intIndex = $1;
+			dbg("jnxCoStable: update_plugin: \$key=$key; \$intIndex=$intIndex",4);
+
+			# only display active interfaces - delete the keys of inactive interfaces:
+			if (!getbool($IF->{$intIndex}{collect}))
+			{
+				delete $NI->{Juniper_CoS}{$key};
+				dbg("jnxCoStable: update_plugin: node $node skipping ifIndex $intIndex as 'collect=false'.",1);
+				next;
+			}
+
 			my $FCcodename = $2;
 			my $FCname = join("", map { chr($_) } split(/\./,$FCcodename));
 			$entry->{jnxCosFcName} = $FCname . ' Class' ;
@@ -79,7 +87,11 @@ sub update_plugin
 		    $entry->{cosDescription} = $entry->{IntName} . '-' . $FCname . '-Class';
 		  
 			
-			info("Found COS Entry with interface $entry->{IntName} and $entry->{jnxCosFcName} ");
+			info("jnxCoStable: update_plugin: Found COS Entry with interface $entry->{IntName} and $entry->{jnxCosFcName} ");
+		}
+		else
+		{
+			dbg("jnxCoStable: update_plugin: skipping \$key=$key as doesn't match regex",4);
 		}
 	}
 
