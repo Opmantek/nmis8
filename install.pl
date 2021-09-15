@@ -269,6 +269,7 @@ libsoap-lite-perl libauthen-simple-radius-perl libauthen-tacacsplus-perl
 libauthen-sasl-perl rrdtool librrds-perl libtest-deep-perl dialog libcrypt-des-perl libdigest-hmac-perl libclone-perl
 libexcel-writer-xlsx-perl libmojolicious-perl libdatetime-perl
 libnet-ip-perl libscalar-list-utils-perl libtest-requires-perl libtest-fatal-perl libtest-number-delta-perl libtext-csv-perl libtext-csv-xs-perl libauthen-pam-perl
+libcgi-session-perl
 
 ));
 
@@ -290,6 +291,23 @@ perl-Text-CSV perl-Text-CSV_XS perl-Authen-PAM));
 	# perl-Time-modules no longer a/v in rh/centos7
 	push @rhpackages, ($osflavour eq "redhat" && $osmajor < 7)?
 			"perl-Time-modules" : "perl-Time-ParseDate";
+
+
+	# perl-CGI-Session gone in RHEL8
+	#
+	if ($osiscentos == 1) # all versions of Centos
+	{
+            push @rhpackages, "perl-CGI-Session";
+	}
+	elsif ($osflavour eq "redhat" && $osmajor >= 8) # RHEL8
+	{
+            # perl-CGI-Session gone in RHEL8
+	}
+	elsif ($osflavour eq "redhat") # RHEL7 and older
+	{
+            push @rhpackages, "perl-CGI-Session";
+	}
+
 
 	# cgi was removed from core in 5.20
 	if (version->parse($^V) >= version->parse("5.19.7"))
