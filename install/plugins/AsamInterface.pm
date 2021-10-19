@@ -85,9 +85,14 @@ sub update_plugin
 	#asamSoftwareVersion1 OSWP/OSWPAA43.322/OSWPRA43.322
 	#asamSoftwareVersion2 OSWPRA41.353
 
+	### 2021-09-22 New vesion strings for ASAM Nokia 6.2
+	#asamSoftwareVersion1 OSWP/OSWPAA62.577",
+	#asamSoftwareVersion2 OSWP/OSWPAA55.142",
+
 	my $asamVersion41 = qr/OSWPAA41|L6GPAA41|OSWPAA37|L6GPAA37|OSWPRA41/;
-	my $asamVersion42 = qr/OSWPAA42|L6GPAA42|OSWPAA46|OSWPAA62|OSWPAA55/;
+	my $asamVersion42 = qr/OSWPAA42|L6GPAA42|OSWPAA46/;
 	my $asamVersion43 = qr/OSWPRA43|OSWPAN43/;
+	my $asamVersion62 = qr/OSWPAA62|OSWPAA55/;
 
 	# we have been told index 17 of the eqptHolder is the ASAM Model	
 	my $asamModel = $NI->{eqptHolder}{17}{eqptHolderPlannedType};
@@ -151,6 +156,13 @@ sub update_plugin
 		my ($indexes,$rack_count,$shelf_count) = build_interface_indexes(NI => $NI);
 		@ifIndexNum = @{$indexes};
 	}
+	elsif( $asamSoftwareVersion =~ /$asamVersion62/ )
+	{
+		$version = 6.2;
+		# this gets the ifIndexes of the ATM interfaces.
+		my ($indexes) = build_interface_indexes(NI => $NI);
+		@ifIndexNum = @{$indexes};
+	}
 	else {
 		logMsg("ERROR: Unknown ASAM Version $node asamSoftwareVersion=$asamSoftwareVersion");
 	}
@@ -167,10 +179,15 @@ sub update_plugin
 		my $ifSpeedIn;
 		my $ifSpeedOut;
 		my $snmpdata;
+		my $xdslIndex = $index;
 
 		my $offset = 12288;
 		if ( $version eq "4.2" )  {
 			$offset = 6291456;
+		}
+		elsif ( $version eq "6.2" )  {
+			$offset = 393216;
+			$xdslIndex = $index - $offset;
 		}
 
 		my $offsetIndex = $index - $offset;
@@ -183,8 +200,8 @@ sub update_plugin
 
 		my %atmOidSet = (
 			asamIfExtCustomerId => "1.3.6.1.4.1.637.61.1.6.5.1.1.$offsetIndex",
-			xdslLinkUpMaxBitrateUpstream =>	"1.3.6.1.4.1.637.61.1.39.12.1.1.11.$index",
-			xdslLinkUpMaxBitrateDownstream => "1.3.6.1.4.1.637.61.1.39.12.1.1.12.$index",
+			xdslLinkUpMaxBitrateUpstream =>	"1.3.6.1.4.1.637.61.1.39.12.1.1.11.$xdslIndex",
+			xdslLinkUpMaxBitrateDownstream => "1.3.6.1.4.1.637.61.1.39.12.1.1.12.$xdslIndex",
 		);
 
 		# build an array combining the atmVclVars and atmOidSet into a single array
@@ -210,12 +227,12 @@ sub update_plugin
 				$Description = $snmpdata->{$oid};
 			}
 			# get the speed out
-			$oid = "1.3.6.1.4.1.637.61.1.39.12.1.1.12.$index";
+			$oid = "1.3.6.1.4.1.637.61.1.39.12.1.1.12.$xdslIndex";
 			if ( $snmpdata->{$oid} ne "" and $snmpdata->{$oid} !~ /SNMP ERROR/ ) {
 				$ifSpeedOut = $snmpdata->{$oid} * 1000;
 			}
 			# get the speed in
-			$oid = "1.3.6.1.4.1.637.61.1.39.12.1.1.11.$index";
+			$oid = "1.3.6.1.4.1.637.61.1.39.12.1.1.11.$xdslIndex";
 			if ( $snmpdata->{$oid} ne "" and $snmpdata->{$oid} !~ /SNMP ERROR/ ) {
 				$ifSpeedIn = $snmpdata->{$oid} * 1000;
 			}

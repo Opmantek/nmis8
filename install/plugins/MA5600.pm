@@ -69,9 +69,10 @@ sub collect_plugin
 					$S->{info}{GponUserTraffic}{$keys}{ONTDescription} = "Not Found";
 				}
 				if ($ONT_SerialNumber->{$ind} ne undef) {
+					my $serial_number = $ONT_SerialNumber->{$ind};
 					if ( $serial_number !~ /^0x/ ) {
 						# pack the hex into text
-						$serial_number = "0x". unpack('H*', $serial_number);	
+						$serial_number = "0x". unpack('H*', $serial_number);
 					}
 					$S->{info}{GponUserTraffic}{$keys}{ONTSerialNumber} = $serial_number;
 				}
