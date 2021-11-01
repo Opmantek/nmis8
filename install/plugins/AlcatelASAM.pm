@@ -435,16 +435,39 @@ sub getIfDescr {
 	my $prefix 		= $args{prefix};	
 	my $asamModel 		= $args{asamModel};	
 	
-	if ( $args{version} eq "4.1" or $args{version} eq "4.3" ) {
+	if ( $args{version} eq "6.2" ) {
+		my $slot_mask 		= 0x1FE00000;
+		my $level_mask 		= 0x001E0000;	
+		my $circuit_mask 	= 0x0001FE00;
+			
+		my $slot 	= ($oid_value & $slot_mask) 	>> 21;
+		my $level 	= ($oid_value & $level_mask) 	>> 17;
+		my $circuit = ($oid_value & $circuit_mask) 	>> 9;
+		
+		# Apparently this needs to be adjusted when going to decimal?
+		if ( $slot > 1 ) {
+			--$slot;
+		}
+		++$circuit;	
+		
+		$prefix = "XDSL" if $level == 16;
+		
+		my $slotCor = asamSlotCorrection($slot,$asamModel);
+
+		dbg("ASAM getIfDescr: ifIndex=$args{ifIndex} slot=$slot slotCor=$slotCor asamVersion=$args{version} asamModel=$asamModel");
+
+		return "$prefix-1-1-$slotCor-$circuit";	
+	}
+	elsif ( $args{version} eq "4.1" or $args{version} eq "4.3" ) {
 		my $rack_mask 		= 0x70000000;
 		my $shelf_mask 		= 0x07000000;
 		my $slot_mask 		= 0x00FF0000;
 		my $level_mask 		= 0x0000F000;
 		my $circuit_mask 	= 0x00000FFF;
 	
-		my $rack 		= ($oid_value & $rack_mask) 		>> 28;
+		my $rack 	= ($oid_value & $rack_mask) 		>> 28;
 		my $shelf 	= ($oid_value & $shelf_mask) 		>> 24;
-		my $slot 		= ($oid_value & $slot_mask) 		>> 16;
+		my $slot 	= ($oid_value & $slot_mask) 		>> 16;
 		my $level 	= ($oid_value & $level_mask) 		>> 12;
 		my $circuit = ($oid_value & $circuit_mask);
 
