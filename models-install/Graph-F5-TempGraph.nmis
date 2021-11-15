@@ -30,24 +30,24 @@
 # *****************************************************************************
 
 %hash = (
+	'heading' => 'F5 Temperature',
 	'title' => {
 		'standard' => '$node - $length from $datestamp_start to $datestamp_end',
-		'short' => 'F5 Current Connections.'
+		'short' => 'Temperature Status.'
 	},
 	'vlabel' => {
-		'standard' => 'Curr Conns'
+		'standard' => 'Temperature Status'
 	},
 	'option' => {
 		'standard' => [
-			'DEF:ClientCurConns=$database:ClientCurConns:AVERAGE',
-			'LINE2:ClientCurConns#ffbf00: Current Connections',
-			'GPRINT:ClientCurConns:AVERAGE: %1.0lf\\n',
+			'DEF:f5TEMP=$database:f5Temp:AVERAGE',
+			'LINE2:f5TEMP#00ff00: Temperature Status',
+			'GPRINT:f5TEMP:AVERAGE:Avg. %1.0lf\\n',
 		],
 		'small' => [
-			'DEF:ClientCurConns=$database:ClientCurConns:AVERAGE',
-			'LINE2:ClientCurConns#ffbf00: Current Connections',
-			'GPRINT:ClientCurConns:AVERAGE: %1.0lf\\n',
-		
+			'DEF:f5TEMP=$database:f5Temp:AVERAGE',
+			'LINE2:f5TEMP#00ff00: Temperature Status',
+			'GPRINT:f5TEMP:AVERAGE:Avg. %1.0lf\\n',
 		]
 	}
 );

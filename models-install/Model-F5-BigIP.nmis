@@ -58,7 +58,23 @@
       }
     }
   },
-
+  'database' => {
+    'type' => {
+      'VirtualServTable' => '/nodes/$node/health/virtservtable-$index.rrd',
+      'F5_CPU' => '/nodes/$node/health/F5_CPU.rrd',
+      'F5_Temperature' => '/nodes/$node/health/F5_Temperature-$index.rrd',
+    }
+  },
+  'heading' => {
+    'graphtype' => {
+      'F5-CPU' => 'F5 CPU Usage',
+      'F5-Connection' => 'F5 Current Connections',
+      'F5-Memory' => 'F5 Memory Usage',
+      'F5-TempGraph' => 'F5 Temperature',
+      'F5-LTM-State' => 'Local Traffic Manager (LTM) State',
+      'F5-LTM-Connections' => 'Local Traffic Manager (LTM) Connections',
+    }
+  },  
   'alerts' => {
     'VirtualServTable' => {
       'VirtualServTableState' => {
@@ -202,7 +218,7 @@
     },
     'rrd' => {
       'VirtualServTable' => {
-        'graphtype' => 'f5LTM-Connections,f5LTM-state',
+        'graphtype' => 'F5-LTM-Connections,F5-LTM-State',
         'indexed' => 'true',
         'snmp' => {
           'ltmStatClientCurConns' => {
@@ -246,7 +262,7 @@
       'F5_Temperature' => {
         'control' => 'CVAR=f5TempName;$CVAR =~ /Blade air/',
         'indexed' => 'true',
-        'graphtype' => 'f5TempGraph',
+        'graphtype' => 'F5-TempGraph',
         'threshold' => 'f5ProacTemp',
         'snmp' => {
           'f5Temp' => {
@@ -261,7 +277,7 @@
         #'control' => 'CVAR=f5CPUProcessorLoad;$CVAR =~ /\d+/',
         #'control' => 'CVAR=sysPlaneStatPlaneName;$CVAR =~ /data/',
         'indexed' => 'true',
-        'graphtype' => 'f5CPU',
+        'graphtype' => 'F5-CPU',
         'threshold' => 'f5ProacCPU',
         'snmp' => {
           'CpuRatio5min' => {
@@ -388,7 +404,7 @@
         'graphtype' => 'ip,frag'
       },
       'f5_Memory' => {
-       'graphtype' => 'f5Memory',
+       'graphtype' => 'F5-Memory',
        'threshold' => 'f5_memory',
        'snmp' => {
          'MemoryTotal' => {
@@ -409,7 +425,7 @@
         },
       },
       'f5_Connection' => {
-       'graphtype' => 'f5Connection',
+       'graphtype' => 'F5-Connection',
        'threshold' => 'f5_connection',
           'snmp' => {
             'ClientCurConns' => {
