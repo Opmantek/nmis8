@@ -145,7 +145,7 @@ function commonv8Init(widget_refresh,configinit,registered,modules) {
 						minHeight	: 40,
 						autoOpen	: false,
 						stack			: true,					// come to top when focused
-						position	: [40,100]
+						position	: { my: 'left top', at: 'left+40 top+100'}
 			},
 			widgetHandle	: '',
 			status	: false
@@ -185,7 +185,7 @@ function commonv8Init(widget_refresh,configinit,registered,modules) {
 				title	: 'Network Metrics and Health',
 				width : 720,
 				height: 320,
-				position : [ 230, 70 ]
+				position : { my: 'left top', at: 'left+230 top+70'}
 				});
 		}
 		else {
@@ -195,7 +195,7 @@ function commonv8Init(widget_refresh,configinit,registered,modules) {
 				title	: 'Network Status and Health',
 				width : 850,
 				height: 300,
-				position : [ 230, 70 ]
+				position : { my: 'left top', at: 'left+230 top+70'}
 				});
 		}
 
@@ -204,7 +204,7 @@ function commonv8Init(widget_refresh,configinit,registered,modules) {
 			url		: 'network.pl?conf=' + config + '&act=network_summary_metrics&refresh=' + widget_refresh,
 			title	: 'Metrics',
 			width	:	210,
-			position : [ 10 , 70 ]
+			position : { my: 'left top', at: 'left+10 top+70'}
 			});
 
 		createDialog({
@@ -213,7 +213,7 @@ function commonv8Init(widget_refresh,configinit,registered,modules) {
 			title	: 'Log of Network Events',
 			width : 950,
 			height: 380,
-			position : [ 230, logStart ]
+			position : { my: 'left top', at: 'left+230 top+'+logStart}
 			});
 
 		if ( displayCommunityWidget ) {
@@ -222,7 +222,7 @@ function commonv8Init(widget_refresh,configinit,registered,modules) {
  				url      : 'community_rss.pl?widget=true',
 				title    : 'NMIS Community',
 				width    : rssWidgetWidth,
-				position : [ 10, 725 ]
+				position : { my: 'left top', at: 'left+10 top+725'}
 				});
 		}
 
@@ -233,7 +233,7 @@ function commonv8Init(widget_refresh,configinit,registered,modules) {
 				title    : 'Network Map',
 				width    : opMapsWidgetWidth,
 				height   : opMapsWidgetHeight,
-				position : [ 520, 250 ]
+				position : { my: 'left top', at: 'left+520 top+250'}
 				});
 		}
 		if ( modules.search("opFlow") > -1 && displayopFlowWidget ) {
@@ -243,7 +243,7 @@ function commonv8Init(widget_refresh,configinit,registered,modules) {
 				title	: 'Application Flows',
 				width	:	opFlowWidgetWidth,
 				height:	opFlowWidgetHeight,
-				position : [ 560, 420 ]
+				position : { my: 'left top', at: 'left+560 top+420'}
 				});
 		}
 
@@ -258,7 +258,7 @@ function commonv8Init(widget_refresh,configinit,registered,modules) {
 			url      : 'registration.pl?conf=' + config,
 			title    : 'NMIS Open Source Community',
 			width	   : 420,
-			position : [ 1000, 70 ]
+			position : { my: 'left top', at: 'left+1000 top+70'}
 			});
 	}
 
@@ -269,7 +269,7 @@ function commonv8Init(widget_refresh,configinit,registered,modules) {
 			id       : 'cfg_setup',
  			url      : 'setup.pl?conf=' + config + '&amp;act=setup_menu&amp;widget=true',
 			title    : 'Basic Setup',
-			position : [ 5, 65 ]
+			position : { my: 'left top', at: 'left+5 top+65'}
 		});
 	}
 
@@ -549,7 +549,7 @@ function	createDialog(opt) {
 			var pl = $(this).offset().left;
 			var pt = $(this).offset().top;
 
-			objData.options.position = [ pl,pt ]  ;
+			objData.options.position = { my: 'left top', at: 'left+'+pl+' top+'+pt}  ;
 
 			// drop refresh timer
 			$.doTimeout( id );
@@ -959,7 +959,7 @@ function selectNodeOpen(savedpos)
 		title	:	'Quick Search',
 		url		:	'',
 		width	:	(savedpos != null? savedpos.width : 210),
-		position : (savedpos != null? savedpos.position : [ 10, 355 ])
+		position : (savedpos != null? savedpos.position : { my: 'left top', at: 'left+'+10+' top+'+355})
 	});
 
 	// define some additional content
@@ -1382,13 +1382,13 @@ function toTitleCase(toTransform) {
 }
 
 $(function($) {
-	$("#window_save").live( "click", function() {
+	$("body").on( "click", "#window_save", function() {
 		saveWindowState();
 		return false;
 	});
 });
 $(function($) {
-	$("#window_clear").live( "click", function() {
+	$("body").on( "click", "#window_clear", function() {
 		clearWindowState();
 		return false;
 	});
@@ -1431,7 +1431,7 @@ function saveWindowState() {
 			dialogHandle = objData.widgetHandle;
 			thisWindow = { height: dialogHandle.dialog( "option", "height" ),
 										 width: dialogHandle.dialog( "option", "width" ),
-										 position: dialogHandle.dialog( "option", "position" ),
+										 position: objData.options.position,
 										 title: objData.options.title,
 										 url: objData.options.url,
 										 id: objData.options.id };

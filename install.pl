@@ -1051,9 +1051,22 @@ every 5 minutes.");
 				&& input_yn("OK to disable retaining of historic events?"))
 		{
 			execPrint("$site/admin/patch_config.pl -b $site/conf/Config.nmis /system/keep_event_history=false");
+			
 			echolog("\n");
 		}
 
+		if ($newconfig{system}->{jquery} ne "<menu_url_base>/js/jquery-1.8.3.min.js"
+				&& input_yn("OK to update the new jquery dependencies?"))
+		{
+			execPrint "$site/admin/patch_config.pl -b $site/conf/Config.nmis '/javascript/jquery_bgiframe'='<menu_url_base>/js/jquery.bgiframe-3.0.1.js'"
+			execPrint "$site/admin/patch_config.pl -b $site/conf/Config.nmis '/javascript/jquery_jdmenu'='<menu_url_base>/js/jquery.jdMenu.patch.js'"
+			execPrint "$site/admin/patch_config.pl -b $site/conf/Config.nmis '/javascript/jquery_ui'='<menu_url_base>/js/jquery-ui-1.13.custom.js'"
+			execPrint "$site/admin/patch_config.pl -b $site/conf/Config.nmis '/javascript/jquery'='<menu_url_base>/js/jquery-3.6.0.js'"
+			execPrint "$site/admin/patch_config.pl -b $site/conf/Config.nmis '/css/jquery_ui_css'='<menu_url_base>/css/smoothness/jquery-ui-1.13.custom.css'"
+
+			echolog("\n");
+		}
+		
 		# offer to setup nmis-omk sso, if it's safe to do so
 		# ie: if omk is present, no sso is configured for omk or nmis,
 		# and the current cookie flavour is the (pretty unsafe old-style) 'nmis'
