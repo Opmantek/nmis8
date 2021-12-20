@@ -1058,11 +1058,11 @@ every 5 minutes.");
 		if ($newconfig{system}->{jquery} ne "<menu_url_base>/js/jquery-1.8.3.min.js"
 				&& input_yn("OK to update the new jquery dependencies?"))
 		{
-			execPrint "$site/admin/patch_config.pl -b $site/conf/Config.nmis '/javascript/jquery_bgiframe'='<menu_url_base>/js/jquery.bgiframe-3.0.1.js'"
-			execPrint "$site/admin/patch_config.pl -b $site/conf/Config.nmis '/javascript/jquery_jdmenu'='<menu_url_base>/js/jquery.jdMenu.patch.js'"
-			execPrint "$site/admin/patch_config.pl -b $site/conf/Config.nmis '/javascript/jquery_ui'='<menu_url_base>/js/jquery-ui-1.13.custom.js'"
-			execPrint "$site/admin/patch_config.pl -b $site/conf/Config.nmis '/javascript/jquery'='<menu_url_base>/js/jquery-3.6.0.js'"
-			execPrint "$site/admin/patch_config.pl -b $site/conf/Config.nmis '/css/jquery_ui_css'='<menu_url_base>/css/smoothness/jquery-ui-1.13.custom.css'"
+			execPrint("$site/admin/patch_config.pl -b $site/conf/Config.nmis '/javascript/jquery_bgiframe'='<menu_url_base>/js/jquery.bgiframe-3.0.1.js'");
+			execPrint("$site/admin/patch_config.pl -b $site/conf/Config.nmis '/javascript/jquery_jdmenu'='<menu_url_base>/js/jquery.jdMenu.patch.js'");
+			execPrint("$site/admin/patch_config.pl -b $site/conf/Config.nmis '/javascript/jquery_ui'='<menu_url_base>/js/jquery-ui-1.13.custom.js'");
+			execPrint("$site/admin/patch_config.pl -b $site/conf/Config.nmis '/javascript/jquery'='<menu_url_base>/js/jquery-3.6.0.js'");
+			execPrint("$site/admin/patch_config.pl -b $site/conf/Config.nmis '/css/jquery_ui_css'='<menu_url_base>/css/smoothness/jquery-ui-1.13.custom.css'");
 
 			echolog("\n");
 		}
