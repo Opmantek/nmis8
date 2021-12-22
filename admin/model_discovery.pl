@@ -1174,8 +1174,10 @@ sub schemaDataType {
 sub saveSchema {
 	my $schemaFile = shift;
 
-	@{$modelSchema->{reserved}} = sort({$a cmp $b} (@{$modelSchema->{reserved}}));
-
+	if ( defined $modelSchema->{reserved} ) {
+		@{$modelSchema->{reserved}} = sort({$a cmp $b} (@{$modelSchema->{reserved}}));	
+	}
+	
 	# whip through the parents of each keyword and remove parents which are not keywords.
 	foreach my $keyword ( sort {$a cmp $b} keys (%{$modelSchema->{keywords}}) ) {
 		my @parents;
