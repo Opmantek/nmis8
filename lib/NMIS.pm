@@ -3193,7 +3193,7 @@ sub startNmisPage {
     <script src="$C->{'calendar'}" type="text/javascript"></script>
     <script src="$C->{'calendar_setup'}" type="text/javascript"></script>
     <script src="$C->{'jquery_ba_dotimeout'}" type="text/javascript"></script>
-    <script src="$C->{'nmis_common'}" type="text/javascript"></script>
+    <script src="$C->{'nmis_common'}?v=$NMIS::VERSION" type="text/javascript"></script>
   </head>
   <body>
 |;
