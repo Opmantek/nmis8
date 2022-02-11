@@ -958,6 +958,7 @@ sub getSummaryStats
 	}
 
 	($graphret,$xs,$ys) = RRDs::graph('/dev/null', @option);
+
 	if (($ERROR = RRDs::error)) {
 		dbg("WARN ($S->{name}) RRD graph error database=$db: $ERROR");
 		logMsg("WARN ($S->{name}) RRD graph error database=$db: $ERROR") if getbool($C->{log_model_messages});

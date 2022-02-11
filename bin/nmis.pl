@@ -1376,7 +1376,8 @@ sub doCollect
 	}
 	if ( existsPollLock(type => "collect", conf => $C->{conf}, node => $name) )
 	{
-		print STDERR "Error: collect lock exists for $name which has not finished!\n";
+		#Silence is golden
+		#print STDERR "Error: collect lock exists for $name which has not finished!\n";
 		logMsg("WARNING collect lock exists for $name which has not finished!");
 		return;
 	}
