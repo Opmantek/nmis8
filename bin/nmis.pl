@@ -687,7 +687,8 @@ sub	runThreads
 				next if (!$pid);
 
 				$needgrace = 1;
-				print STDERR "Error: killing old NMIS $type process $pid ($otherprocesses->{$pid}->{node}) which has not finished!\n"
+				#Silence is golden
+				#print STDERR "Error: killing old NMIS $type process $pid ($otherprocesses->{$pid}->{node}) which has not finished!\n"
 						if (getbool($C->{verbose_nmis_process_events}));
 
 				logMsg("ERROR killing old NMIS $type process $pid ($otherprocesses->{$pid}->{node}) which has not finished!");
@@ -1040,7 +1041,8 @@ sub doUpdate
 	# Check for existing update LOCK
 	if ( existsPollLock(type => "update", conf => $C->{conf}, node => $name) )
 	{
-		print STDERR "Error: update lock exists for $name which has not finished!\n";
+		#Silence is golden
+		#print STDERR "Error: update lock exists for $name which has not finished!\n";
 		logMsg("WARNING update lock exists for $name which has not finished!");
 		return;
 	}
