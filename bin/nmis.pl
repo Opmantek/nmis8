@@ -688,8 +688,7 @@ sub	runThreads
 
 				$needgrace = 1;
 				#Silence is golden
-				#print STDERR "Error: killing old NMIS $type process $pid ($otherprocesses->{$pid}->{node}) which has not finished!\n"
-						if (getbool($C->{verbose_nmis_process_events}));
+				#print STDERR "Error: killing old NMIS $type process $pid ($otherprocesses->{$pid}->{node}) which has not finished!\n" if (getbool($C->{verbose_nmis_process_events}));
 
 				logMsg("ERROR killing old NMIS $type process $pid ($otherprocesses->{$pid}->{node}) which has not finished!");
 				kill("TERM",$pid);
@@ -9850,6 +9849,15 @@ sub runThrHld
 			}
 		}
 
+		my $ifnum = keys %{$IF};
+
+		# OMK-8277
+		if ( $ifnum < 1 && $nm eq "available" )
+		{
+			dbg("SKIPPING threshold $nm: Number of collected interfaces: $ifnum ");
+			next();
+		}
+		
 		my $goodies = getThresholdLevel(sys=>$S,
 																		type=>$type,
 																		thrname=>$nm,
