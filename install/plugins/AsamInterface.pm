@@ -557,20 +557,24 @@ sub asamSlotCorrection {
 	my $asamModel = shift;
 	
 	if ( $asamModel =~ /7302/ and $slot >= 9 ) {
-		$slot = $slot + 1;
+		$slot = $slot + 3;
 	}
 	elsif ( $asamModel =~ /ARAM-D/ ) {
 		$slot = $slot + 3
 	}
-	elsif ( $asamModel =~ /ARAM-E/ and $slot < 9 ) {
+	elsif ( $asamModel =~ /ARAM-E/ and $slot < 7 ) {
 		$slot = $slot + 1
 	}
-	elsif ( $asamModel =~ /ARAM-E/ and $slot >= 9 ) {
+	elsif ( $asamModel =~ /ARAM-E/ and $slot >= 7 ) {
+		$slot = $slot + 5
+	}
+	elsif ( $asamModel =~ /7330-FD/ and $slot < 9 ) {
 		$slot = $slot + 3
 	}
-	elsif ( $asamModel =~ /7330-FD/ ) {
-		$slot = $slot + 3
+	elsif ( $asamModel =~ /7330-FD/ and $slot >= 9 ) {
+		$slot = $slot + 7
 	}
+
 	return $slot;
 } 
 
