@@ -3,31 +3,31 @@
 #       TELDAT-MON-FEATURES-BRS-MIB,v 1.7 2019/11/18 dev Exp $
 #
 #  Copyright 1999-2011 Opmantek Limited (www.opmantek.com)
-#  
+#
 #  ALL CODE MODIFICATIONS MUST BE SENT TO CODE@OPMANTEK.COM
-#  
+#
 #  This file is part of Network Management Information System (“NMIS”).
-#  
+#
 #  NMIS is free software: you can redistribute it and/or modify
 #  it under the terms of the GNU General Public License as published by
 #  the Free Software Foundation, either version 3 of the License, or
 #  (at your option) any later version.
-#  
+#
 #  NMIS is distributed in the hope that it will be useful,
 #  but WITHOUT ANY WARRANTY; without even the implied warranty of
 #  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 #  GNU General Public License for more details.
-#  
+#
 #  You should have received a copy of the GNU General Public License
-#  along with NMIS (most likely in a file named LICENSE).  
+#  along with NMIS (most likely in a file named LICENSE).
 #  If not, see <http://www.gnu.org/licenses/>
-#  
+#
 #  For further information on NMIS or for a license other than GPL please see
-#  www.opmantek.com or email contact@opmantek.com 
-#  
+#  www.opmantek.com or email contact@opmantek.com
+#
 #  User group details:
 #  http://support.opmantek.com/users/
-#  
+#
 # *****************************************************************************
 
 %hash = (
@@ -35,6 +35,7 @@
     'graphtype' => {
       'TeldatQoSStat' => 'Class Based QoS',
       'TeldatBRSStat' => 'Class Based BRS',
+      'TeldatFRStat' => 'Frame Relay',
     }
   },
   'systemHealth' => {
@@ -43,9 +44,11 @@
         'indexed' => 'telProdNpMonFeatQosIndexClass',
         'index_oid' => '.1.3.6.1.4.1.2007.4.1.2.4.9.1.1.3',
         'index_regex' => '\.1\.1\.3\.([\d\.]+)$',
-        'headers' => 'ClassifierName,ClassifierPolicy,Direction,ifIndex,ifDescr',
-        #'headers' => 'ClassifierName,ClassifierPolicy,Direction,ifDescr',
+        'headers' => 'ifDescr_ClassifierName,ClassifierName,ClassifierPolicy,Direction,ifIndex,ifDescr',
         'snmp' => {
+          'ifDescr_ClassifierName' => {
+              'title' => 'InterfaceName:QoSIndex'
+          },
           'ClassifierName' => {
               'oid' => '.1.3.6.1.4.1.2007.4.1.2.4.9.1.1.3',
               'calculate' => 'my $prependstr="Class"; return "${prependstr}$r";',
@@ -76,9 +79,11 @@
         'indexed' => 'telProdNpMonFeatBrsDevCountIndex',
         'index_oid' => '.1.3.6.1.4.1.2007.4.1.2.4.1.1.1.2',
         'index_regex' => '\.1\.1\.2\.([\d\.]+)$',
-        'headers' => 'ClassifierName,ClassifierPolicy,Direction,ifIndex,ifDescr',
-        #'headers' => 'ClassifierName,ClassifierPolicy,Direction,ifDescr',
+        'headers' => 'ifDescr_ClassifierName,ClassifierName,ClassifierPolicy,Direction,ifIndex,ifDescr',
         'snmp' => {
+          'ifDescr_ClassifierName' => {
+              'title' => 'InterfaceName:BRSIndex'
+          },
           'ClassifierName' => {
               'oid' => '.1.3.6.1.4.1.2007.4.1.2.4.1.1.1.2',
               'title' => 'BRS Index'
@@ -104,6 +109,51 @@
           },
         },
       },
+      'TeldatFRStat' => {
+        'headers' => 'ifDescr_ClassifierName,ClassifierName,NameFrameRelay,ifDescr,sysDescr',
+        'index_oid' => '1.3.6.1.4.1.2007.4.1.2.4.1.3.1.5',
+        'index_regex' => '\.4\.1\.3\.1\.5\.([\d\.]+)',
+        'indexed' => 'NameFrameRelay',
+        'snmp' => {
+          'ifDescr_ClassifierName' => {
+              'title' => 'InterfaceName:FrameRelayIndex'
+          },
+          'ClassifierName' => {
+              'oid' => '1.3.6.1.4.1.2007.4.1.2.4.1.3.1.3',
+              'title' => 'Frame Relay Index'
+          },
+          'NameFrameRelay' => {
+            'oid' => '1.3.6.1.4.1.2007.4.1.2.4.1.3.1.5',
+            'title' => 'Name'
+          },
+          'ifDescr' => {
+              'title' => 'Interface Name'
+          },
+          'ifIndex' => {
+              'oid' => '1.3.6.1.4.1.2007.4.1.2.4.1.3.1.1',
+              'title' => 'Interface Index'
+          },
+          'sysDescr' => {
+          'title' => 'Description'
+          },
+          'ifOperStatus' => {
+          'oid' => 'ifOperStatus',
+          'replace' => {
+            '1' => 'up',
+            '2' => 'down',
+            '3' => 'testing',
+            '4' => 'unknown',
+            '5' => 'dormant',
+            '6' => 'notPresent',
+            '7' => 'lowerLayerDown'
+          },
+          'title' => 'Oper Status'
+          },
+
+        }
+      },
+
+
 	  },
     'rrd' => {
 
@@ -148,7 +198,7 @@
           },
         },
       },
-      
+
 # +--telProdNpMonFeatBrsDevCountTable(1)
 # |  |
 # |  +--telProdNpMonFeatBrsDevCountEntry(1)
@@ -205,12 +255,6 @@
         'indexed' => 'true',
         'graphtype' => 'TeldatBRSStat',
         'snmp' => {
-          'ClassifierName' => {
-              'oid' => '.1.3.6.1.4.1.2007.4.1.2.4.1.1.1.4',
-          },
-          'ifIndex' => {
-              'oid' => '.1.3.6.1.4.1.2007.4.1.2.4.1.1.1.1',
-          },
           'MatchedPackets' => {
               'oid' => '.1.3.6.1.4.1.2007.4.1.2.4.1.1.1.5',
               'option' => 'counter,0:U',
@@ -240,7 +284,22 @@
             'option' => 'counter,0:U'
           },
         },
-      },      
+      },
+      'TeldatFRStat' => {
+				'graphtype' => 'TeldatFrameRelayStat',
+				'indexed' => 'true',
+				'snmp' => {
+					'BytesTx' => {
+						'oid' => '1.3.6.1.4.1.2007.4.1.2.4.1.3.1.7',
+						'option' => 'counter,0:U',
+					},
+					'BytesDrops' => {
+						'oid' => '1.3.6.1.4.1.2007.4.1.2.4.1.3.1.8',
+						'option' => 'counter,0:U',
+					},
+				}
+			},
+
     },
   },
 );
