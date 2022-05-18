@@ -78,22 +78,33 @@ sub update_plugin
 			$entry->{ifIndex} = $ifindex;
 			$entry->{Direction} = $direction;
 			
+			my $intIndex = $entry->{ifIndex};
+			dbg("QualityOfServiceStat: update_plugin: \$key=$key; \$intIndex=$intIndex",4);
+
+			# only display active interfaces - delete the keys of inactive interfaces:
+			if (!getbool($IF->{$intIndex}{collect}))
+			{
+				delete $NI->{QualityOfServiceStat}->{$key};
+				dbg("QualityOfServiceStat: update_plugin: node $node skipping ifIndex $intIndex as 'collect=false'.",1);
+				next;
+			}
+
 			dbg("QualityOfServiceStattable.pm: Node $node updating node info QualityOfServiceStat $entry->{index} ifIndex: new '$entry->{ifIndex}'");
 			dbg("QualityOfServiceStattable.pm: Node $node updating node info QualityOfServiceStat $entry->{index} Direction: new '$entry->{Direction}'");
 
-                        # Get the devices ifDescr and give it a link.
-                        if ( defined $IF->{$ifindex}{ifDescr} )
+			# Get the devices ifDescr and give it a link.
+			if ( defined $IF->{$ifindex}{ifDescr} )
 			{
 				$entry->{ifDescr} = $IF->{$ifindex}{ifDescr};
 
 				info("Found QoS Entry with interface $entry->{ifIndex} and direction '$entry->{Direction}'. 'ifDescr' = '$entry->{ifDescr}'.");
 
 				dbg("QualityOfServiceStattable.pm: Node $node updating node info QualityOfServiceStat $entry->{index} ifDescr: new '$entry->{ifDescr}'");
-                        }
-                        else
-                        {
+			}
+			else
+			{
 				info("Found QoS Entry with interface $entry->{ifIndex} and direction '$entry->{Direction}'. 'ifDescr' could not be determined for ifIndex '$ifindex'.");
-                        }
+			}
 		}
 	}
 
