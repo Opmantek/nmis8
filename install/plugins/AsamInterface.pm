@@ -1,7 +1,7 @@
 # a small update plugin for discovering interfaces on alcatel asam devices
 # which requires custom snmp accesses
 package AsamInterface;
-our $VERSION = "1.2.0";
+our $VERSION = "1.2.2";
 
 use strict;
 
@@ -556,23 +556,35 @@ sub asamSlotCorrection {
 	my $slot = shift;
 	my $asamModel = shift;
 	
-	if ( $asamModel =~ /7302/ and $slot >= 9 ) {
-		$slot = $slot + 3;
+	if ( $asamModel =~ /7302/ ) {
+		if ( $slot == 17 or $slot == 18 ) {
+			$slot = $slot - 7;
+		} 
+		elsif ( $slot >= 9 ) {
+			$slot = $slot + 3;
+		} 
 	}
 	elsif ( $asamModel =~ /ARAM-D/ ) {
 		$slot = $slot + 3
 	}
-	elsif ( $asamModel =~ /ARAM-E/ and $slot < 7 ) {
-		$slot = $slot + 1
+	elsif ( $asamModel =~ /ARAM-E/ ) {
+		if ( $slot == 17 or $slot == 18 ) {
+			$slot = $slot - 9;
+		} 
+		elsif ( $slot < 7 ) {
+			$slot = $slot + 1
+		}
+		elsif ( $slot >= 7 ) {
+			$slot = $slot + 5
+		}
 	}
-	elsif ( $asamModel =~ /ARAM-E/ and $slot >= 7 ) {
-		$slot = $slot + 5
-	}
-	elsif ( $asamModel =~ /7330-FD/ and $slot < 9 ) {
-		$slot = $slot + 3
-	}
-	elsif ( $asamModel =~ /7330-FD/ and $slot >= 9 ) {
-		$slot = $slot + 7
+	elsif ( $asamModel =~ /7330-FD/ ) {
+		if ( $slot < 9 ) {
+			$slot = $slot + 3
+		}
+		elsif ( $slot == 9 or $slot == 10 ) {
+			$slot = $slot - 7
+		}
 	}
 
 	return $slot;
