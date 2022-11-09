@@ -184,6 +184,11 @@ my %todos;
 print STDERR "Determining new RRD file locations.\n";
 for my $node (keys %rrdfiles)
 {
+	if ( $node =~ /_fatal_conflict_/ ) {
+		print "FATAL CONFLICT FOUND: $node\n";
+		next;
+	}
+
 	# instantiate a new sys obj, with the new, in cache/in-memory common-database values
 	# again, disabling the model cache use so that the massaged table_cache remains in force
 	my $S = Sys->new;
@@ -191,8 +196,16 @@ for my $node (keys %rrdfiles)
 
 	for my $oldname (keys %{$rrdfiles{$node}})
 	{
+
 		my $meta = $rrdfiles{$node}->{$oldname};
 
+		#### extra debug added here.
+		#dbg("DEBUG: node=$node oldname=$oldname: ". Dumper $meta);
+		if ( $oldname =~ /nosuchinstance/ ) {
+			print "SKIPPING nosuchinstance: $node $oldname\n";
+			next;			
+		}
+		
 		my $newname = $S->getDBName(graphtype => $meta->{graphtype},
 																index => $meta->{index},
 																item => $meta->{item});
@@ -350,6 +363,14 @@ sub record_rrd
 	elsif (!-r $fn)
 	{
 		dbg("node=$args{node}, graphtype=$args{graphtype}, index=$args{index}, item=$args{item}:\n\tfile $fn does not exist.",2);
+		return;
+	}
+
+	### is this file some crazy nosuchinstance file, e.g. 
+	### /usr/local/nmis8/database/interface/router/ccib_mwr_1/ccib_mwr_1-nosuchinstance.rrd
+	if ( $rrdfiles{$args{node}}->{$fn} =~ /nosuchinstance/ ) {
+		warn("SKIPPING: $fn contains nosuchinstance");
+		$rrdfiles{ $args{node}."_fatal_conflict_".++$gotchas } = {%args};
 		return;
 	}
 
