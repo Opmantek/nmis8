@@ -94,6 +94,8 @@ sub draw
 		undef $intf;
 	}
 
+	#print STDERR "DEBUG RRDdraw: graphtype=$graphtype\n";
+
 	# special graphtypes: cbqos is dynamic (multiple inputs create one graph), ditto calls
 	if ($graphtype =~ /cbqos/)
 	{
@@ -103,6 +105,7 @@ sub draw
 														 item=>$item,
 														 start=>$start, end=>$end,
 														 width=>$width, height=>$height);
+		#print STDERR "DEBUG RRDdraw: cbqos @rrdargs\n";
 	}
 	elsif ($graphtype eq "calls")
 	{
@@ -334,10 +337,14 @@ sub graphCBQoS
 		foreach my $i (1..$#$CBQosNames)
 		{
 			# \w is [a-zA-Z0-9_]
-			if ( $CBQosNames->[$i] =~ /^[\w-]+$delimiter\w+$delimiter/ )
+			if ( $CBQosNames->[$i] =~ /^[\w-]+$delimiter[\w\.]+$delimiter/ )
 			{
 				$HQOS = 1;
+				#print STDERR "DEBUG: this is HQOS: $CBQosNames->[$i]\n";
 				last;
+			}
+			else {
+				#print STDERR "DEBUG: this is NOT HQOS: $CBQosNames->[$i]\n";
 			}
 		}
 
@@ -351,17 +358,22 @@ sub graphCBQoS
 			my $database = $S->getDBName(graphtype => $thisinfo->{CfgSection},
 																	 index => $thisinfo->{CfgIndex},
 																	 item => $CBQosNames->[$i] );
+
+			#print STDERR "DEBUG: getDBName: $thisinfo->{CfgSection} $thisinfo->{CfgIndex} $CBQosNames->[$i] $database\n";
+
 			my $parent = 0;
 			if ( $CBQosNames->[$i] !~ /\w+$delimiter\w+/ and $HQOS )
 			{
 				$parent = 1;
 				$gtype = "LINE1";
+				#print STDERR "DEBUG: this is HQOS USING LINE1\n";
 			}
 
 			if ( $CBQosNames->[$i] =~ /^([\w-]+)$delimiter\w+$delimiter/ )
 			{
 				$parent_name = $1;
 				dbg("parent_name=$parent_name\n") if ($debug);
+				#print STDERR "DEBUG: this is HQOS parent=$parent_name\n";
 			}
 
 			if ( not $parent and not $gcount)
@@ -447,6 +459,7 @@ sub graphCBQoS
 	my $database = $S->getDBName(graphtype => $thisinfo->{CfgSection},
 															 index => $thisinfo->{CfgIndex},
 															 item => $item	);
+	#print STDERR "DEBUG: getDBName: $thisinfo->{CfgSection} $thisinfo->{CfgIndex} $item $database\n";
 
 	# in this case we always use the FIRST color, not the one for this item
 	my $color = $CBQosValues->{$intf.$CBQosNames->[1]}->{'Color'};
