@@ -2264,6 +2264,7 @@ sub checkNodeConfiguration
 	my $NI = $S->ndinfo;
 	my $V =  $S->view;
 	my $M = $S->mdl;
+	my $C = loadConfTable();
 	info("Starting");
 
 	my @updatePrevValues = qw ( configLastChanged configLastSaved bootConfigLastChanged );
@@ -2320,8 +2321,11 @@ sub checkNodeConfiguration
 		}
 	}
 
+	# on some devices this value changes by a second or two depending on when the request happens,
+	# to deal with that we require the difference to be at least 10 (or config'ed value)
 	### If it is newer, someone changed it!
-	if( $configLastChanged > $configLastChanged_prev ) {
+	my $minConfigTimeChange = $C->{minimum_node_configuration_change_seconds} // 10;
+	if ( $configLastChanged > $configLastChanged_prev && abs($configLastChanged - $configLastChanged_prev) > $minConfigTimeChange ) {
 		$NI->{system}{configChangeCount}++;
 		$V->{system}{configChangeCount_value} = $NI->{system}{configChangeCount};
 		$V->{system}{configChangeCount_title} = "Configuration change count";
